@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './index.css'
 import Dashboard from './pages/Dashboard.tsx'
 import LoginPage from './pages/LoginPage.tsx'
+import Organisateur from './pages/LoginOrganisateur.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
 import MyEventsPage from './pages/MyEventsPage.tsx'
 import OrganizerProfilePage from './pages/OrganizerProfilePage.tsx'
@@ -30,6 +31,7 @@ const AppRouter: React.FC = () => {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+        <Route path="/organisateur" element={<Organisateur />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/dashboard" element={<DashboardRouter />} />
       <Route path="/events" element={<MyEventsPage />} />
