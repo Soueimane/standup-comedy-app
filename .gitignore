@@ -1,0 +1,70 @@
+# Variables d'environnement (CRITIQUE pour la sécurité)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Variables d'environnement du client (Vite)
+client/.env
+client/.env.local
+client/.env.development
+client/.env.development.local
+client/.env.production
+client/.env.production.local
+client/.env.test
+client/.env.test.local
+
+# Fichiers de configuration avec secrets
+**/config/env.ts
+**/config/env.js
+server/src/config/env.ts
+server/dist/config/env.js
+
+# Fichiers de debug avec credentials
+server/debug-events.js
+
+# Fichiers de base de données locaux
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs détaillés
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Coverage des tests
+coverage/
+*.lcov
+
+# Cache et fichiers temporaires
+.cache/
+*.tsbuildinfo
+.tmp/
+tmp/
+
+# Fichiers de déploiement
+.vercel
+.netlify
+
+# Dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
