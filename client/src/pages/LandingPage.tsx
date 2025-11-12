@@ -4,8 +4,12 @@ import { useNavigate } from 'react-router-dom';
 function LandingPage() {
   const navigate = useNavigate();
 
-  const handleLoginClick = () => {
+  const handleHumoristeClick = () => {
     navigate('/login');
+  };
+
+  const handleOrganisateurClick = () => {
+    navigate('/organisateur');
   };
 
   const pageStyle: CSSProperties = {
@@ -36,6 +40,13 @@ function LandingPage() {
     maxWidth: '600px',
   };
 
+  const buttonContainerStyle: CSSProperties = {
+    display: 'flex',
+    gap: '20px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  };
+
   const buttonStyle: CSSProperties = {
     padding: '15px 30px',
     borderRadius: '8px',
@@ -47,6 +58,11 @@ function LandingPage() {
     cursor: 'pointer',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
     boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
+  };
+
+  const buttonHoverStyle: CSSProperties = {
+    transform: 'scale(1.05)',
+    boxShadow: '0 0 20px rgba(255, 65, 108, 0.6)',
   };
 
   const logoStyle: CSSProperties = {
@@ -79,36 +95,28 @@ function LandingPage() {
               transform: translateY(5px) rotate(-1deg);
             }
           }
+          button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 65, 108, 0.6);
+          }
         `}
       </style>
       
       {/* Logo */}
       <div style={logoStyle}>
         <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Fond avec dégradé et bordure brillante */}
           <circle cx="60" cy="60" r="58" fill="url(#bgGradient)" stroke="url(#borderGradient)" strokeWidth="4"/>
-          
-          {/* Microphone principal */}
           <g transform="translate(30, 15)">
-            {/* Corps du microphone avec dégradé */}
             <ellipse cx="30" cy="38" rx="22" ry="30" fill="url(#micGradient)"/>
-            
-            {/* Grille du microphone avec effet brillant */}
             <rect x="14" y="22" width="32" height="5" rx="2.5" fill="#2a1458" opacity="0.8"/>
             <rect x="14" y="32" width="32" height="5" rx="2.5" fill="#2a1458" opacity="0.8"/>
             <rect x="14" y="42" width="32" height="5" rx="2.5" fill="#2a1458" opacity="0.8"/>
             <rect x="14" y="52" width="32" height="5" rx="2.5" fill="#2a1458" opacity="0.8"/>
-            
-            {/* Reflet brillant sur le microphone */}
             <ellipse cx="24" cy="30" rx="8" ry="12" fill="url(#highlight)" opacity="0.4"/>
-            
-            {/* Support du microphone avec effet 3D */}
             <path d="M 8 68 Q 8 76 16 76 L 44 76 Q 52 76 52 68" stroke="url(#supportGradient)" strokeWidth="5" fill="none"/>
             <line x1="30" y1="76" x2="30" y2="90" stroke="url(#supportGradient)" strokeWidth="5"/>
             <line x1="16" y1="90" x2="44" y2="90" stroke="url(#supportGradient)" strokeWidth="5" strokeLinecap="round"/>
           </g>
-          
-          {/* Définitions des dégradés */}
           <defs>
             <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#4a148c"/>
@@ -138,12 +146,20 @@ function LandingPage() {
       </div>
       
       <h1 style={titleStyle}>Stand-up Comedy Connect</h1>
-      <p style={subtitleStyle}>La plateforme qui connecte les humoristes et les organisateurs d'événements.</p>
-      <button onClick={handleLoginClick} style={buttonStyle}>
-        Se connecter
-      </button>
+      <p style={subtitleStyle}>
+        La plateforme qui connecte les humoristes et les organisateurs d'événements.
+      </p>
+
+      <div style={buttonContainerStyle}>
+        <button style={buttonStyle} onClick={handleHumoristeClick}>
+          Je suis humoriste
+        </button>
+        <button style={buttonStyle} onClick={handleOrganisateurClick}>
+          Je suis organisateur
+        </button>
+      </div>
     </div>
   );
 }
 
-export default LandingPage; 
+export default LandingPage;
