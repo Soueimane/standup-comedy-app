@@ -147,11 +147,20 @@ function RegisterPage() {
     }
     
     try {
-      // Préparer les données pour l'API (sans profile et confirmPassword)
-      const { confirmPassword, profile, ...registerData } = formData;
+      // Préparer les données pour l'API (sans confirmPassword uniquement)
+      const { confirmPassword, ...registerData } = formData;
       
-      // Envoyer uniquement les champs requis par le backend
-      await registerMutation.mutateAsync(registerData);
+      // Convertir experience en nombre pour correspondre au schéma backend
+      const dataToSend = {
+        ...registerData,
+        profile: {
+          ...registerData.profile,
+          experience: parseInt(registerData.profile.experience) || 0
+        }
+      };
+      
+      // Envoyer les données avec profile au backend
+      await registerMutation.mutateAsync(dataToSend);
       // La redirection est gérée dans AuthContext
     } catch (error: any) {
       // Afficher les erreurs de validation détaillées si disponibles

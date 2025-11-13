@@ -13,13 +13,40 @@ const app = express();
 
 // Middleware CORS configuré + gestion explicite du preflight OPTIONS
 const corsOptions = {
-  origin: true, // Autorise toutes les origines (peut être remplacé par une liste d'origines)
+  origin: function (origin, callback) {
+    // Autoriser toutes les origines en développement, ou une liste spécifique en production
+    const allowedOrigins = [
+      'https://standup-comedy-app.netlify.app',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5174',
+    ];
+    
+    // En développement ou si pas d'origine (requêtes depuis Postman, etc.), autoriser
+    if (!origin || process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // En production, vérifier si l'origine est autorisée
+      callback(null, true); // Pour l'instant, on autorise toutes les origines
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as string[],
-  allowedHeaders: ['Content-Type', 'Authorization'] as string[],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400, // 24 heures pour le cache preflight
 };
 
 app.use(cors(corsOptions));
+// Gestion explicite des requêtes OPTIONS (preflight)
 app.options('*', cors(corsOptions));
 app.use(express.json());
 

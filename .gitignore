@@ -16,9 +16,9 @@ client/.env.test
 client/.env.test.local
 
 # Fichiers de configuration avec secrets
-**/config/env.ts
+# Note: env.ts est maintenant versionné car il ne contient pas de secrets,
+# il lit uniquement les variables d'environnement
 **/config/env.js
-server/src/config/env.ts
 server/dist/config/env.js
 
 # Fichiers de debug avec credentials
