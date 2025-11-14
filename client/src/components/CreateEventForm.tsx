@@ -1,6 +1,6 @@
 import React, { type CSSProperties, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { X, ChevronDown } from 'lucide-react';
+import { X, ChevronDown, MapPin, Calendar, Users } from 'lucide-react';
 import api from '../services/api';
 
 interface CreateEventFormProps {
@@ -719,6 +719,33 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     width: isMobile ? '100%' : 'auto'
   };
 
+  // Styles pour les sections
+  const sectionStyle: CSSProperties = {
+    marginTop: '32px',
+    padding: '24px',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: '12px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+  };
+
+  const sectionTitleStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '24px',
+    paddingBottom: '16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    color: '#fff',
+    fontSize: '18px',
+    fontWeight: '600',
+  };
+
+  const sectionGridStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+    gap: '20px',
+  };
+
   return (
     <div style={modalStyle} onClick={(e: React.MouseEvent<HTMLDivElement>) => e.target === e.currentTarget && onClose()}>
       <div style={formStyle}>
@@ -753,13 +780,10 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
         {/* Content */}
         <div style={contentStyle}>
           <form onSubmit={handleSubmit}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-              gap: isMobile ? '16px' : '20px'
-            }}>
+            {/* Titre et Description en haut */}
+            <div style={{ marginBottom: '32px' }}>
               {/* Titre */}
-              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+              <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
                   Titre de l'événement *
                 </label>
@@ -782,7 +806,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
               </div>
 
               {/* Description */}
-              <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+              <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
                   Description *
                 </label>
@@ -804,357 +828,384 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   </p>
                 )}
               </div>
+            </div>
 
-              {/* Lieu/Bar */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Lieu (nom de la salle) *
-                </label>
-                <input
-                  type="text"
-                  id="venue"
-                  value={formData.venue}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.venue ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: Le Comedy Club"
-                />
-                {errors.venue && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.venue}
-                  </p>
-                )}
+            {/* Section Localisation */}
+            <div style={sectionStyle}>
+              <div style={sectionTitleStyle}>
+                <MapPin size={20} style={{ color: '#ff416c' }} />
+                <span>Localisation</span>
               </div>
-
-              {/* Adresse */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Adresse *
-                </label>
-                <input
-                  type="text"
-                  id="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.address ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: 123 rue de la Comédie"
-                />
-                {errors.address && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.address}
-                  </p>
-                )}
-              </div>
-
-              {/* Code postal */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Code postal *
-                </label>
-                <input
-                  type="text"
-                  id="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.postalCode ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: 75001"
-                  maxLength={5}
-                />
-                {errors.postalCode && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.postalCode}
-                  </p>
-                )}
-              </div>
-
-              {/* Ville */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Ville *
-                </label>
-                <input
-                  type="text"
-                  id="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.city ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: Paris"
-                />
-                {errors.city && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.city}
-                  </p>
-                )}
-              </div>
-
-              {/* Pays */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Pays *
-                </label>
-                <input
-                  type="text"
-                  id="country"
-                  value={formData.country}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.country ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: France"
-                />
-                {errors.country && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.country}
-                  </p>
-                )}
-              </div>
-
-              {/* Date */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Date *
-                </label>
-                <input
-                  type="date"
-                  id="date"
-                  value={formData.date}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.date ? '#ef4444' : '#444'
-                  }}
-                />
-                {errors.date && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.date}
-                  </p>
-                )}
-              </div>
-
-              {/* Heure de début - Dropdown personnalisé */}
-              <div ref={startTimeRef} style={{ position: 'relative', zIndex: 100 }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Heure de début *
-                </label>
-                <div
-                  onClick={() => {
-                    setOpenStartTimeDropdown(!openStartTimeDropdown);
-                    setOpenEndTimeDropdown(false);
-                  }}
-                  style={{
-                    ...selectStyle,
-                    borderColor: errors.startTime ? '#ef4444' : '#444',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span style={{ color: formData.startTime ? '#fff' : '#999' }}>
-                    {formData.startTime 
-                      ? timeSlots.find(slot => slot.value === formData.startTime)?.label 
-                      : 'Sélectionnez une heure'}
-                  </span>
-                  <ChevronDown 
-                    size={18} 
-                    style={{ 
-                      color: '#fff', 
-                      transform: openStartTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s ease'
-                    }} 
+              <div style={sectionGridStyle}>
+                {/* Lieu/Bar */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Lieu (nom de la salle) *
+                  </label>
+                  <input
+                    type="text"
+                    id="venue"
+                    value={formData.venue}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.venue ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: Le Comedy Club"
                   />
+                  {errors.venue && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.venue}
+                    </p>
+                  )}
                 </div>
-                {openStartTimeDropdown && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px',
-                    backgroundColor: '#1a1a2e',
-                    border: '1px solid #444',
-                    borderRadius: '8px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    zIndex: 1000,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                  }}>
-                    {getAvailableStartTimeSlots().map((slot) => (
-                      <div
-                        key={slot.value}
-                        onClick={() => handleTimeSelect(slot.value, 'startTime')}
-                        style={{
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          color: '#fff',
-                          backgroundColor: formData.startTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                          transition: 'background-color 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (formData.startTime !== slot.value) {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (formData.startTime !== slot.value) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        {slot.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {errors.startTime && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.startTime}
-                  </p>
-                )}
-              </div>
 
-              {/* Heure de fin - Dropdown personnalisé */}
-              <div ref={endTimeRef} style={{ position: 'relative', zIndex: 100 }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Heure de fin *
-                </label>
-                <div
-                  onClick={() => {
-                    setOpenEndTimeDropdown(!openEndTimeDropdown);
-                    setOpenStartTimeDropdown(false);
-                  }}
-                  style={{
-                    ...selectStyle,
-                    borderColor: errors.endTime ? '#ef4444' : '#444',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span style={{ color: formData.endTime ? '#fff' : '#999' }}>
-                    {formData.endTime 
-                      ? timeSlots.find(slot => slot.value === formData.endTime)?.label 
-                      : 'Sélectionnez une heure'}
-                  </span>
-                  <ChevronDown 
-                    size={18} 
-                    style={{ 
-                      color: '#fff', 
-                      transform: openEndTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s ease'
-                    }} 
+                {/* Adresse */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Adresse *
+                  </label>
+                  <input
+                    type="text"
+                    id="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.address ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: 123 rue de la Comédie"
                   />
+                  {errors.address && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.address}
+                    </p>
+                  )}
                 </div>
-                {openEndTimeDropdown && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px',
-                    backgroundColor: '#1a1a2e',
-                    border: '1px solid #444',
-                    borderRadius: '8px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    zIndex: 1000,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                  }}>
-                    {timeSlots.map((slot) => (
-                      <div
-                        key={slot.value}
-                        onClick={() => handleTimeSelect(slot.value, 'endTime')}
-                        style={{
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          color: '#fff',
-                          backgroundColor: formData.endTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                          transition: 'background-color 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (formData.endTime !== slot.value) {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (formData.endTime !== slot.value) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        {slot.label}
-                      </div>
-                    ))}
+
+                {/* Code postal */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Code postal *
+                  </label>
+                  <input
+                    type="text"
+                    id="postalCode"
+                    value={formData.postalCode}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.postalCode ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: 75001"
+                    maxLength={5}
+                  />
+                  {errors.postalCode && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.postalCode}
+                    </p>
+                  )}
+                </div>
+
+                {/* Ville */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Ville *
+                  </label>
+                  <input
+                    type="text"
+                    id="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.city ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: Paris"
+                  />
+                  {errors.city && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.city}
+                    </p>
+                  )}
+                </div>
+
+                {/* Pays */}
+                <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Pays *
+                  </label>
+                  <input
+                    type="text"
+                    id="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.country ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: France"
+                  />
+                  {errors.country && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.country}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section Informations d'événement */}
+            <div style={sectionStyle}>
+              <div style={sectionTitleStyle}>
+                <Calendar size={20} style={{ color: '#ff416c' }} />
+                <span>Informations d'événement</span>
+              </div>
+              <div style={sectionGridStyle}>
+                {/* Date */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.date ? '#ef4444' : '#444'
+                    }}
+                  />
+                  {errors.date && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.date}
+                    </p>
+                  )}
+                </div>
+
+                {/* Heure de début - Dropdown personnalisé */}
+                <div ref={startTimeRef} style={{ position: 'relative', zIndex: 100 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Heure de début *
+                  </label>
+                  <div
+                    onClick={() => {
+                      setOpenStartTimeDropdown(!openStartTimeDropdown);
+                      setOpenEndTimeDropdown(false);
+                    }}
+                    style={{
+                      ...selectStyle,
+                      borderColor: errors.startTime ? '#ef4444' : '#444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ color: formData.startTime ? '#fff' : '#999' }}>
+                      {formData.startTime 
+                        ? timeSlots.find(slot => slot.value === formData.startTime)?.label 
+                        : 'Sélectionnez une heure'}
+                    </span>
+                    <ChevronDown 
+                      size={18} 
+                      style={{ 
+                        color: '#fff', 
+                        transform: openStartTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease'
+                      }} 
+                    />
                   </div>
-                )}
-                {errors.endTime && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.endTime}
-                  </p>
-                )}
-              </div>
+                  {openStartTimeDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      backgroundColor: '#1a1a2e',
+                      border: '1px solid #444',
+                      borderRadius: '8px',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      zIndex: 1000,
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+                    }}>
+                      {getAvailableStartTimeSlots().map((slot) => (
+                        <div
+                          key={slot.value}
+                          onClick={() => handleTimeSelect(slot.value, 'startTime')}
+                          style={{
+                            padding: '12px 16px',
+                            cursor: 'pointer',
+                            color: '#fff',
+                            backgroundColor: formData.startTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (formData.startTime !== slot.value) {
+                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (formData.startTime !== slot.value) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          {slot.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {errors.startTime && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.startTime}
+                    </p>
+                  )}
+                </div>
 
-              {/* Expérience minimale */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Expérience minimale (années) *
-                </label>
-                <input
-                  type="number"
-                  id="minExperience"
-                  value={formData.minExperience}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.minExperience ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: 2"
-                  min="0"
-                />
-                {errors.minExperience && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.minExperience}
-                  </p>
-                )}
+                {/* Heure de fin - Dropdown personnalisé */}
+                <div ref={endTimeRef} style={{ position: 'relative', zIndex: 100 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Heure de fin *
+                  </label>
+                  <div
+                    onClick={() => {
+                      setOpenEndTimeDropdown(!openEndTimeDropdown);
+                      setOpenStartTimeDropdown(false);
+                    }}
+                    style={{
+                      ...selectStyle,
+                      borderColor: errors.endTime ? '#ef4444' : '#444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ color: formData.endTime ? '#fff' : '#999' }}>
+                      {formData.endTime 
+                        ? timeSlots.find(slot => slot.value === formData.endTime)?.label 
+                        : 'Sélectionnez une heure'}
+                    </span>
+                    <ChevronDown 
+                      size={18} 
+                      style={{ 
+                        color: '#fff', 
+                        transform: openEndTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease'
+                      }} 
+                    />
+                  </div>
+                  {openEndTimeDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      backgroundColor: '#1a1a2e',
+                      border: '1px solid #444',
+                      borderRadius: '8px',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      zIndex: 1000,
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+                    }}>
+                      {timeSlots.map((slot) => (
+                        <div
+                          key={slot.value}
+                          onClick={() => handleTimeSelect(slot.value, 'endTime')}
+                          style={{
+                            padding: '12px 16px',
+                            cursor: 'pointer',
+                            color: '#fff',
+                            backgroundColor: formData.endTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (formData.endTime !== slot.value) {
+                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (formData.endTime !== slot.value) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          {slot.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {errors.endTime && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.endTime}
+                    </p>
+                  )}
+                </div>
               </div>
+            </div>
 
-              {/* Nombre maximum de comédiens */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Nombre maximum de comédiens *
-                </label>
-                <input
-                  type="number"
-                  id="maxComedians"
-                  value={formData.maxComedians}
-                  onChange={handleChange}
-                  style={{
-                    ...inputStyle,
-                    borderColor: errors.maxComedians ? '#ef4444' : '#444'
-                  }}
-                  placeholder="Ex: 5"
-                  min="1"
-                />
-                {errors.maxComedians && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.maxComedians}
-                  </p>
-                )}
+            {/* Section Conditions */}
+            <div style={sectionStyle}>
+              <div style={sectionTitleStyle}>
+                <Users size={20} style={{ color: '#ff416c' }} />
+                <span>Conditions</span>
+              </div>
+              <div style={sectionGridStyle}>
+                {/* Expérience minimale */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Expérience minimale (années) *
+                  </label>
+                  <input
+                    type="number"
+                    id="minExperience"
+                    value={formData.minExperience}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.minExperience ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: 2"
+                    min="0"
+                  />
+                  {errors.minExperience && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.minExperience}
+                    </p>
+                  )}
+                </div>
+
+                {/* Nombre maximum de comédiens */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Nombre maximum de comédiens *
+                  </label>
+                  <input
+                    type="number"
+                    id="maxComedians"
+                    value={formData.maxComedians}
+                    onChange={handleChange}
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.maxComedians ? '#ef4444' : '#444'
+                    }}
+                    placeholder="Ex: 5"
+                    min="1"
+                  />
+                  {errors.maxComedians && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.maxComedians}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
