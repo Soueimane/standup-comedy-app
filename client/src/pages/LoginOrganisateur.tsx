@@ -31,6 +31,15 @@ function LoginOrganisateur() {
     };
   }, []);
 
+  // Debug: surveiller les changements de loginError
+  useEffect(() => {
+    if (loginError) {
+      console.log('✅ Message d\'erreur défini:', loginError);
+    } else {
+      console.log('⚠️ Message d\'erreur effacé');
+    }
+  }, [loginError]);
+
   const validatePassword = (password: string) => {
     const length = password.length >= 8;
     const isValid = length;
@@ -56,7 +65,7 @@ function LoginOrganisateur() {
       await loginMutation.mutateAsync(loginData);
       // La redirection est gérée dans AuthContext.onSuccess
     } catch (error: any) {
-      console.error('Erreur de connexion:', error);
+      console.error('Erreur de connexion capturée:', error);
       // L'erreur peut être dans error.response.data.message ou error.message
       const errorMessage = error?.response?.data?.message || error?.message || 'Une erreur est survenue lors de la connexion';
       console.log('Message d\'erreur extrait:', errorMessage);
@@ -66,28 +75,26 @@ function LoginOrganisateur() {
         ? 'Email ou mot de passe invalide'
         : errorMessage;
       
+      console.log('🔴 Définition du message d\'erreur:', finalErrorMessage);
+      
       // Nettoyer tout timeout précédent
       if (loginErrorTimeoutRef.current) {
         clearTimeout(loginErrorTimeoutRef.current);
       }
       
-      setLoginError(finalErrorMessage);
-      
-      // S'assurer que l'erreur reste affichée au moins 3 secondes
-      loginErrorTimeoutRef.current = window.setTimeout(() => {
-        // Ne pas effacer automatiquement, laisser l'utilisateur voir l'erreur
-      }, 3000);
+      // Utiliser setTimeout pour s'assurer que l'état est mis à jour après le re-render
+      setTimeout(() => {
+        setLoginError(finalErrorMessage);
+        console.log('✅ Message d\'erreur défini après timeout:', finalErrorMessage);
+      }, 0);
     }
   };
 
   const handleChangeLogin = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
-    // Effacer l'erreur de connexion seulement si l'utilisateur modifie réellement le contenu
-    // (pas juste un focus ou un événement vide)
-    if (loginError && value !== loginData[name as keyof typeof loginData]) {
-      setLoginError('');
-    }
+    // Ne PAS effacer l'erreur automatiquement - laisser l'utilisateur voir l'erreur
+    // L'erreur sera effacée seulement quand l'utilisateur soumet à nouveau le formulaire
     
     // Validation en temps réel du mot de passe
     if (name === 'password') {
