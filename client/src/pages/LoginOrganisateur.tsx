@@ -52,7 +52,11 @@ function LoginOrganisateur() {
       await loginMutation.mutateAsync(loginData);
       navigate(redirect); // Redirige vers la page souhaitée après connexion
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Une erreur est survenue lors de la connexion';
+      console.error('Erreur de connexion:', error);
+      // L'erreur peut être dans error.response.data.message ou error.message
+      const errorMessage = error?.response?.data?.message || error?.message || 'Une erreur est survenue lors de la connexion';
+      console.log('Message d\'erreur extrait:', errorMessage);
+      
       // Afficher un message d'erreur spécifique
       if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
         setLoginError('Email ou mot de passe invalide');
