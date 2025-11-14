@@ -50,7 +50,7 @@ function LoginOrganisateur() {
     
     try {
       await loginMutation.mutateAsync(loginData);
-      navigate(redirect); // Redirige vers la page souhaitée après connexion
+      // La redirection est gérée dans AuthContext.onSuccess
     } catch (error: any) {
       console.error('Erreur de connexion:', error);
       // L'erreur peut être dans error.response.data.message ou error.message
@@ -69,8 +69,9 @@ function LoginOrganisateur() {
   const handleChangeLogin = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
-    // Effacer l'erreur de connexion quand l'utilisateur commence à taper
-    if (loginError) {
+    // Effacer l'erreur de connexion seulement si l'utilisateur modifie réellement le contenu
+    // (pas juste un focus ou un événement vide)
+    if (loginError && value !== loginData[name as keyof typeof loginData]) {
       setLoginError('');
     }
     
