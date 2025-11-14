@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
@@ -17,6 +17,7 @@ function LoginOrganisateur() {
   });
   const [passwordError, setPasswordError] = useState('');
   const [loginError, setLoginError] = useState('');
+  const loginErrorTimeoutRef = useRef<number | null>(null);
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     isValid: false
@@ -25,6 +26,15 @@ function LoginOrganisateur() {
   // Initialiser la validation au chargement
   useEffect(() => {
     validatePassword(loginData.password);
+  }, []);
+
+  // Cleanup du timeout au démontage
+  useEffect(() => {
+    return () => {
+      if (loginErrorTimeoutRef.current) {
+        clearTimeout(loginErrorTimeoutRef.current);
+      }
+    };
   }, []);
 
   const validatePassword = (password: string) => {
@@ -58,11 +68,21 @@ function LoginOrganisateur() {
       console.log('Message d\'erreur extrait:', errorMessage);
       
       // Afficher un message d'erreur spécifique
-      if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
-        setLoginError('Email ou mot de passe invalide');
-      } else {
-        setLoginError(errorMessage);
+      const finalErrorMessage = errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')
+        ? 'Email ou mot de passe invalide'
+        : errorMessage;
+      
+      // Nettoyer tout timeout précédent
+      if (loginErrorTimeoutRef.current) {
+        clearTimeout(loginErrorTimeoutRef.current);
       }
+      
+      setLoginError(finalErrorMessage);
+      
+      // S'assurer que l'erreur reste affichée au moins 3 secondes
+      loginErrorTimeoutRef.current = window.setTimeout(() => {
+        // Ne pas effacer automatiquement, laisser l'utilisateur voir l'erreur
+      }, 3000);
     }
   };
 
