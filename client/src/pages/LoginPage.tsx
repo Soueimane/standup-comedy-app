@@ -16,6 +16,7 @@ function LoginPage() {
     password: '',
   });
   const [passwordError, setPasswordError] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     isValid: false
@@ -39,6 +40,7 @@ function LoginPage() {
   const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
+    setLoginError('');
     
     // Vérifier la validation du mot de passe
     if (!passwordValidation.isValid) {
@@ -50,12 +52,23 @@ function LoginPage() {
       await loginMutation.mutateAsync(loginData);
       navigate(redirect); // Redirige vers la page souhaitée après connexion
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Une erreur est survenue lors de la connexion');
+      const errorMessage = error.response?.data?.message || 'Une erreur est survenue lors de la connexion';
+      // Afficher un message d'erreur spécifique
+      if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
+        setLoginError('Email ou mot de passe invalide');
+      } else {
+        setLoginError(errorMessage);
+      }
     }
   };
 
   const handleChangeLogin = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    // Effacer l'erreur de connexion quand l'utilisateur commence à taper
+    if (loginError) {
+      setLoginError('');
+    }
     
     // Validation en temps réel du mot de passe
     if (name === 'password') {
@@ -145,7 +158,10 @@ function LoginPage() {
             placeholder="Email"
             value={loginData.email}
             onChange={handleChangeLogin}
-            style={inputStyle}
+            style={{
+              ...inputStyle,
+              borderColor: loginError ? '#dc3545' : '#444'
+            }}
             required
           />
           <input
@@ -154,9 +170,32 @@ function LoginPage() {
             placeholder="Mot de passe"
             value={loginData.password}
             onChange={handleChangeLogin}
-            style={inputStyle}
+            style={{
+              ...inputStyle,
+              borderColor: loginError ? '#dc3545' : '#444'
+            }}
             required
           />
+          
+          {/* Message d'erreur de connexion */}
+          {loginError && (
+            <div style={{ 
+              color: '#dc3545', 
+              marginBottom: '10px', 
+              fontSize: '0.9em',
+              textAlign: 'left',
+              padding: '10px',
+              backgroundColor: 'rgba(220, 53, 69, 0.15)',
+              borderRadius: '5px',
+              border: '1px solid rgba(220, 53, 69, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>⚠️</span>
+              <span>{loginError}</span>
+            </div>
+          )}
           
           {/* Message d'erreur du mot de passe */}
           {passwordError && (
