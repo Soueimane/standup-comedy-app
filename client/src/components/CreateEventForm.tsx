@@ -56,7 +56,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   const [openEndTimeDropdown, setOpenEndTimeDropdown] = useState(false);
   const startTimeRef = useRef<HTMLDivElement>(null);
   const endTimeRef = useRef<HTMLDivElement>(null);
-  const addressSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const addressSearchTimeoutRef = useRef<number | null>(null);
   const isAutoFillingRef = useRef(false);
 
   // Fermer les dropdowns quand on clique en dehors
