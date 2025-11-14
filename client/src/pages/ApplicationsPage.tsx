@@ -4,7 +4,6 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
-import type { IUserData } from '../types/user';
 
 export interface IUser {
   _id: string;
