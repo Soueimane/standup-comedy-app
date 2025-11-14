@@ -37,6 +37,7 @@ const AppRouter: React.FC = () => {
       <Route path="/events" element={<MyEventsPage />} />
       <Route path="/profile/organizer" element={<OrganizerProfilePage />} />
       <Route path="/applications" element={<ApplicationsPage />} />
+      <Route path="/profile/comedian/:id" element={<ComedianProfilePage />} />
       <Route path="/profile/comedian" element={<ComedianProfilePage />} />
       <Route path="/directory" element={<DirectoryPage />} />
     </Routes>

@@ -4,7 +4,6 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
-import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import type { IUserData } from '../types/user';
 
 export interface IUser {
@@ -51,8 +50,6 @@ function ApplicationsPage() {
   const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] = useState<IApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedComedian, setSelectedComedian] = useState<IUserData | null>(null);
-  const [isComedianModalOpen, setIsComedianModalOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED'>('all');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusToSet, setStatusToSet] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
@@ -370,21 +367,10 @@ function ApplicationsPage() {
     marginRight: '10px',
   };
 
-  const handleViewComedianProfile = async (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
+  const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
     e.stopPropagation();
-    try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      const response = await api.get<IUserData>(`/profile/${comedianId}`, config);
-      setSelectedComedian(response.data);
-      setIsComedianModalOpen(true);
-    } catch (err: any) {
-      console.error('Erreur lors de la récupération du profil:', err.response?.data || err.message);
-      alert('Erreur lors du chargement du profil de l\'humoriste');
-    }
+    // Naviguer vers la page de profil de l'humoriste
+    navigate(`/profile/comedian/${comedianId}`);
   };
 
   const tabButtonStyle: CSSProperties = {
@@ -684,16 +670,6 @@ function ApplicationsPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           application={selectedApplication}
-        />
-      )}
-      {selectedComedian && (
-        <ComedianDetailsModal
-          isOpen={isComedianModalOpen}
-          onClose={() => {
-            setIsComedianModalOpen(false);
-            setSelectedComedian(null);
-          }}
-          comedian={selectedComedian}
         />
       )}
       {showStatusModal && (

@@ -1,17 +1,49 @@
 import { type CSSProperties, useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditComedianProfileForm from '../components/EditComedianProfileForm';
+import api from '../services/api';
 
 function ComedianProfilePage() {
-  const { user: authUser, refreshUser } = useAuth();
+  const { id } = useParams<{ id?: string }>();
+  const { user: authUser, token, refreshUser } = useAuth();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const isViewingOtherProfile = !!id && id !== authUser?._id;
 
   useEffect(() => {
-    setUser(authUser);
-  }, [authUser]);
+    if (id && id !== authUser?._id) {
+      // Charger le profil d'un autre humoriste
+      setLoading(true);
+      const loadProfile = async () => {
+        try {
+          if (!token) {
+            alert('Vous devez être connecté pour voir ce profil');
+            return;
+          }
+          const config = {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          };
+          const response = await api.get<IUserData>(`/profile/${id}`, config);
+          setUser(response.data);
+        } catch (err: any) {
+          console.error('Erreur lors de la récupération du profil:', err.response?.data || err.message);
+          alert('Erreur lors du chargement du profil de l\'humoriste');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadProfile();
+    } else {
+      // Afficher le profil de l'utilisateur connecté
+      setUser(authUser);
+    }
+  }, [id, authUser, token]);
 
   const handleSaveSuccess = () => {
     refreshUser();
@@ -134,10 +166,16 @@ function ComedianProfilePage() {
 
       <div style={pageHeaderStyle}>
         <div>
-          <h1 style={titleStyle}>Mon Profil Humoriste</h1>
-          <p style={subtitleStyle}>Gère tes informations et préférences en tant qu'humoriste</p>
+          <h1 style={titleStyle}>{isViewingOtherProfile ? 'Profil Humoriste' : 'Mon Profil Humoriste'}</h1>
+          <p style={subtitleStyle}>
+            {isViewingOtherProfile 
+              ? `Profil de ${user ? `${user.firstName} ${user.lastName}` : 'l\'humoriste'}`
+              : 'Gère tes informations et préférences en tant qu\'humoriste'}
+          </p>
         </div>
-        <button style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
+        {!isViewingOtherProfile && (
+          <button style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
+        )}
       </div>
 
       {isEditing && user ? (
@@ -321,8 +359,15 @@ function ComedianProfilePage() {
                 </div>
               </div>
             )}
-            <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>MODIFIER</button>
+            {!isViewingOtherProfile && (
+              <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>MODIFIER</button>
+            )}
           </div>
+        </div>
+      )}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
+          Chargement du profil...
         </div>
       )}
     </div>
