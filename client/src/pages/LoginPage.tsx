@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 function LoginPage() {
   const { loginMutation } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  // Récupérer le paramètre redirect de l'URL
-  const params = new URLSearchParams(location.search);
-  const redirect = params.get('redirect') || '/dashboard';
 
   const [loginData, setLoginData] = useState({
     email: '',
