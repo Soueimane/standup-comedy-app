@@ -6,7 +6,8 @@ import {
   getEventById,
   updateEvent,
   deleteEvent,
-  getOrganizerEvents
+  getOrganizerEvents,
+  notifyHumorists
 } from '../controllers/event';
 
 const router = Router();
@@ -20,5 +21,6 @@ router.post('/', authMiddleware, createEvent);
 router.put('/:id', authMiddleware, updateEvent);
 router.delete('/:id', authMiddleware, deleteEvent);
 router.get('/organizer/events', authMiddleware, getOrganizerEvents);
+router.post('/:id/notify', authMiddleware, notifyHumorists);
 
 export default router; 

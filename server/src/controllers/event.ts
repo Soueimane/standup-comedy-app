@@ -147,7 +147,7 @@ export const getEvents = async (req: Request, res: Response): Promise<void> => {
 
 export const getEventById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const event = await EventModel.findById(req.params.eventId)
+    const event = await EventModel.findById(req.params.id)
       .populate('organizer', 'firstName lastName email')
       .populate({
         path: 'applications',
@@ -171,7 +171,7 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
 
 export const updateEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const eventId = req.params.eventId;
+    const eventId = req.params.id;
     const organizerId = req.user?.id;
 
     const event = await EventModel.findOne({ _id: eventId, organizer: organizerId });
@@ -437,5 +437,75 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
   } catch (err) {
     console.error('Error fetching event stats:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const eventId = req.params.id;
+    const organizerId = req.user?.id;
+
+    // Récupérer l'événement
+    const event = await EventModel.findById(eventId)
+      .populate('organizer', 'firstName lastName email');
+    
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    // Vérifier que l'utilisateur est bien l'organisateur de l'événement
+    const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null 
+      ? (event.organizer as any)._id?.toString() 
+      : event.organizer?.toString();
+    
+    if (eventOrganizerId !== organizerId) {
+      res.status(403).json({ message: 'Vous n\'êtes pas autorisé à envoyer des notifications pour cet événement' });
+      return;
+    }
+
+    // Récupérer les informations de l'organisateur
+    const organizer = await UserModel.findById(organizerId);
+    if (!organizer) {
+      res.status(404).json({ message: 'Organisateur non trouvé' });
+      return;
+    }
+
+    // Préparer les données de l'événement pour l'email
+    const eventData = {
+      _id: event._id,
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      location: event.location,
+      requirements: event.requirements,
+      startTime: event.startTime,
+      endTime: event.endTime
+    };
+
+    const organizerData = {
+      _id: organizer._id,
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+      email: organizer.email
+    };
+
+    // Envoyer les notifications en arrière-plan
+    sendNewEventNotificationToHumorists(eventData, organizerData)
+      .then(() => {
+        console.log(`✅ Notifications envoyées manuellement pour l'événement "${event.title}" par ${organizer.firstName} ${organizer.lastName}`);
+      })
+      .catch((error) => {
+        console.error('❌ Erreur lors de l\'envoi manuel des notifications:', error);
+      });
+
+    res.status(200).json({ 
+      message: 'Envoi des notifications aux humoristes en cours',
+      eventId: event._id,
+      eventTitle: event.title
+    });
+  } catch (error) {
+    console.error('Error notifying humorists:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'envoi des notifications' });
   }
 }; 

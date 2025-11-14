@@ -40,6 +40,7 @@ function MyEventsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
+  const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -506,6 +507,33 @@ function MyEventsPage() {
       setShowCancelModal(false);
       setEventToCancel(null);
       setCancelReason('');
+    }
+  };
+
+  const handleNotifyHumorists = async (event: IEvent) => {
+    if (!token) {
+      alert('Vous devez être connecté pour envoyer des notifications.');
+      return;
+    }
+
+    if (!confirm(`Voulez-vous envoyer une notification par email à tous les humoristes pour l'événement "${event.title}" ?`)) {
+      return;
+    }
+
+    setNotifyingEventId(event._id);
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+      const response = await api.post(`/events/${event._id}/notify`, {}, config);
+      alert('Les notifications ont été envoyées avec succès aux humoristes !');
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi des notifications:', error);
+      alert('Erreur: ' + (error.response?.data?.message || error.message || 'Impossible d\'envoyer les notifications'));
+    } finally {
+      setNotifyingEventId(null);
     }
   };
 
@@ -1108,12 +1136,18 @@ function MyEventsPage() {
                   Modifier
                 </button>
                 <button 
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+                  style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8' }}
+                  disabled={notifyingEventId === event._id}
+                >
+                  {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+                </button>
+                <button 
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
                   style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d' }}
                 >
                   Annuler
                 </button>
-                
               </div>
             )}
           </div>
