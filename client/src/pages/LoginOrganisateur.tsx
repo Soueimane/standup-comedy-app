@@ -12,6 +12,7 @@ function LoginOrganisateur() {
   const [passwordError, setPasswordError] = useState('');
   const [loginError, setLoginError] = useState('');
   const loginErrorTimeoutRef = useRef<number | null>(null);
+  const loginErrorRef = useRef<string>(''); // Ref pour persister l'erreur
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     isValid: false
@@ -35,8 +36,16 @@ function LoginOrganisateur() {
   useEffect(() => {
     if (loginError) {
       console.log('✅ Message d\'erreur défini:', loginError);
+      loginErrorRef.current = loginError; // Synchroniser le ref
     } else {
       console.log('⚠️ Message d\'erreur effacé');
+      // Si l'erreur est effacée mais qu'on a une erreur dans le ref, la restaurer
+      if (loginErrorRef.current) {
+        console.log('🔄 Restauration de l\'erreur depuis le ref:', loginErrorRef.current);
+        setTimeout(() => {
+          setLoginError(loginErrorRef.current);
+        }, 0);
+      }
     }
   }, [loginError]);
 
@@ -53,7 +62,7 @@ function LoginOrganisateur() {
   const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
-    setLoginError('');
+    // Ne PAS effacer loginError ici - on le fera seulement si la connexion réussit
     
     // Vérifier la validation du mot de passe
     if (!passwordValidation.isValid) {
@@ -64,6 +73,9 @@ function LoginOrganisateur() {
     try {
       await loginMutation.mutateAsync(loginData);
       // La redirection est gérée dans AuthContext.onSuccess
+      // Si on arrive ici, la connexion a réussi, on peut effacer l'erreur
+      setLoginError('');
+      loginErrorRef.current = '';
     } catch (error: any) {
       console.error('Erreur de connexion capturée:', error);
       // L'erreur peut être dans error.response.data.message ou error.message
@@ -77,16 +89,10 @@ function LoginOrganisateur() {
       
       console.log('🔴 Définition du message d\'erreur:', finalErrorMessage);
       
-      // Nettoyer tout timeout précédent
-      if (loginErrorTimeoutRef.current) {
-        clearTimeout(loginErrorTimeoutRef.current);
-      }
-      
-      // Utiliser setTimeout pour s'assurer que l'état est mis à jour après le re-render
-      setTimeout(() => {
-        setLoginError(finalErrorMessage);
-        console.log('✅ Message d\'erreur défini après timeout:', finalErrorMessage);
-      }, 0);
+      // Stocker dans le ref ET dans l'état
+      loginErrorRef.current = finalErrorMessage;
+      setLoginError(finalErrorMessage);
+      console.log('✅ Message d\'erreur défini immédiatement:', finalErrorMessage);
     }
   };
 
