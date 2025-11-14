@@ -53,6 +53,48 @@ function Navbar() {
     fontWeight: 'bold',
   };
 
+  // Styles selon le rôle
+  const getRoleStyles = () => {
+    if (user?.role === 'ORGANIZER') {
+      return {
+        navbarBg: 'linear-gradient(135deg, rgba(0, 123, 255, 0.3), rgba(0, 86, 179, 0.4))',
+        badgeBg: 'linear-gradient(135deg, #007bff, #0056b3)',
+        badgeColor: '#ffffff',
+        badgeIcon: '🎯',
+        badgeText: 'Organisateur',
+        avatarGradient: 'linear-gradient(135deg, #007bff, #0056b3)',
+      };
+    } else if (user?.role === 'COMEDIAN') {
+      return {
+        navbarBg: 'linear-gradient(135deg, rgba(255, 65, 108, 0.3), rgba(255, 75, 43, 0.4))',
+        badgeBg: 'linear-gradient(135deg, #ff416c, #ff4b2b)',
+        badgeColor: '#ffffff',
+        badgeIcon: '🎭',
+        badgeText: 'Humoriste',
+        avatarGradient: 'linear-gradient(135deg, #ff416c, #ff4b2b)',
+      };
+    } else if (user?.role === 'SUPER_ADMIN') {
+      return {
+        navbarBg: 'linear-gradient(135deg, rgba(255, 193, 7, 0.3), rgba(255, 152, 0, 0.4))',
+        badgeBg: 'linear-gradient(135deg, #ffc107, #ff9800)',
+        badgeColor: '#000000',
+        badgeIcon: '👑',
+        badgeText: 'Super Admin',
+        avatarGradient: 'linear-gradient(135deg, #ffc107, #ff9800)',
+      };
+    }
+    return {
+      navbarBg: 'rgba(0, 0, 0, 0.4)',
+      badgeBg: 'rgba(128, 128, 128, 0.8)',
+      badgeColor: '#ffffff',
+      badgeIcon: '👤',
+      badgeText: 'Invité',
+      avatarGradient: 'linear-gradient(135deg, #6c757d, #5a6268)',
+    };
+  };
+
+  const roleStyles = getRoleStyles();
+
   // Navigation items pour le menu mobile
   const getNavigationItems = () => {
     const items = [
@@ -119,12 +161,13 @@ function Navbar() {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '10px 20px',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        background: roleStyles.navbarBg,
         color: '#ffffff',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.6)',
         position: 'sticky',
         top: 0,
         zIndex: 1000,
+        borderBottom: `3px solid ${user?.role === 'ORGANIZER' ? '#007bff' : user?.role === 'COMEDIAN' ? '#ff416c' : user?.role === 'SUPER_ADMIN' ? '#ffc107' : '#6c757d'}`,
       }}>
         {/* Menu Desktop - Masqué sur mobile */}
         <div style={{ display: 'flex', alignItems: 'center' }} id="desktop-nav">
@@ -180,24 +223,62 @@ function Navbar() {
           </h2>
           
           <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ff4b2b, #ff416c)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            fontSize: '0.8rem',
-            fontWeight: 'bold',
-            marginLeft: '10px'
+            gap: '8px',
           }}>
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+            {user && (
+              <div style={{
+                padding: '4px 10px',
+                borderRadius: '15px',
+                background: roleStyles.badgeBg,
+                color: roleStyles.badgeColor,
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}>
+                <span>{roleStyles.badgeIcon}</span>
+                <span>{roleStyles.badgeText}</span>
+              </div>
+            )}
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: roleStyles.avatarGradient,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              fontSize: '0.8rem',
+              fontWeight: 'bold',
+            }}>
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </div>
           </div>
         </div>
 
         {/* Info utilisateur Desktop - Masqué sur mobile */}
-        <div id="desktop-user">
+        <div id="desktop-user" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {user && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              background: roleStyles.badgeBg,
+              color: roleStyles.badgeColor,
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+            }}>
+              <span style={{ fontSize: '1rem' }}>{roleStyles.badgeIcon}</span>
+              <span>{roleStyles.badgeText}</span>
+            </div>
+          )}
           {user ? (
             <span style={userNameStyle}>{`${user.firstName} ${user.lastName}`}</span>
           ) : (
@@ -245,20 +326,23 @@ function Navbar() {
           }}>
             {/* En-tête du menu */}
             <div style={{
-              background: 'linear-gradient(135deg, #ff4b2b, #ff416c)',
-              color: '#ffffff',
+              background: roleStyles.badgeBg,
+              color: roleStyles.badgeColor,
               padding: '20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>Menu Navigation</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.5rem' }}>{roleStyles.badgeIcon}</span>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>Menu Navigation</h3>
+              </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#ffffff',
+                  color: roleStyles.badgeColor,
                   fontSize: '1.5rem',
                   cursor: 'pointer',
                   padding: '4px',
@@ -279,13 +363,14 @@ function Navbar() {
                   width: '48px',
                   height: '48px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ff4b2b, #ff416c)',
+                  background: roleStyles.avatarGradient,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ffffff',
                   fontSize: '1.2rem',
                   fontWeight: 'bold',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
                 }}>
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </div>
@@ -301,15 +386,27 @@ function Navbar() {
                   }}>
                     {user?.firstName} {user?.lastName}
                   </p>
-                  <p style={{ 
-                    margin: 0, 
-                    color: '#666', 
-                    fontSize: '0.8rem',
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginTop: '4px',
                   }}>
-                    {user?.role === 'ORGANIZER' && 'Organisateur'}
-                    {user?.role === 'COMEDIAN' && 'Humoriste'}
-                    {user?.role === 'SUPER_ADMIN' && 'Super Admin'}
-                  </p>
+                    <div style={{
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: roleStyles.badgeBg,
+                      color: roleStyles.badgeColor,
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}>
+                      <span>{roleStyles.badgeIcon}</span>
+                      <span>{roleStyles.badgeText}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
