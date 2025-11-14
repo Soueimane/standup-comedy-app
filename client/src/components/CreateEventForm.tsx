@@ -656,25 +656,25 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                 )}
               </div>
 
-              {/* Ville */}
+              {/* Adresse */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Ville *
+                  Adresse *
                 </label>
                 <input
                   type="text"
-                  id="city"
-                  value={formData.city}
+                  id="address"
+                  value={formData.address}
                   onChange={handleChange}
                   style={{
                     ...inputStyle,
-                    borderColor: errors.city ? '#ef4444' : '#444'
+                    borderColor: errors.address ? '#ef4444' : '#444'
                   }}
-                  placeholder="Ex: Paris"
+                  placeholder="Ex: 123 rue de la Comédie"
                 />
-                {errors.city && (
+                {errors.address && (
                   <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.city}
+                    {errors.address}
                   </p>
                 )}
               </div>
@@ -703,25 +703,25 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                 )}
               </div>
 
-              {/* Adresse */}
+              {/* Ville */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Adresse *
+                  Ville *
                 </label>
                 <input
                   type="text"
-                  id="address"
-                  value={formData.address}
+                  id="city"
+                  value={formData.city}
                   onChange={handleChange}
                   style={{
                     ...inputStyle,
-                    borderColor: errors.address ? '#ef4444' : '#444'
+                    borderColor: errors.city ? '#ef4444' : '#444'
                   }}
-                  placeholder="Ex: 123 rue de la Comédie"
+                  placeholder="Ex: Paris"
                 />
-                {errors.address && (
+                {errors.city && (
                   <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                    {errors.address}
+                    {errors.city}
                   </p>
                 )}
               </div>
