@@ -56,6 +56,8 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   const [openEndTimeDropdown, setOpenEndTimeDropdown] = useState(false);
   const startTimeRef = useRef<HTMLDivElement>(null);
   const endTimeRef = useRef<HTMLDivElement>(null);
+  const addressSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutoFillingRef = useRef(false);
 
   // Fermer les dropdowns quand on clique en dehors
   useEffect(() => {
@@ -71,11 +73,92 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
     };
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // Fonction pour rechercher une ville par code postal
+  const searchCityByPostalCode = async (postalCode: string): Promise<{ city: string; postalCode: string } | null> => {
+    if (!postalCode || postalCode.length < 5) return null;
+    
+    try {
+      // Recherche par code postal avec l'API Adresse
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(postalCode)}&limit=5`);
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        // Prendre le premier résultat qui correspond au code postal
+        const feature = data.features.find((f: any) => f.properties.postcode === postalCode) || data.features[0];
+        const city = feature.properties.city || feature.properties.name;
+        const code = feature.properties.postcode;
+        if (code === postalCode) {
+          return { city, postalCode: code };
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche par code postal:', error);
+    }
+    return null;
+  };
+
+  // Fonction pour rechercher un code postal par ville
+  const searchPostalCodeByCity = async (city: string): Promise<{ city: string; postalCode: string } | null> => {
+    if (!city || city.length < 2) return null;
+    
+    try {
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(city)}&limit=1&type=municipality`);
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0];
+        const foundCity = feature.properties.city || feature.properties.name;
+        const code = feature.properties.postcode;
+        // Vérifier que la ville correspond bien
+        if (foundCity.toLowerCase().includes(city.toLowerCase()) || city.toLowerCase().includes(foundCity.toLowerCase())) {
+          return { city: foundCity, postalCode: code };
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche par ville:', error);
+    }
+    return null;
+  };
+
+  // Fonction pour rechercher ville et code postal par adresse
+  const searchLocationByAddress = async (address: string): Promise<{ city: string; postalCode: string; address: string } | null> => {
+    if (!address || address.length < 5) return null;
+    
+    try {
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=1`);
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0];
+        const city = feature.properties.city || feature.properties.name;
+        const code = feature.properties.postcode;
+        const fullAddress = feature.properties.label;
+        return { city, postalCode: code, address: fullAddress };
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche par adresse:', error);
+    }
+    return null;
+  };
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
+    
+    // Ne pas auto-remplir si c'est déjà en cours d'auto-remplissage
+    if (isAutoFillingRef.current) {
+      setFormData(prev => ({
+        ...prev,
+        [id]: value
+      }));
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
       [id]: value
@@ -87,6 +170,95 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
         ...prev,
         [id]: ''
       }));
+    }
+
+    // Auto-complétion pour le code postal
+    if (id === 'postalCode' && value.length >= 5 && /^\d{5}$/.test(value)) {
+      // Annuler le timeout précédent
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+      
+      // Attendre 500ms après la dernière frappe
+      addressSearchTimeoutRef.current = setTimeout(async () => {
+        const result = await searchCityByPostalCode(value);
+        if (result) {
+          isAutoFillingRef.current = true;
+          setFormData(prev => {
+            // Ne remplir que si la ville est vide ou très courte
+            if (!prev.city || prev.city.length < 2) {
+              return {
+                ...prev,
+                city: result.city
+              };
+            }
+            return prev;
+          });
+          setTimeout(() => {
+            isAutoFillingRef.current = false;
+          }, 100);
+        }
+      }, 500);
+    }
+
+    // Auto-complétion pour la ville
+    if (id === 'city' && value.length >= 3) {
+      // Annuler le timeout précédent
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+      
+      // Attendre 800ms après la dernière frappe (plus long car recherche par texte)
+      addressSearchTimeoutRef.current = setTimeout(async () => {
+        const result = await searchPostalCodeByCity(value);
+        if (result) {
+          isAutoFillingRef.current = true;
+          setFormData(prev => {
+            // Ne remplir que si le code postal est vide
+            if (!prev.postalCode || prev.postalCode.length < 5) {
+              return {
+                ...prev,
+                postalCode: result.postalCode,
+                city: result.city // Utiliser la ville normalisée de l'API
+              };
+            }
+            // Même si le code postal existe, on peut normaliser la ville
+            return {
+              ...prev,
+              city: result.city
+            };
+          });
+          setTimeout(() => {
+            isAutoFillingRef.current = false;
+          }, 100);
+        }
+      }, 800);
+    }
+
+    // Auto-complétion pour l'adresse
+    if (id === 'address' && value.length >= 5) {
+      // Annuler le timeout précédent
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+      
+      // Attendre 800ms après la dernière frappe
+      addressSearchTimeoutRef.current = setTimeout(async () => {
+        const result = await searchLocationByAddress(value);
+        if (result) {
+          isAutoFillingRef.current = true;
+          setFormData(prev => ({
+            ...prev,
+            address: result.address,
+            // Ne remplir ville et code postal que s'ils sont vides
+            city: prev.city && prev.city.length >= 2 ? prev.city : result.city,
+            postalCode: prev.postalCode && prev.postalCode.length >= 5 ? prev.postalCode : result.postalCode
+          }));
+          setTimeout(() => {
+            isAutoFillingRef.current = false;
+          }, 100);
+        }
+      }, 800);
     }
 
     // Validation en temps réel pour la date et l'heure de début
