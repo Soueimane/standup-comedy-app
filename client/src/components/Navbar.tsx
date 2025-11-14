@@ -53,43 +53,43 @@ function Navbar() {
     fontWeight: 'bold',
   };
 
-  // Styles selon le rôle
+  // Styles selon le rôle - uniquement texte et icône, pas de couleurs
   const getRoleStyles = () => {
     if (user?.role === 'ORGANIZER') {
       return {
-        navbarBg: 'linear-gradient(135deg, rgba(0, 123, 255, 0.3), rgba(0, 86, 179, 0.4))',
-        badgeBg: 'linear-gradient(135deg, #007bff, #0056b3)',
+        navbarBg: 'rgba(0, 0, 0, 0.4)',
+        badgeBg: 'transparent',
         badgeColor: '#ffffff',
         badgeIcon: '🎯',
         badgeText: 'Organisateur',
-        avatarGradient: 'linear-gradient(135deg, #007bff, #0056b3)',
+        avatarGradient: 'rgba(128, 128, 128, 0.6)',
       };
     } else if (user?.role === 'COMEDIAN') {
       return {
-        navbarBg: 'linear-gradient(135deg, rgba(255, 65, 108, 0.3), rgba(255, 75, 43, 0.4))',
-        badgeBg: 'linear-gradient(135deg, #ff416c, #ff4b2b)',
+        navbarBg: 'rgba(0, 0, 0, 0.4)',
+        badgeBg: 'transparent',
         badgeColor: '#ffffff',
         badgeIcon: '🎭',
         badgeText: 'Humoriste',
-        avatarGradient: 'linear-gradient(135deg, #ff416c, #ff4b2b)',
+        avatarGradient: 'rgba(128, 128, 128, 0.6)',
       };
     } else if (user?.role === 'SUPER_ADMIN') {
       return {
-        navbarBg: 'linear-gradient(135deg, rgba(255, 193, 7, 0.3), rgba(255, 152, 0, 0.4))',
-        badgeBg: 'linear-gradient(135deg, #ffc107, #ff9800)',
-        badgeColor: '#000000',
+        navbarBg: 'rgba(0, 0, 0, 0.4)',
+        badgeBg: 'transparent',
+        badgeColor: '#ffffff',
         badgeIcon: '👑',
         badgeText: 'Super Admin',
-        avatarGradient: 'linear-gradient(135deg, #ffc107, #ff9800)',
+        avatarGradient: 'rgba(128, 128, 128, 0.6)',
       };
     }
     return {
       navbarBg: 'rgba(0, 0, 0, 0.4)',
-      badgeBg: 'rgba(128, 128, 128, 0.8)',
+      badgeBg: 'transparent',
       badgeColor: '#ffffff',
       badgeIcon: '👤',
       badgeText: 'Invité',
-      avatarGradient: 'linear-gradient(135deg, #6c757d, #5a6268)',
+      avatarGradient: 'rgba(128, 128, 128, 0.6)',
     };
   };
 
@@ -167,7 +167,7 @@ function Navbar() {
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        borderBottom: `3px solid ${user?.role === 'ORGANIZER' ? '#007bff' : user?.role === 'COMEDIAN' ? '#ff416c' : user?.role === 'SUPER_ADMIN' ? '#ffc107' : '#6c757d'}`,
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
       }}>
         {/* Menu Desktop - Masqué sur mobile */}
         <div style={{ display: 'flex', alignItems: 'center' }} id="desktop-nav">
@@ -238,6 +238,7 @@ function Navbar() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
               }}>
                 <span>{roleStyles.badgeIcon}</span>
                 <span>{roleStyles.badgeText}</span>
@@ -273,7 +274,7 @@ function Navbar() {
               color: roleStyles.badgeColor,
               fontSize: '0.85rem',
               fontWeight: 'bold',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
             }}>
               <span style={{ fontSize: '1rem' }}>{roleStyles.badgeIcon}</span>
               <span>{roleStyles.badgeText}</span>
@@ -326,8 +327,8 @@ function Navbar() {
           }}>
             {/* En-tête du menu */}
             <div style={{
-              background: roleStyles.badgeBg,
-              color: roleStyles.badgeColor,
+              background: '#f8f9fa',
+              color: '#333',
               padding: '20px',
               display: 'flex',
               alignItems: 'center',
@@ -342,7 +343,7 @@ function Navbar() {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: roleStyles.badgeColor,
+                  color: '#333',
                   fontSize: '1.5rem',
                   cursor: 'pointer',
                   padding: '4px',
@@ -395,13 +396,14 @@ function Navbar() {
                     <div style={{
                       padding: '2px 8px',
                       borderRadius: '12px',
-                      background: roleStyles.badgeBg,
-                      color: roleStyles.badgeColor,
+                      background: 'transparent',
+                      color: '#666',
                       fontSize: '0.75rem',
                       fontWeight: 'bold',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
+                      border: '1px solid #ddd',
                     }}>
                       <span>{roleStyles.badgeIcon}</span>
                       <span>{roleStyles.badgeText}</span>
