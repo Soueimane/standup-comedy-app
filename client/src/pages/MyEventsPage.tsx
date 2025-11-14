@@ -527,7 +527,7 @@ function MyEventsPage() {
           Authorization: `Bearer ${token}`,
         },
       };
-      const response = await api.post(`/events/${event._id}/notify`, {}, config);
+      await api.post(`/events/${event._id}/notify`, {}, config);
       alert('Les notifications ont été envoyées avec succès aux humoristes !');
     } catch (error: any) {
       console.error('Erreur lors de l\'envoi des notifications:', error);

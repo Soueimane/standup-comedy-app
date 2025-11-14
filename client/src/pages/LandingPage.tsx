@@ -60,11 +60,6 @@ function LandingPage() {
     boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
   };
 
-  const buttonHoverStyle: CSSProperties = {
-    transform: 'scale(1.05)',
-    boxShadow: '0 0 20px rgba(255, 65, 108, 0.6)',
-  };
-
   const logoStyle: CSSProperties = {
     marginBottom: '30px',
     animation: 'logoFloat 6s ease-in-out infinite',
