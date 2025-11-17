@@ -337,14 +337,43 @@ function ApplicationsPage() {
     margin: 0,
   };
 
-  const metaRowStyle: CSSProperties = {
+  const viewProfileInlineButtonStyle: CSSProperties = {
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    background: 'rgba(0, 0, 0, 0.2)',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  };
+
+  const cardHeaderRowStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '12px',
-    marginTop: '12px',
-    paddingTop: '12px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+    marginBottom: '8px',
+  };
+
+  const cardHeaderDateStyle: CSSProperties = {
+    ...cardDetailStyle,
+    marginBottom: 0,
+    color: '#ddd',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  };
+
+  const statusRowStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginTop: '16px',
+    flexWrap: 'wrap',
   };
 
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
@@ -672,7 +701,12 @@ function ApplicationsPage() {
                     }}
                   >
                     <div>
-                      <h3 style={cardTitleStyle}>{app.event.title}</h3>
+                      <div style={cardHeaderRowStyle}>
+                        <h3 style={{ ...cardTitleStyle, marginBottom: 0 }}>{app.event.title}</h3>
+                        <p style={cardHeaderDateStyle}>
+                          📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                        </p>
+                      </div>
                       {user?.role === 'ORGANIZER' && (
                         <div style={comedianHighlightStyle}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -684,31 +718,24 @@ function ApplicationsPage() {
                               <p style={comedianRoleTextStyle}>Humoriste</p>
                             </div>
                           </div>
+                          <button 
+                            style={viewProfileInlineButtonStyle}
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
+                          >
+                            👤 Voir le profil
+                          </button>
                         </div>
                       )}
-                      <div style={metaRowStyle}>
-                        <p style={{ ...cardDetailStyle, marginBottom: 0 }}>
-                          📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
-                        </p>
+                      <div style={statusRowStyle}>
                         <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                      </div>
-                    </div>
-                    {user?.role === 'ORGANIZER' && (
-                      <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        <button 
-                          style={viewProfileButtonStyle} 
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
-                        >
-                          👤 Voir le profil
-                        </button>
                         {app.status === 'PENDING' && (
-                          <>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                             <button style={acceptButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'ACCEPTED'); }}>Accepter</button>
                             <button style={rejectButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'REJECTED'); }}>Refuser</button>
-                          </>
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
