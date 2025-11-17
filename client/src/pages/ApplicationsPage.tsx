@@ -304,6 +304,8 @@ function ApplicationsPage() {
     display: 'flex',
     alignItems: 'center',
     gap: '14px',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
   };
 
   const comedianInitialBubbleStyle: CSSProperties = {
@@ -333,6 +335,19 @@ function ApplicationsPage() {
     letterSpacing: '0.08em',
     color: 'rgba(255, 255, 255, 0.7)',
     margin: 0,
+  };
+
+  const viewProfileInlineButtonStyle: CSSProperties = {
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    background: 'rgba(0, 0, 0, 0.2)',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
   };
 
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
@@ -664,13 +679,21 @@ function ApplicationsPage() {
                       {user?.role === 'ORGANIZER' && (
                         <>
                           <div style={comedianHighlightStyle}>
-                            <div style={comedianInitialBubbleStyle}>
-                              {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                              <div style={comedianInitialBubbleStyle}>
+                                {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                              </div>
+                              <div>
+                                <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                                <p style={comedianRoleTextStyle}>Humoriste</p>
+                              </div>
                             </div>
-                            <div>
-                              <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
-                              <p style={comedianRoleTextStyle}>Humoriste</p>
-                            </div>
+                            <button 
+                              style={viewProfileInlineButtonStyle}
+                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
+                            >
+                              👤 Voir le profil
+                            </button>
                           </div>
                           <p style={cardDetailStyle}>Email: {app.comedian.email}</p>
                           {app.comedian.profile?.bio && <p style={cardDetailStyle}>Bio: {app.comedian.profile.bio}</p>}
@@ -691,12 +714,6 @@ function ApplicationsPage() {
                     </div>
                     {user?.role === 'ORGANIZER' && (
                       <div style={{ marginTop: '15px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        <button 
-                          style={viewProfileButtonStyle} 
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
-                        >
-                          👤 Voir le profil
-                        </button>
                         {app.status === 'PENDING' && (
                           <>
                             <button style={acceptButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'ACCEPTED'); }}>Accepter</button>
