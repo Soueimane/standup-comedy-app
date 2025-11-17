@@ -295,6 +295,46 @@ function ApplicationsPage() {
     marginBottom: '5px',
   };
 
+  const comedianHighlightStyle: CSSProperties = {
+    margin: '16px 0',
+    padding: '14px 16px',
+    borderRadius: '12px',
+    background: 'linear-gradient(120deg, rgba(255, 65, 108, 0.18), rgba(55, 10, 92, 0.35))',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  };
+
+  const comedianInitialBubbleStyle: CSSProperties = {
+    width: '46px',
+    height: '46px',
+    borderRadius: '50%',
+    background: 'rgba(255, 255, 255, 0.15)',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    fontSize: '1.1em',
+    textTransform: 'uppercase',
+  };
+
+  const comedianNameTextStyle: CSSProperties = {
+    fontSize: '1.1em',
+    fontWeight: 700,
+    color: '#fff',
+    margin: 0,
+  };
+
+  const comedianRoleTextStyle: CSSProperties = {
+    fontSize: '0.85em',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'rgba(255, 255, 255, 0.7)',
+    margin: 0,
+  };
+
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
     let backgroundColor = '';
     let color = '#ffffff';
@@ -623,7 +663,15 @@ function ApplicationsPage() {
                       <h3 style={cardTitleStyle}>{app.event.title}</h3>
                       {user?.role === 'ORGANIZER' && (
                         <>
-                          <p style={cardDetailStyle}>Humoriste: {app.comedian.firstName} {app.comedian.lastName}</p>
+                          <div style={comedianHighlightStyle}>
+                            <div style={comedianInitialBubbleStyle}>
+                              {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                            </div>
+                            <div>
+                              <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                              <p style={comedianRoleTextStyle}>Humoriste</p>
+                            </div>
+                          </div>
                           <p style={cardDetailStyle}>Email: {app.comedian.email}</p>
                           {app.comedian.profile?.bio && <p style={cardDetailStyle}>Bio: {app.comedian.profile.bio}</p>}
                           {app.comedian.profile?.experience !== undefined && <p style={cardDetailStyle}>Expérience: {app.comedian.profile.experience} ans</p>}
