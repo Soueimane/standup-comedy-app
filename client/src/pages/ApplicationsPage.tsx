@@ -441,12 +441,6 @@ function ApplicationsPage() {
     backgroundColor: '#dc3545', // Red
   };
 
-  const viewProfileButtonStyle: CSSProperties = {
-    ...actionButtonStyle,
-    backgroundColor: '#6c757d', // Gray
-    marginRight: '10px',
-  };
-
   const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
     e.stopPropagation();
     // Naviguer vers la page de profil de l'humoriste
