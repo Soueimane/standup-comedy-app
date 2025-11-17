@@ -337,17 +337,14 @@ function ApplicationsPage() {
     margin: 0,
   };
 
-  const viewProfileInlineButtonStyle: CSSProperties = {
-    padding: '8px 14px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    background: 'rgba(0, 0, 0, 0.2)',
-    color: '#fff',
-    fontWeight: 600,
-    cursor: 'pointer',
+  const metaRowStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginTop: '12px',
+    paddingTop: '12px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
   };
 
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
@@ -677,43 +674,33 @@ function ApplicationsPage() {
                     <div>
                       <h3 style={cardTitleStyle}>{app.event.title}</h3>
                       {user?.role === 'ORGANIZER' && (
-                        <>
-                          <div style={comedianHighlightStyle}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                              <div style={comedianInitialBubbleStyle}>
-                                {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
-                              </div>
-                              <div>
-                                <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
-                                <p style={comedianRoleTextStyle}>Humoriste</p>
-                              </div>
+                        <div style={comedianHighlightStyle}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <div style={comedianInitialBubbleStyle}>
+                              {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
                             </div>
-                            <button 
-                              style={viewProfileInlineButtonStyle}
-                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
-                            >
-                              👤 Voir le profil
-                            </button>
+                            <div>
+                              <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                              <p style={comedianRoleTextStyle}>Humoriste</p>
+                            </div>
                           </div>
-                          <p style={cardDetailStyle}>Email: {app.comedian.email}</p>
-                          {app.comedian.profile?.bio && <p style={cardDetailStyle}>Bio: {app.comedian.profile.bio}</p>}
-                          {app.comedian.profile?.experience !== undefined && <p style={cardDetailStyle}>Expérience: {app.comedian.profile.experience} ans</p>}
-                          {app.comedian.profile?.speciality && <p style={cardDetailStyle}>Spécialité: {app.comedian.profile.speciality}</p>}
-                        </>
+                        </div>
                       )}
-                      <p style={cardDetailStyle}>Date de l'événement: {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}</p>
-                      {app.performanceDetails && (
-                        <>
-                          <p style={cardDetailStyle}>Durée proposée: {app.performanceDetails.duration} min</p>
-                          <p style={cardDetailStyle}>Description: {app.performanceDetails.description}</p>
-                          {app.performanceDetails.videoLink && <p style={cardDetailStyle}>Lien vidéo: <a href={app.performanceDetails.videoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#ff4b2b' }}>Voir la vidéo</a></p>}
-                        </>
-                      )}
-                      {app.message && <p style={cardDetailStyle}>Message: {app.message}</p>}
-                      <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                      <div style={metaRowStyle}>
+                        <p style={{ ...cardDetailStyle, marginBottom: 0 }}>
+                          📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                        </p>
+                        <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                      </div>
                     </div>
                     {user?.role === 'ORGANIZER' && (
-                      <div style={{ marginTop: '15px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        <button 
+                          style={viewProfileButtonStyle} 
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
+                        >
+                          👤 Voir le profil
+                        </button>
                         {app.status === 'PENDING' && (
                           <>
                             <button style={acceptButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'ACCEPTED'); }}>Accepter</button>
