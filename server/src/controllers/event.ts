@@ -181,11 +181,21 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
   try {
     const eventId = req.params.id;
     const organizerId = req.user?.id;
+    const userRole = req.user?.role;
 
-    const event = await EventModel.findOne({ _id: eventId, organizer: organizerId });
+    const event = await EventModel.findById(eventId);
     if (!event) {
-      res.status(404).json({ message: 'Event not found or unauthorized' });
+      res.status(404).json({ message: 'Event not found' });
       return;
+    }
+
+    const eventOrganizerId = event.organizer?.toString?.() || event.organizer;
+    if (userRole !== 'SUPER_ADMIN' && organizerId && eventOrganizerId && eventOrganizerId !== organizerId) {
+      res.status(403).json({ message: 'You are not authorized to update this event' });
+      return;
+    }
+    if (!eventOrganizerId && organizerId) {
+      console.warn('⚠️ Event without organizer detected during update', { eventId });
     }
 
     const updatedEvent = await EventModel.findByIdAndUpdate(
