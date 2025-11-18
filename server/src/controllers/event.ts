@@ -127,12 +127,20 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
 
 export const getEvents = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, date, city } = req.query;
+    const { status, date, city, organizerId } = req.query;
     const query: any = {};
 
     if (status) query.status = status;
     if (date) query.date = { $gte: new Date(date as string) };
     if (city) query['location.city'] = city;
+    if (organizerId) {
+      if (mongoose.Types.ObjectId.isValid(organizerId as string)) {
+        query.organizer = new mongoose.Types.ObjectId(organizerId as string);
+      } else {
+        res.status(400).json({ message: 'Invalid organizerId' });
+        return;
+      }
+    }
 
     const events = await EventModel.find(query)
       .populate('organizer', 'firstName lastName email')
