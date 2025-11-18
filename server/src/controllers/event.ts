@@ -190,12 +190,12 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     }
 
     const eventOrganizerId = event.organizer?.toString?.() || event.organizer;
+    if (!eventOrganizerId && organizerId) {
+      console.warn('⚠️ Event without organizer detected during update', { eventId });
+    }
     if (userRole !== 'SUPER_ADMIN' && organizerId && eventOrganizerId && eventOrganizerId !== organizerId) {
       res.status(403).json({ message: 'You are not authorized to update this event' });
       return;
-    }
-    if (!eventOrganizerId && organizerId) {
-      console.warn('⚠️ Event without organizer detected during update', { eventId });
     }
 
     const updatedEvent = await EventModel.findByIdAndUpdate(
