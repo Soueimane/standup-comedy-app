@@ -95,14 +95,6 @@ function ApplicationDetailsModal({ isOpen, onClose, application }: ApplicationDe
         </>
       )}
 
-      <h3 style={sectionTitleStyle}>Informations de l'Humoriste</h3>
-      <p style={cardDetailStyle}>Nom: {application.comedian.firstName} {application.comedian.lastName}</p>
-      <p style={cardDetailStyle}>Email: {application.comedian.email}</p>
-      {application.comedian.phone && <p style={cardDetailStyle}>Téléphone: {application.comedian.phone}</p>}
-      {application.comedian.profile?.bio && <p style={cardDetailStyle}>Bio: {application.comedian.profile.bio}</p>}
-      {application.comedian.profile?.experience !== undefined && <p style={cardDetailStyle}>Expérience: {application.comedian.profile.experience} ans</p>}
-      {application.comedian.profile?.speciality && <p style={cardDetailStyle}>Spécialité: {application.comedian.profile.speciality}</p>}
-
       {application.performanceDetails && (
         <>
           <h3 style={sectionTitleStyle}>Détails de la Performance</h3>
