@@ -243,6 +243,10 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         },
       };
 
+      console.log('🛠️ Envoi de la mise à jour événement', {
+        eventId: eventToEdit._id,
+        payload: eventData,
+      });
       await api.put(`/events/${eventToEdit._id}`, eventData, config);
       alert('Événement mis à jour avec succès !');
       onEventUpdated();
