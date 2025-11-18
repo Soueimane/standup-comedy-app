@@ -183,17 +183,43 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     const organizerId = req.user?.id;
     const userRole = req.user?.role;
 
+    console.log('🔍 [DEBUG updateEvent] Début de la mise à jour', {
+      eventId,
+      organizerId,
+      userRole,
+    });
+
     const event = await EventModel.findById(eventId);
     if (!event) {
+      console.error('❌ [DEBUG updateEvent] Événement non trouvé', { eventId });
       res.status(404).json({ message: 'Event not found' });
       return;
     }
 
-    const eventOrganizerId = event.organizer?.toString?.() || event.organizer;
-    if (!eventOrganizerId && organizerId) {
-      console.warn('⚠️ Event without organizer detected during update', { eventId });
+    // Normaliser les IDs en strings pour la comparaison
+    const eventOrganizerId = event.organizer 
+      ? (typeof event.organizer === 'object' && event.organizer.toString 
+          ? event.organizer.toString() 
+          : String(event.organizer))
+      : null;
+    const normalizedOrganizerId = organizerId ? String(organizerId) : null;
+
+    console.log('🔍 [DEBUG updateEvent] Comparaison des IDs', {
+      eventOrganizerId,
+      normalizedOrganizerId,
+      eventOrganizerIdType: typeof eventOrganizerId,
+      normalizedOrganizerIdType: typeof normalizedOrganizerId,
+      areEqual: eventOrganizerId === normalizedOrganizerId,
+    });
+
+    if (!eventOrganizerId && normalizedOrganizerId) {
+      console.warn('⚠️ [DEBUG updateEvent] Event without organizer detected during update', { eventId });
     }
-    if (userRole !== 'SUPER_ADMIN' && organizerId && eventOrganizerId && eventOrganizerId !== organizerId) {
+    if (userRole !== 'SUPER_ADMIN' && normalizedOrganizerId && eventOrganizerId && eventOrganizerId !== normalizedOrganizerId) {
+      console.error('❌ [DEBUG updateEvent] Accès refusé - IDs ne correspondent pas', {
+        eventOrganizerId,
+        normalizedOrganizerId,
+      });
       res.status(403).json({ message: 'You are not authorized to update this event' });
       return;
     }
