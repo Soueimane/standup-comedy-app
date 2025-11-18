@@ -391,6 +391,23 @@ function MyEventsPage() {
   };
 
   const handleEditClick = (event: IEvent) => {
+    console.log('🔍 [MyEventsPage] handleEditClick - Vérification événement', {
+      eventId: event._id,
+      eventTitle: event.title,
+      eventOrganizer: event.organizer,
+      organizerId: typeof event.organizer === 'object' ? event.organizer._id : event.organizer,
+      userId: user?._id,
+      isOwner: typeof event.organizer === 'object' 
+        ? event.organizer._id === user?._id 
+        : event.organizer === user?._id,
+    });
+    
+    if (!event._id) {
+      console.error('❌ [MyEventsPage] Événement sans ID - impossible de modifier', { event });
+      alert('Erreur: Impossible de modifier cet événement. ID manquant.');
+      return;
+    }
+    
     setEventToEdit(event);
     setShowEditEventForm(true);
   };

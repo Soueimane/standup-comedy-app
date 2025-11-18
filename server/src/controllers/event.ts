@@ -179,7 +179,8 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
 
 export const updateEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const eventId = req.params.id;
+    // Support à la fois :id et :eventId pour compatibilité avec différentes routes
+    const eventId = req.params.eventId || req.params.id;
     const organizerId = req.user?.id;
     const userRole = req.user?.role;
 
@@ -217,6 +218,17 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       { $set: { ...req.body, modifiedByOrganizer: true } },
       { new: true }
     );
+
+    if (!updatedEvent) {
+      console.error('❌ [DEBUG updateEvent] Échec de la mise à jour - événement non trouvé après update', { eventId });
+      res.status(404).json({ message: 'Event not found after update attempt' });
+      return;
+    }
+
+    console.log('✅ [DEBUG updateEvent] Événement mis à jour avec succès', {
+      eventId: updatedEvent._id,
+      title: updatedEvent.title,
+    });
 
     // Notifier les humoristes ayant postulé si l'événement est futur
     if (updatedEvent && new Date(updatedEvent.date) >= new Date()) {
@@ -266,7 +278,8 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
 
 export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const eventId = req.params.id; // ✅ Corrigé : utiliser 'id' au lieu de 'eventId'
+    // Support à la fois :id et :eventId pour compatibilité avec différentes routes
+    const eventId = req.params.eventId || req.params.id;
     const organizerId = req.user?.id;
 
     const event = await EventModel.findOne({ _id: eventId, organizer: organizerId });

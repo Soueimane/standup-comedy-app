@@ -195,6 +195,20 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
       return;
     }
 
+    // Validation de l'ID de l'événement
+    if (!eventToEdit || !eventToEdit._id) {
+      console.error('❌ [EditEventForm] Événement invalide - pas d\'ID', { eventToEdit });
+      alert('Erreur: Impossible de modifier cet événement. ID manquant.');
+      return;
+    }
+
+    console.log('🔍 [EditEventForm] Validation avant envoi', {
+      eventId: eventToEdit._id,
+      eventTitle: eventToEdit.title,
+      hasToken: !!token,
+      eventOrganizer: eventToEdit.organizer,
+    });
+
     setIsSubmitting(true);
 
     try {
@@ -243,16 +257,41 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         },
       };
 
-      console.log('🛠️ Envoi de la mise à jour événement', {
+      console.log('🛠️ [EditEventForm] Envoi de la mise à jour événement', {
         eventId: eventToEdit._id,
+        eventIdType: typeof eventToEdit._id,
+        eventIdLength: eventToEdit._id?.length,
+        url: `/events/${eventToEdit._id}`,
         payload: eventData,
+        hasToken: !!token,
       });
-      await api.put(`/events/${eventToEdit._id}`, eventData, config);
+      
+      const response = await api.put(`/events/${eventToEdit._id}`, eventData, config);
+      console.log('✅ [EditEventForm] Réponse serveur:', response.data);
       alert('Événement mis à jour avec succès !');
       onEventUpdated();
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour de l\'événement:', error.response?.data || error.message);
-      alert(`Erreur lors de la mise à jour de l'événement: ${error.response?.data?.message || error.message}`);
+      console.error('❌ [EditEventForm] Erreur lors de la mise à jour de l\'événement:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.response?.data?.message || error.message,
+        data: error.response?.data,
+        eventId: eventToEdit._id,
+        url: error.config?.url,
+      });
+      
+      let errorMessage = 'Erreur lors de la mise à jour de l\'événement';
+      if (error.response?.status === 404) {
+        errorMessage = `Événement non trouvé (ID: ${eventToEdit._id}). Vérifiez que l'événement existe et que vous êtes autorisé à le modifier.`;
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Vous n\'êtes pas autorisé à modifier cet événement.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

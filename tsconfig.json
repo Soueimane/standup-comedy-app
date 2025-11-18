@@ -1,8 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./client/tsconfig.app.json" },
-    { "path": "./client/tsconfig.node.json" }
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
   ],
   "compilerOptions": {
     "baseUrl": ".",
