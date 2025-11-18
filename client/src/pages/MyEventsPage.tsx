@@ -187,6 +187,12 @@ function MyEventsPage() {
     return `${organizer.firstName || ''} ${organizer.lastName || ''}`.trim() || 'Organisateur inconnu';
   };
 
+  const getOrganizerIdFromEvent = (organizer: any): string | undefined => {
+    if (!organizer) return undefined;
+    if (typeof organizer === 'string') return organizer;
+    return organizer._id || organizer.id;
+  };
+
   // Extraire la liste unique des organisateurs pour le dropdown
   const availableOrganizers = useMemo(() => {
     if (!fetchedEvents || user?.role !== 'SUPER_ADMIN') return [];
@@ -237,6 +243,22 @@ function MyEventsPage() {
 
       if (statusFilters.length > 0) {
         filteredEvents = filteredEvents.filter((event: IEvent) => statusFilters.includes(event.status));
+      }
+
+      // Sécurité supplémentaire côté client : un organisateur ne peut voir que ses propres événements
+      if (user?.role === 'ORGANIZER' && user?._id) {
+        filteredEvents = filteredEvents.filter((event: IEvent) => {
+          const organizerId = getOrganizerIdFromEvent(event.organizer);
+          const matches = organizerId === user._id;
+          if (!matches) {
+            console.warn('🚫 Événement ignoré car il n’appartient pas à cet organisateur:', {
+              eventTitle: event.title,
+              eventOrganizer: organizerId,
+              currentUser: user._id,
+            });
+          }
+          return matches;
+        });
       }
 
       // Filtre par organisateur (pour super admin)
