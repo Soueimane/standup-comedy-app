@@ -264,23 +264,26 @@ function ApplicationsPage() {
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
   };
 
-  const applicationsGridStyle: CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-    gap: '20px',
+  const applicationsListStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
     marginTop: '20px',
   };
 
   const applicationCardStyle: CSSProperties = {
     backgroundColor: '#1a1a2e',
-    borderRadius: '8px',
+    borderRadius: '12px',
     padding: '20px',
     boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: '20px',
     cursor: 'pointer',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+    flexWrap: 'wrap',
   };
 
   const cardTitleStyle: CSSProperties = {
@@ -295,22 +298,24 @@ function ApplicationsPage() {
     marginBottom: '5px',
   };
 
-  const comedianHighlightStyle: CSSProperties = {
-    margin: '16px 0',
-    padding: '14px 16px',
-    borderRadius: '12px',
-    background: 'linear-gradient(120deg, rgba(255, 65, 108, 0.18), rgba(55, 10, 92, 0.35))',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+  const comedianInfoStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    gap: '16px',
+    flex: '1',
+    minWidth: 0,
+  };
+
+  const comedianDetailsStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    minWidth: 0,
   };
 
   const comedianInitialBubbleStyle: CSSProperties = {
-    width: '46px',
-    height: '46px',
+    width: '56px',
+    height: '56px',
     borderRadius: '50%',
     background: 'rgba(255, 255, 255, 0.15)',
     color: '#fff',
@@ -318,8 +323,9 @@ function ApplicationsPage() {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 700,
-    fontSize: '1.1em',
+    fontSize: '1.2em',
     textTransform: 'uppercase',
+    flexShrink: 0,
   };
 
   const comedianNameTextStyle: CSSProperties = {
@@ -350,29 +356,42 @@ function ApplicationsPage() {
     gap: '6px',
   };
 
-  const cardHeaderRowStyle: CSSProperties = {
+  const eventInfoStyle: CSSProperties = {
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    marginBottom: '8px',
+    flexDirection: 'column',
+    gap: '6px',
+    flex: '1',
+    minWidth: 0,
   };
 
-  const cardHeaderDateStyle: CSSProperties = {
-    ...cardDetailStyle,
-    marginBottom: 0,
-    color: '#ddd',
+  const eventTitleStyle: CSSProperties = {
+    fontSize: '1.2em',
+    color: '#ff4b2b',
+    margin: 0,
+    fontWeight: 700,
+  };
+
+  const eventDateStyle: CSSProperties = {
+    fontSize: '0.9em',
+    color: '#aaa',
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    margin: 0,
   };
 
-  const statusRowStyle: CSSProperties = {
+  const cardRightSectionStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '12px',
+    flexShrink: 0,
+  };
+
+  const actionsContainerStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    marginTop: '16px',
+    gap: '10px',
     flexWrap: 'wrap',
   };
 
@@ -396,12 +415,12 @@ function ApplicationsPage() {
     }
     return {
       display: 'inline-block',
-      padding: '5px 10px',
-      borderRadius: '5px',
+      padding: '6px 12px',
+      borderRadius: '6px',
       backgroundColor: status === 'ACCEPTED' ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED
       color: status === 'ACCEPTED' ? '#28a745' : color, // Force vert pour ACCEPTED
       fontWeight: 'bold',
-      marginTop: '10px',
+      fontSize: '0.9em',
       border: status === 'ACCEPTED' ? 'none' : undefined, // Pas de bordure pour ACCEPTED
     };
   };
@@ -434,11 +453,15 @@ function ApplicationsPage() {
   const acceptButtonStyle: CSSProperties = {
     ...actionButtonStyle,
     backgroundColor: '#28a745', // Green
+    marginTop: 0,
+    marginRight: 0,
   };
 
   const rejectButtonStyle: CSSProperties = {
     ...actionButtonStyle,
     backgroundColor: '#dc3545', // Red
+    marginTop: 0,
+    marginRight: 0,
   };
 
   const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
@@ -579,7 +602,7 @@ function ApplicationsPage() {
                       {items.length === 0 ? (
                         <p style={{ color: '#ccc' }}>Aucune candidature.</p>
                       ) : (
-                        <div style={applicationsGridStyle}>
+                        <div style={applicationsListStyle}>
                           {items.map(app => (
                             <div 
                               key={app._id} 
@@ -681,54 +704,82 @@ function ApplicationsPage() {
                 })()}
               </>
             ) : (
-              // Affichage organisateur (inchangé)
-              <div style={applicationsGridStyle}>
+              // Affichage organisateur - Liste horizontale
+              <div style={applicationsListStyle}>
                 {getFilteredApplications()
                   .filter(app => app.event)
                   .map((app) => (
                   <div 
                     key={app._id} 
                     style={applicationCardStyle}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 15px rgba(0, 0, 0, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.5)';
+                    }}
                     onClick={() => {
                       setSelectedApplication(app);
                       setIsModalOpen(true);
                     }}
                   >
-                    <div>
-                      <div style={cardHeaderRowStyle}>
-                        <h3 style={{ ...cardTitleStyle, marginBottom: 0 }}>{app.event.title}</h3>
-                        <p style={cardHeaderDateStyle}>
-                          📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
-                        </p>
+                    {/* Section gauche - Avatar et info humoriste */}
+                    {user?.role === 'ORGANIZER' && (
+                      <div style={comedianInfoStyle}>
+                        <div style={comedianInitialBubbleStyle}>
+                          {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                        </div>
+                        <div style={comedianDetailsStyle}>
+                          <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                          <p style={comedianRoleTextStyle}>Humoriste</p>
+                        </div>
+                        <button 
+                          style={viewProfileInlineButtonStyle}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            handleViewComedianProfile(e, app.comedian._id);
+                          }}
+                        >
+                          👤 Voir le profil
+                        </button>
                       </div>
-                      {user?.role === 'ORGANIZER' && (
-                        <div style={comedianHighlightStyle}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <div style={comedianInitialBubbleStyle}>
-                              {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
-                            </div>
-                            <div>
-                              <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
-                              <p style={comedianRoleTextStyle}>Humoriste</p>
-                            </div>
-                          </div>
+                    )}
+
+                    {/* Section centre - Info événement */}
+                    <div style={eventInfoStyle}>
+                      <h3 style={eventTitleStyle}>{app.event.title}</h3>
+                      <p style={eventDateStyle}>
+                        📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                      </p>
+                    </div>
+
+                    {/* Section droite - Statut et actions */}
+                    <div style={cardRightSectionStyle}>
+                      <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                      {app.status === 'PENDING' && (
+                        <div style={actionsContainerStyle}>
                           <button 
-                            style={viewProfileInlineButtonStyle}
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleViewComedianProfile(e, app.comedian._id)}
+                            style={acceptButtonStyle} 
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { 
+                              e.stopPropagation(); 
+                              openStatusModal(app._id, 'ACCEPTED'); 
+                            }}
                           >
-                            👤 Voir le profil
+                            ✓ Accepter
+                          </button>
+                          <button 
+                            style={rejectButtonStyle} 
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { 
+                              e.stopPropagation(); 
+                              openStatusModal(app._id, 'REJECTED'); 
+                            }}
+                          >
+                            ✕ Refuser
                           </button>
                         </div>
                       )}
-                      <div style={statusRowStyle}>
-                        <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                        {app.status === 'PENDING' && (
-                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                            <button style={acceptButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'ACCEPTED'); }}>Accepter</button>
-                            <button style={rejectButtonStyle} onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openStatusModal(app._id, 'REJECTED'); }}>Refuser</button>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 ))}
