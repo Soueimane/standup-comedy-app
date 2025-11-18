@@ -189,40 +189,28 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       userRole,
     });
 
-    const event = await EventModel.findById(eventId);
+    // Pour SUPER_ADMIN, on peut modifier n'importe quel événement
+    // Sinon, on vérifie que l'événement appartient à l'organisateur connecté
+    const event = userRole === 'SUPER_ADMIN'
+      ? await EventModel.findById(eventId)
+      : await EventModel.findOne({ _id: eventId, organizer: organizerId });
+
     if (!event) {
-      console.error('❌ [DEBUG updateEvent] Événement non trouvé', { eventId });
-      res.status(404).json({ message: 'Event not found' });
-      return;
-    }
-
-    // Normaliser les IDs en strings pour la comparaison
-    const eventOrganizerId = event.organizer 
-      ? (typeof event.organizer === 'object' && event.organizer.toString 
-          ? event.organizer.toString() 
-          : String(event.organizer))
-      : null;
-    const normalizedOrganizerId = organizerId ? String(organizerId) : null;
-
-    console.log('🔍 [DEBUG updateEvent] Comparaison des IDs', {
-      eventOrganizerId,
-      normalizedOrganizerId,
-      eventOrganizerIdType: typeof eventOrganizerId,
-      normalizedOrganizerIdType: typeof normalizedOrganizerId,
-      areEqual: eventOrganizerId === normalizedOrganizerId,
-    });
-
-    if (!eventOrganizerId && normalizedOrganizerId) {
-      console.warn('⚠️ [DEBUG updateEvent] Event without organizer detected during update', { eventId });
-    }
-    if (userRole !== 'SUPER_ADMIN' && normalizedOrganizerId && eventOrganizerId && eventOrganizerId !== normalizedOrganizerId) {
-      console.error('❌ [DEBUG updateEvent] Accès refusé - IDs ne correspondent pas', {
-        eventOrganizerId,
-        normalizedOrganizerId,
+      console.error('❌ [DEBUG updateEvent] Événement non trouvé ou non autorisé', { 
+        eventId, 
+        organizerId,
+        userRole,
+        searchMethod: userRole === 'SUPER_ADMIN' ? 'findById' : 'findOne with organizer filter'
       });
-      res.status(403).json({ message: 'You are not authorized to update this event' });
+      res.status(404).json({ message: 'Event not found or unauthorized' });
       return;
     }
+
+    console.log('✅ [DEBUG updateEvent] Événement trouvé et autorisé', {
+      eventId: event._id,
+      eventOrganizer: event.organizer?.toString?.() || event.organizer,
+      requestingOrganizer: organizerId,
+    });
 
     const updatedEvent = await EventModel.findByIdAndUpdate(
       eventId,
