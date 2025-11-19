@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-// Schéma de validation pour l'authentification
+// ============================================================================
+// SCHÉMAS D'AUTHENTIFICATION
+// ============================================================================
+
 export const registerSchema = z.object({
   email: z.string()
     .email('Format d\'email invalide (ex: nom@domaine.com)')
@@ -62,130 +65,265 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
+  email: z.string()
+    .min(1, { message: 'Email est requis' })
+    .email('Invalid email format')
+    .transform((val) => val.trim().toLowerCase()),
+  password: z.string()
+    .min(1, { message: 'Le mot de passe est requis' })
 });
 
-// Schéma de validation pour les événements
+// ============================================================================
+// SCHÉMAS D'ÉVÉNEMENT
+// ============================================================================
+
 export const locationSchema = z.object({
-  venue: z.string().min(1, 'Le lieu (nom de la salle) est requis'),
-  address: z.string().min(1, 'L\'adresse est requise'),
-  city: z.string().min(1, 'La ville est requise'),
-  country: z.string().min(1, 'Le pays est requis')
+  venue: z.string()
+    .min(1, { message: 'Event location is incomplete or invalid' })
+    .max(100, { message: 'Le nom du lieu est trop long' })
+    .transform((val) => val.trim()),
+  address: z.string()
+    .min(1, { message: 'Event location is incomplete or invalid' })
+    .max(200, { message: 'L\'adresse est trop longue' })
+    .transform((val) => val.trim()),
+  city: z.string()
+    .min(1, { message: 'Event location is incomplete or invalid' })
+    .max(50, { message: 'Le nom de la ville est trop long' })
+    .transform((val) => val.trim()),
+  country: z.string()
+    .min(1, { message: 'Event location is incomplete or invalid' })
+    .max(50, { message: 'Le nom du pays est trop long' })
+    .transform((val) => val.trim())
 });
 
-// Nouveau schéma pour la mise à jour partielle de la localisation
 export const updateLocationSchema = z.object({
-  city: z.string().min(1, 'City is required').optional(),
+  venue: z.string().max(100).optional().transform((val) => val?.trim()),
+  address: z.string().max(200).optional().transform((val) => val?.trim()),
+  city: z.string().max(50).optional().transform((val) => val?.trim()),
+  country: z.string().max(50).optional().transform((val) => val?.trim()),
   postalCode: z.string().optional(),
-  address: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-}).partial();
+}).strict().partial();
 
 export const requirementsSchema = z.object({
-  minExperience: z.number().min(0, 'Minimum experience must be 0 or greater'),
-  maxPerformers: z.number().min(1, 'Maximum performers must be at least 1').optional(),
-  duration: z.number().min(1, 'Duration must be at least 1 minute')
+  minExperience: z.number()
+    .min(0, { message: 'Invalid event requirements' })
+    .max(100, { message: 'Invalid event requirements' })
+    .optional(),
+  maxPerformers: z.number()
+    .min(1, { message: 'Invalid event requirements' })
+    .max(100, { message: 'Invalid event requirements' })
+    .optional(),
+  duration: z.number()
+    .min(1, { message: 'Invalid event requirements' })
+    .max(480, { message: 'Invalid event requirements' })
+    .optional()
 });
 
 export const createEventSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  date: z.string().refine((str) => {
-    const date = new Date(str);
-    return !isNaN(date.getTime());
-  }, 'Invalid date format').transform(str => new Date(str)),
+  title: z.string()
+    .min(3, { message: 'Event title is invalid or missing' })
+    .max(100, { message: 'Event title is invalid or missing' })
+    .transform((val) => val.trim()),
+  description: z.string()
+    .min(10, { message: 'La description doit contenir au moins 10 caractères' })
+    .max(2000, { message: 'La description ne peut pas dépasser 2000 caractères' })
+    .transform((val) => val.trim()),
+  date: z.string()
+    .refine((str) => {
+      const date = new Date(str);
+      return !isNaN(date.getTime());
+    }, { message: 'Event date is invalid or in the past' })
+    .refine((str) => {
+      const date = new Date(str);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return date >= today;
+    }, { message: 'Event date is invalid or in the past' })
+    .transform((str) => new Date(str)),
   location: locationSchema,
   requirements: requirementsSchema,
-  // Champs obligatoires pour la création
-  startTime: z.string().min(1, 'L\'heure de début est requise'),
-  endTime: z.string().min(1, 'L\'heure de fin est requise'),
-  budget: z.object({
-    min: z.number().min(0, 'Budget minimum must be 0 or greater').optional(),
-    max: z.number().min(0, 'Budget maximum must be 0 or greater').optional(),
-  }).optional(),
-  maxPerformers: z.number().min(1, 'Maximum performers must be at least 1').optional(),
+  startTime: z.string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+      message: 'Invalid start time'
+    }),
+  endTime: z.string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+      message: 'Invalid end time'
+    }),
+  budget: z.number()
+    .min(0, { message: 'Event budget is invalid' })
+    .optional(),
+  maxPerformers: z.number()
+    .min(1, { message: 'Invalid maximum number of performers' })
+    .max(100, { message: 'Invalid maximum number of performers' })
+    .optional(),
+}).refine((data) => {
+  const startParts = data.startTime.split(':');
+  const endParts = data.endTime.split(':');
+  const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+  const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+  return endMinutes > startMinutes;
+}, {
+  message: 'End time must be after start time',
+  path: ['endTime']
 });
 
-// Schéma de mise à jour: permettre des champs optionnels, y compris sous-objets
 export const updateEventSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters').optional(),
-  description: z.string().min(10, 'Description must be at least 10 characters').optional(),
-  date: z.preprocess((val) => {
-    if (typeof val === 'string') {
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? val : d;
-    }
-    return val;
-  }, z.date()).optional(),
+  title: z.string()
+    .min(3, { message: 'Event title is invalid or missing' })
+    .max(100, { message: 'Event title is invalid or missing' })
+    .optional(),
+  description: z.string()
+    .min(10, { message: 'La description doit contenir au moins 10 caractères' })
+    .max(2000, { message: 'La description ne peut pas dépasser 2000 caractères' })
+    .optional(),
+  date: z.string()
+    .refine((str) => {
+      const date = new Date(str);
+      return !isNaN(date.getTime());
+    }, { message: 'Event date is invalid or in the past' })
+    .refine((str) => {
+      const date = new Date(str);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return date >= today;
+    }, { message: 'Event date is invalid or in the past' })
+    .optional(),
   location: updateLocationSchema.optional(),
-  requirements: requirementsSchema.partial().optional(),
-  status: z.enum(['draft', 'published', 'cancelled', 'completed', 'DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED']).optional(),
-  cancellationReason: z.string().max(1000).optional(),
-  // Ajout des champs manquants pour la mise à jour
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  venue: z.string().optional(),
-  budget: z.object({
-    min: z.number().min(0, 'Budget minimum must be 0 or greater').optional(),
-    max: z.number().min(0, 'Budget maximum must be 0 or greater').optional(),
+  requirements: requirementsSchema.optional(),
+  status: z.enum(['draft', 'published', 'cancelled', 'completed', 'DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED'], {
+    errorMap: () => ({ message: 'Invalid enum value' })
   }).optional(),
-  maxPerformers: z.number().min(1, 'Maximum performers must be at least 1').optional(),
-}).partial();
+  cancellationReason: z.string().max(1000).optional(),
+  startTime: z.string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+      message: 'Invalid start time'
+    })
+    .optional(),
+  endTime: z.string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+      message: 'Invalid end time'
+    })
+    .optional(),
+  budget: z.number()
+    .min(0, { message: 'Event budget is invalid' })
+    .optional(),
+  maxPerformers: z.number()
+    .min(1, { message: 'Invalid maximum number of performers' })
+    .max(100, { message: 'Invalid maximum number of performers' })
+    .optional(),
+}).partial().refine((data) => {
+  // Si les deux heures sont fournies, validez que la fin est après le début
+  if (data.startTime && data.endTime) {
+    const startParts = data.startTime.split(':');
+    const endParts = data.endTime.split(':');
+    const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+    const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+    return endMinutes > startMinutes;
+  }
+  return true;
+}, {
+  message: 'End time must be after start time',
+  path: ['endTime']
+});
 
-// Schéma de validation pour les candidatures
+// ============================================================================
+// SCHÉMAS D'APPLICATION
+// ============================================================================
+
 export const performanceDetailsSchema = z.object({
-  duration: z.number().min(1, 'Duration must be at least 1 minute'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  videoLink: z.string().url('Invalid video URL').optional()
+  duration: z.number()
+    .min(1, { message: 'Invalid performance details' })
+    .max(480, { message: 'Invalid performance details' }),
+  description: z.string()
+    .min(10, { message: 'La description doit contenir au moins 10 caractères' })
+    .max(500, { message: 'La description ne peut pas dépasser 500 caractères' })
+    .optional(),
+  videoLink: z.string()
+    .url('Invalid URL format')
+    .optional()
 });
 
 export const createApplicationSchema = z.object({
-  eventId: z.string().min(1, 'Event ID is required'),
+  eventId: z.string()
+    .min(24, { message: 'Invalid event ID format' })
+    .regex(/^[0-9a-fA-F]{24}$/, { message: 'Invalid event ID format' }),
   performanceDetails: performanceDetailsSchema.optional(),
-  message: z.string().optional()
+  message: z.string()
+    .max(1000, { message: 'Message exceeds maximum length' })
+    .optional()
 });
 
 export const updateApplicationStatusSchema = z.object({
-  status: z.enum(['PENDING', 'ACCEPTED', 'REJECTED']),
-  organizerMessage: z.string().optional()
+  status: z.enum(['PENDING', 'ACCEPTED', 'REJECTED'], {
+    errorMap: () => ({ message: 'Invalid application status' })
+  }),
+  organizerMessage: z.string()
+    .max(1000, { message: 'Message exceeds maximum length' })
+    .optional()
 });
 
-// Schéma de validation pour la mise à jour du profil (mis à jour)
+// ============================================================================
+// SCHÉMAS DE PROFIL UTILISATEUR
+// ============================================================================
+
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters').optional(),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters').optional(),
-  email: z.string().email('Invalid email format').optional(),
-  city: z.string().optional(),
-  phone: z.string().optional(),
+  firstName: z.string()
+    .min(2, { message: 'Name must be at least 2 characters' })
+    .optional(),
+  lastName: z.string()
+    .min(2, { message: 'Name must be at least 2 characters' })
+    .optional(),
+  email: z.string()
+    .email('Invalid email format')
+    .optional(),
+  city: z.string()
+    .max(50, { message: 'Invalid city' })
+    .optional(),
+  phone: z.string()
+    .refine((phone) => {
+      const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '');
+      const frenchPhoneRegex = /^(0[1-9])[0-9]{8}$/;
+      const belgianPhoneRegex = /^(0[1-9][0-9]{7,8})$/;
+      return frenchPhoneRegex.test(cleanPhone) || belgianPhoneRegex.test(cleanPhone);
+    }, { message: 'Invalid phone number format' })
+    .optional(),
   address: z.string().optional(),
-  gender: z.enum(['femme', 'homme']).optional(),
-  avatarUrl: z.string().optional().refine(
-    (val) => !val || val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
-    { message: 'avatarUrl doit être une URL valide ou une image base64' }
-  ),
+  gender: z.enum(['femme', 'homme'], {
+    errorMap: () => ({ message: 'Le genre doit être "femme" ou "homme"' })
+  }).optional(),
+  avatarUrl: z.string()
+    .refine(
+      (val) => !val || val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
+      { message: 'URL d\'avatar ou format base64 invalide' }
+    )
+    .optional(),
   profile: z.object({
-    bio: z.string().optional(),
-    experience: z.number().min(0).optional(),
+    bio: z.string().max(500).optional(),
+    experience: z.number()
+      .min(0, { message: 'L\'expérience doit être 0 ou plus' })
+      .max(100, { message: 'L\'expérience ne peut pas dépasser 100 ans' })
+      .optional(),
     speciality: z.string().optional(),
     numberOfScenes: z.number().min(0).optional(),
     comedyStyle: z.array(z.enum(['stand-up', 'improvisation', 'plateau', 'sketch'])).optional(),
     performanceLanguages: z.array(z.enum(['francais', 'arabe', 'anglais', 'italien', 'espagnol'])).optional(),
     socialLinks: z.object({
-      youtube: z.string().url('URL YouTube invalide').optional().or(z.string().length(0)),
-      instagram: z.string().url('URL Instagram invalide').optional().or(z.string().length(0)),
-      facebook: z.string().url('URL Facebook invalide').optional().or(z.string().length(0)),
-      twitter: z.string().url('URL Twitter invalide').optional().or(z.string().length(0)),
+      youtube: z.string().url().optional().or(z.string().length(0)),
+      instagram: z.string().url().optional().or(z.string().length(0)),
+      facebook: z.string().url().optional().or(z.string().length(0)),
+      twitter: z.string().url().optional().or(z.string().length(0)),
     }).optional(),
   }).optional(),
   organizerProfile: z.object({
     companyName: z.string().optional(),
-    description: z.string().optional(),
-    website: z.string().url('Invalid website URL').optional(),
+    description: z.string().max(1000).optional(),
+    website: z.string().url('URL du site invalide').optional(),
     venueTypes: z.array(z.string()).optional(),
     eventFrequency: z.enum(['weekly', 'monthly', 'occasional']).optional(),
-    location: updateLocationSchema.optional(), // Intégrer le schéma de localisation ici
+    location: updateLocationSchema.optional(),
     phone: z.string().optional(),
   }).optional(),
 }).partial(); 

@@ -9,19 +9,19 @@ export const config = {
   },
   
   jwt: {
-    secret: process.env.JWT_SECRET || '',
+    secret: process.env.JWT_SECRET || 'bfba58bfd62edf8a3c2df7ba1786e10ec7585a9cb5fbb108bcb83b3c13a4ba0da4dfc0c489a67c6d4ab09b754a9c10f22ce06a8628cf9d2ab8c2ee480cc85805',
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   },
   
   database: {
-    url: process.env.DATABASE_URL || '',
+    url: process.env.DATABASE_URL || 'mongodb+srv://dahmaneaissa:gCG4gWYxrHnQRKJl@cluster0.l4wzsuv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
   },
   
   email: {
     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
     smtpPort: parseInt(process.env.SMTP_PORT || '465', 10),
-    smtpUser: process.env.SMTP_USER || '',
-    smtpPass: process.env.SMTP_PASS || '',
+    smtpUser: process.env.SMTP_USER || 'contact.standupconnect@gmail.com',
+    smtpPass: process.env.SMTP_PASS || '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',
   },
 };
 

@@ -60,6 +60,7 @@ export interface User {
   emailVerified?: boolean;
   avatarUrl?: string;
   createdAt?: Date;
+  updatedAt?: Date;
   lastLoginAt?: Date;
   phone?: string;
   address?: string;

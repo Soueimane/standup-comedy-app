@@ -21,6 +21,8 @@ export interface EventDocument extends Document {
   };
   modifiedByOrganizer?: boolean;
   cancellationReason?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const locationSchema = new Schema<Location>({
