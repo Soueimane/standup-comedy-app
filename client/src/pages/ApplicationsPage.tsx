@@ -59,6 +59,20 @@ function ApplicationsPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
   const [organizerEvents, setOrganizerEvents] = useState<Array<{ id: string; title: string }>>([]);
   const [sortKey, setSortKey] = useState<'dateAsc' | 'dateDesc' | 'statusAsc' | 'statusDesc'>('dateDesc');
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   const getStatusFromUrlOrTab = () => {
     const queryParams = new URLSearchParams(location.search);
@@ -230,17 +244,19 @@ function ApplicationsPage() {
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#ffffff',
-    padding: '20px',
+    padding: isMobile ? '16px 12px' : '20px',
     background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
   };
 
   const pageHeaderStyle: CSSProperties = {
-    padding: '20px',
+    padding: isMobile ? '10px 0 20px' : '20px',
     maxWidth: '1200px',
     margin: '0 auto',
     display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    gap: isMobile ? '12px' : 0,
     marginBottom: '30px',
   };
 
@@ -258,7 +274,7 @@ function ApplicationsPage() {
   const contentContainerStyle: CSSProperties = {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '20px',
+    padding: isMobile ? '16px' : '20px',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: '8px',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
@@ -267,23 +283,23 @@ function ApplicationsPage() {
   const applicationsListStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: isMobile ? '12px' : '16px',
     marginTop: '20px',
   };
 
   const applicationCardStyle: CSSProperties = {
     backgroundColor: '#1a1a2e',
     borderRadius: '12px',
-    padding: '20px',
+    padding: isMobile ? '16px' : '20px',
     boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: '20px',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'stretch' : 'center',
+    gap: isMobile ? '14px' : '20px',
     cursor: 'pointer',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-    flexWrap: 'wrap',
+    flexWrap: isMobile ? 'nowrap' : 'wrap',
   };
 
   const cardTitleStyle: CSSProperties = {
@@ -301,9 +317,11 @@ function ApplicationsPage() {
   const comedianInfoStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
+    gap: isMobile ? '12px' : '16px',
     flex: '1',
     minWidth: 0,
+    width: isMobile ? '100%' : 'auto',
+    flexWrap: isMobile ? 'wrap' : 'nowrap',
   };
 
   const comedianDetailsStyle: CSSProperties = {
@@ -311,11 +329,12 @@ function ApplicationsPage() {
     flexDirection: 'column',
     gap: '4px',
     minWidth: 0,
+    flex: isMobile ? '1 1 auto' : undefined,
   };
 
   const comedianInitialBubbleStyle: CSSProperties = {
-    width: '56px',
-    height: '56px',
+    width: isMobile ? '48px' : '56px',
+    height: isMobile ? '48px' : '56px',
     borderRadius: '50%',
     background: 'rgba(255, 255, 255, 0.15)',
     color: '#fff',
@@ -354,6 +373,8 @@ function ApplicationsPage() {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    justifyContent: 'center',
+    width: isMobile ? '100%' : 'auto',
   };
 
   const eventInfoStyle: CSSProperties = {
@@ -362,6 +383,7 @@ function ApplicationsPage() {
     gap: '6px',
     flex: '1',
     minWidth: 0,
+    width: isMobile ? '100%' : 'auto',
   };
 
   const eventTitleStyle: CSSProperties = {
@@ -383,16 +405,19 @@ function ApplicationsPage() {
   const cardRightSectionStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'flex-end',
+    alignItems: isMobile ? 'stretch' : 'flex-end',
     gap: '12px',
     flexShrink: 0,
+    width: isMobile ? '100%' : 'auto',
   };
 
   const actionsContainerStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: isMobile ? '8px' : '10px',
     flexWrap: 'wrap',
+    width: isMobile ? '100%' : 'auto',
+    justifyContent: isMobile ? 'space-between' : 'flex-end',
   };
 
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
@@ -422,6 +447,8 @@ function ApplicationsPage() {
       fontWeight: 'bold',
       fontSize: '0.9em',
       border: status === 'ACCEPTED' ? 'none' : undefined, // Pas de bordure pour ACCEPTED
+      width: isMobile ? '100%' : 'auto',
+      textAlign: isMobile ? 'center' : 'left',
     };
   };
 
@@ -455,6 +482,7 @@ function ApplicationsPage() {
     backgroundColor: '#28a745', // Green
     marginTop: 0,
     marginRight: 0,
+    flex: isMobile ? 1 : undefined,
   };
 
   const rejectButtonStyle: CSSProperties = {
@@ -462,6 +490,7 @@ function ApplicationsPage() {
     backgroundColor: '#dc3545', // Red
     marginTop: 0,
     marginRight: 0,
+    flex: isMobile ? 1 : undefined,
   };
 
   const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
