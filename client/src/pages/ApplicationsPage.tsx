@@ -59,6 +59,8 @@ function ApplicationsPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
   const [organizerEvents, setOrganizerEvents] = useState<Array<{ id: string; title: string }>>([]);
   const [sortKey, setSortKey] = useState<'dateAsc' | 'dateDesc' | 'statusAsc' | 'statusDesc'>('dateDesc');
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 768;
@@ -147,6 +149,26 @@ function ApplicationsPage() {
     };
     loadOrganizerEvents();
   }, [token, user?.role]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTab, selectedEventId, comedianFilter, sortKey, applications.length]);
+  const organizerFilteredApplications = user?.role === 'ORGANIZER'
+    ? getFilteredApplications().filter(app => app.event)
+    : [];
+
+  const totalOrganizerPages = Math.max(1, Math.ceil(organizerFilteredApplications.length / ITEMS_PER_PAGE));
+
+  useEffect(() => {
+    if (currentPage > totalOrganizerPages) {
+      setCurrentPage(totalOrganizerPages);
+    }
+  }, [totalOrganizerPages, currentPage]);
+
+  const paginatedOrganizerApplications = organizerFilteredApplications.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const openStatusModal = (appId: string, status: 'ACCEPTED' | 'REJECTED') => {
     setStatusAppId(appId);
@@ -518,6 +540,33 @@ function ApplicationsPage() {
     background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
   };
 
+  const paginationContainerStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    marginTop: '20px',
+    flexWrap: 'wrap',
+  };
+
+  const paginationButtonStyle: CSSProperties = {
+    padding: '8px 14px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#331f41',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    minWidth: '100px',
+    opacity: 1,
+    transition: 'opacity 0.2s, transform 0.2s',
+  };
+
+  const paginationInfoStyle: CSSProperties = {
+    color: '#ddd',
+    fontWeight: 600,
+  };
+
   // Détermine si l'événement a été modifié par l'organisateur
   const wasEventUpdatedAfterApplication = (app: IApplication): boolean => {
     // Utiliser le champ modifiedByOrganizer qui est défini uniquement lors de vraies modifications
@@ -734,10 +783,9 @@ function ApplicationsPage() {
               </>
             ) : (
               // Affichage organisateur - Liste horizontale
-              <div style={applicationsListStyle}>
-                {getFilteredApplications()
-                  .filter(app => app.event)
-                  .map((app) => (
+              <>
+                <div style={applicationsListStyle}>
+                  {paginatedOrganizerApplications.map((app) => (
                   <div 
                     key={app._id} 
                     style={applicationCardStyle}
@@ -812,7 +860,37 @@ function ApplicationsPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+                {organizerFilteredApplications.length > ITEMS_PER_PAGE && (
+                  <div style={paginationContainerStyle}>
+                    <button
+                      style={{
+                        ...paginationButtonStyle,
+                        opacity: currentPage === 1 ? 0.5 : 1,
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={() => currentPage > 1 && setCurrentPage(prev => prev - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      ◀ Précédent
+                    </button>
+                    <span style={paginationInfoStyle}>
+                      Page {currentPage} / {totalOrganizerPages}
+                    </span>
+                    <button
+                      style={{
+                        ...paginationButtonStyle,
+                        opacity: currentPage === totalOrganizerPages ? 0.5 : 1,
+                        cursor: currentPage === totalOrganizerPages ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={() => currentPage < totalOrganizerPages && setCurrentPage(prev => prev + 1)}
+                      disabled={currentPage === totalOrganizerPages}
+                    >
+                      Suivant ▶
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
