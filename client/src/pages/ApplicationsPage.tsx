@@ -222,7 +222,7 @@ function ApplicationsPage() {
     });
 
   // Fonction de filtrage combinée
-  const getFilteredApplications = () => {
+  function getFilteredApplications(): IApplication[] {
     let filtered = applications;
     if (selectedTab !== 'all') {
       filtered = filtered.filter(app => app.status === selectedTab);
@@ -256,7 +256,7 @@ function ApplicationsPage() {
       return 0;
     });
     return sorted;
-  };
+  }
 
   const allApplicationsCount = applications.length;
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
