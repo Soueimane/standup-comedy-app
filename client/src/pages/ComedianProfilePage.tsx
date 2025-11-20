@@ -246,9 +246,6 @@ function ComedianProfilePage() {
               <span style={infoLabelStyle}>Adresse</span>
               <span style={infoValueStyle}>{user?.address || 'Non définie'}</span>
             </div>
-            {!isViewingOtherProfile && (
-              <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>Modifier</button>
-            )}
           </div>
 
           {/* Profil Humoriste */}
@@ -361,9 +358,6 @@ function ComedianProfilePage() {
                   )}
                 </div>
               </div>
-            )}
-            {!isViewingOtherProfile && (
-              <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>MODIFIER</button>
             )}
           </div>
         </div>
