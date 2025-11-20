@@ -13,6 +13,16 @@ import { IPopulatedUser } from '../types/user';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
 
+// Fonction pour construire avatarUrl à partir de avatar.data
+const buildAvatarDataUrl = (user: any): string | undefined => {
+  if (user?.avatar?.data) {
+    const contentType = user.avatar.contentType || 'image/png';
+    const base64 = user.avatar.data.toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  }
+  return user?.avatarUrl || undefined;
+};
+
 export const createApplication = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { eventId, performanceDetails, message } = req.body;
@@ -313,7 +323,23 @@ export const getComedianApplications = async (req: AuthRequest, res: Response): 
       })
       .sort({ createdAt: -1 });
 
-    res.json({ applications });
+    // Transformer les applications pour ajouter avatarUrl à chaque humoriste
+    const transformedApplications = applications.map(app => {
+      const appObj: any = app.toObject ? app.toObject() : app;
+      if (appObj.comedian) {
+        appObj.comedian = {
+          ...appObj.comedian,
+          avatarUrl: buildAvatarDataUrl(appObj.comedian)
+        };
+        // Supprimer le champ avatar pour ne pas l'envoyer au client
+        if ('avatar' in appObj.comedian) {
+          delete appObj.comedian.avatar;
+        }
+      }
+      return appObj;
+    });
+
+    res.json({ applications: transformedApplications });
   } catch (error) {
     console.error('Erreur lors de la récupération des applications de l\'humoriste:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération des applications' });
@@ -391,7 +417,23 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
       filteredApplications = filteredApplications.filter(app => statusArray.includes(app.status));
     }
 
-    res.json(filteredApplications);
+    // Transformer les applications pour ajouter avatarUrl à chaque humoriste
+    const transformedApplications = filteredApplications.map(app => {
+      const appObj: any = app.toObject ? app.toObject() : app;
+      if (appObj.comedian) {
+        appObj.comedian = {
+          ...appObj.comedian,
+          avatarUrl: buildAvatarDataUrl(appObj.comedian)
+        };
+        // Supprimer le champ avatar pour ne pas l'envoyer au client
+        if ('avatar' in appObj.comedian) {
+          delete appObj.comedian.avatar;
+        }
+      }
+      return appObj;
+    });
+
+    res.json(transformedApplications);
   } catch (error) {
     console.error('Erreur lors de la récupération des candidatures:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération des candidatures' });
@@ -422,7 +464,20 @@ export const getApplicationById = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    res.json(application);
+    // Transformer l'application pour ajouter avatarUrl à l'humoriste
+    const appObj: any = application.toObject ? application.toObject() : application;
+    if (appObj.comedian) {
+      appObj.comedian = {
+        ...appObj.comedian,
+        avatarUrl: buildAvatarDataUrl(appObj.comedian)
+      };
+      // Supprimer le champ avatar pour ne pas l'envoyer au client
+      if ('avatar' in appObj.comedian) {
+        delete appObj.comedian.avatar;
+      }
+    }
+
+    res.json(appObj);
   } catch (error) {
     console.error('Erreur lors de la récupération de la candidature:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération de la candidature' });

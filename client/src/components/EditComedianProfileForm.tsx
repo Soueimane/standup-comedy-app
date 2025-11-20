@@ -374,7 +374,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           ))}
         </div>
         
-        <label style={labelStyle}>Langues du spectacle</label>
+        <label style={labelStyle}>Langues</label>
         <div style={{ marginBottom: '15px' }}>
           {[
             { value: 'francais', label: 'Français' },

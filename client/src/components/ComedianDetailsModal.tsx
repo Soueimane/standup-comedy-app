@@ -293,7 +293,7 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
             
             {comedian.profile.performanceLanguages && comedian.profile.performanceLanguages.length > 0 && (
               <div style={infoRowStyle}>
-                <span style={infoLabelStyle}>Langues du spectacle:</span>
+                <span style={infoLabelStyle}>Langues:</span>
                 <span style={infoValueStyle}>
                   {comedian.profile.performanceLanguages.map(lang => {
                     const labels: Record<string, string> = {

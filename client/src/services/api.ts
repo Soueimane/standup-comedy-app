@@ -3,7 +3,7 @@ import axios from 'axios';
 // Configuration automatique de l'URL de base selon l'environnement
 const baseURL = import.meta.env.PROD 
   ? (import.meta.env.VITE_API_URL || 'https://standup-comedy-app.onrender.com/api')  // Production
-  : 'http://localhost:3001/api';            // Développement : localhost
+  : 'https://standup-comedy-app.onrender.com/api';            // Développement : localhost
 
 const api = axios.create({
   baseURL,

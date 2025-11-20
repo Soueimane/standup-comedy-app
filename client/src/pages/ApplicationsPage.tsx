@@ -4,7 +4,6 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
-import type { IUserData } from '../types/user';
 
 export interface IUser {
   _id: string;
@@ -12,6 +11,7 @@ export interface IUser {
   lastName: string;
   email: string;
   phone?: string;
+  avatarUrl?: string | null;
   profile?: { bio?: string; experience?: number; speciality?: string; }; // Ajoutez d'autres champs si nécessaires
 }
 
@@ -839,11 +839,11 @@ function ApplicationsPage() {
                     {user?.role === 'ORGANIZER' && (
                       <div style={comedianInfoStyle}>
                         <div style={comedianInitialBubbleStyle}>
-                          {(app.comedian as IUserData)?.avatarUrl ? (
+                          {app.comedian?.avatarUrl ? (
                             <img
-                              src={(app.comedian as IUserData).avatarUrl as string}
+                              src={app.comedian.avatarUrl}
                               alt={`${app.comedian.firstName} ${app.comedian.lastName}`}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                             />
                           ) : (
                             `${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'
