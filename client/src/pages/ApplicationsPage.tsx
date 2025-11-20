@@ -442,6 +442,48 @@ function ApplicationsPage() {
     justifyContent: isMobile ? 'space-between' : 'flex-end',
   };
 
+  const comedianApplicationRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    gap: isMobile ? '12px' : '20px',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    width: '100%',
+  };
+
+  const comedianApplicationInfoStyle: CSSProperties = {
+    flex: '1 1 auto',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  };
+
+  const comedianApplicationTitleRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    gap: '8px',
+  };
+
+  const comedianApplicationDateBadgeStyle: CSSProperties = {
+    padding: '4px 12px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    color: '#fff',
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    whiteSpace: 'nowrap',
+  };
+
+  const comedianApplicationStatusStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    flexShrink: 0,
+    alignItems: isMobile ? 'stretch' : 'flex-end',
+    width: isMobile ? '100%' : 'auto',
+  };
+
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
     let backgroundColor = '';
     let color = '#ffffff';
@@ -687,85 +729,65 @@ function ApplicationsPage() {
                               style={applicationCardStyle}
                               onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
                             >
-                              <div>
-                                <h3 style={cardTitleStyle}>{app.event.title}</h3>
-                                {wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
-                                  <div style={{ display: 'inline-block', marginBottom: 8, padding: '4px 8px', borderRadius: 6, background: '#fff3cd', color: '#664d03', fontSize: 12, fontWeight: 600 }}>
-                                    Modification apportée par l'organisateur à cet événement
+                              <div style={comedianApplicationRowStyle}>
+                                <div style={comedianApplicationInfoStyle}>
+                                  <div style={comedianApplicationTitleRowStyle}>
+                                    <h3 style={cardTitleStyle}>{app.event.title}</h3>
+                                    <span style={comedianApplicationDateBadgeStyle}>
+                                      {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                                    </span>
                                   </div>
-                                )}
-                                <p style={cardDetailStyle}>Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}</p>
-                                <p style={cardDetailStyle}>Date de l'événement: {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}</p>
-                                {app.performanceDetails && (
-                                  <>
-                                    <p style={cardDetailStyle}>Durée proposée: {app.performanceDetails.duration} min</p>
-                                    <p style={cardDetailStyle}>Description: {app.performanceDetails.description}</p>
-                                    {app.performanceDetails.videoLink && <p style={cardDetailStyle}>Lien vidéo: <a href={app.performanceDetails.videoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#ff4b2b' }}>Voir la vidéo</a></p>}
-                                  </>
-                                )}
-                                {app.message && <p style={cardDetailStyle}>Message: {app.message}</p>}
-                                <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                                {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
-                                  <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                                    <button
-                                      onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
-                                        e.stopPropagation(); 
-                                        console.log('🎪 DEBUT clic bouton confirmation');
-                                        console.log('🎪 Application complète:', app);
-                                        console.log('🎪 Application._id:', app._id);
-                                        console.log('🎪 Event:', app.event);
-                                        console.log('🎪 User role:', user?.role);
-                                        console.log('🎪 User ID:', user?._id);
-                                        
-                                        try {
-                                          // Vérifier d'abord si l'application existe
-                                          console.log('🔍 Vérification existence application...');
-                                          const checkResponse = await api.get(`/applications/${app._id}`, {
-                                            headers: { Authorization: `Bearer ${token}` }
-                                          });
-                                          console.log('✅ Application existe:', checkResponse.data);
-                                          
-                                          // Puis confirmer la participation
-                                          console.log('🎪 Appel PATCH /confirm...');
-                                          const response = await api.patch(`/applications/${app._id}/confirm`, {}, {
-                                            headers: { Authorization: `Bearer ${token}` }
-                                          });
-                                          console.log('🎪 Réponse API:', response.data);
-                                          
-                                          if (response.status === 200) {
-                                            alert('Confirmation enregistrée ! Les boutons vont disparaître.');
-                                            fetchApplications(); // Recharger pour cacher les boutons
+                                  <p style={cardDetailStyle}>Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}</p>
+                                  {app.performanceDetails && (
+                                    <p style={{ ...cardDetailStyle, color: '#9ad7ff' }}>
+                                      Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                                    </p>
+                                  )}
+                                  {app.message && <p style={cardDetailStyle}>Message: {app.message}</p>}
+                                </div>
+                                <div style={comedianApplicationStatusStyle}>
+                                  <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                                  {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
+                                    <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                      <button
+                                        onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
+                                          e.stopPropagation(); 
+                                          try {
+                                            await api.patch(`/applications/${app._id}/confirm`, {}, {
+                                              headers: { Authorization: `Bearer ${token}` }
+                                            });
+                                            alert('Confirmation enregistrée !');
+                                            fetchApplications();
+                                          } catch (error) {
+                                            alert('Erreur lors de la confirmation.');
                                           }
-                                        } catch (error) {
-                                          console.error('🎪 Erreur complète:', error);
-                                          alert('Erreur lors de la confirmation. Vérifiez la console.');
-                                        }
-                                      }}
-                                      style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
-                                    >
-                                      Je reste inscrit
-                                    </button>
-                                    <button
-                                      onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
-                                        e.stopPropagation();
-                                        if (!token) return;
-                                        if (!confirm('Confirmer la désinscription ?')) return;
-                                        try {
-                                          const config = { headers: { Authorization: `Bearer ${token}` } };
-                                          await api.delete(`/applications/${app._id}`, config);
-                                          alert('Candidature retirée.');
-                                          fetchApplications();
-                                          refreshUser();
-                                        } catch (err: any) {
-                                          alert('Échec de la désinscription.');
-                                        }
-                                      }}
-                                      style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
-                                    >
-                                      Me désinscrire
-                                    </button>
-                                  </div>
-                                )}
+                                        }}
+                                        style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
+                                      >
+                                        Je reste inscrit
+                                      </button>
+                                      <button
+                                        onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                          e.stopPropagation();
+                                          if (!token) return;
+                                          if (!confirm('Confirmer la désinscription ?')) return;
+                                          try {
+                                            const config = { headers: { Authorization: `Bearer ${token}` } };
+                                            await api.delete(`/applications/${app._id}`, config);
+                                            alert('Candidature retirée.');
+                                            fetchApplications();
+                                            refreshUser();
+                                          } catch (err: any) {
+                                            alert('Échec de la désinscription.');
+                                          }
+                                        }}
+                                        style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
+                                      >
+                                        Me désinscrire
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}
