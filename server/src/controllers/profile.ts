@@ -1,6 +1,16 @@
 import { Response } from 'express';
+import { Buffer } from 'buffer';
 import { UserModel } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
+
+const buildAvatarDataUrl = (user: any): string | undefined => {
+  if (user?.avatar?.data) {
+    const contentType = user.avatar.contentType || 'image/png';
+    const base64 = user.avatar.data.toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  }
+  return user?.avatarUrl || undefined;
+};
 
 /**
  * Récupère le profil de l'utilisateur authentifié
@@ -18,8 +28,12 @@ export const getMyProfile = async (req: AuthRequest, res: Response): Promise<any
     const userObj = user.toObject ? user.toObject() : user;
     const responseData = {
       ...userObj,
-      id: user._id // Add 'id' property for consistency with token
+      id: user._id,
+      avatarUrl: buildAvatarDataUrl(userObj),
     };
+    if ('avatar' in responseData) {
+      delete (responseData as any).avatar;
+    }
 
     return res.json(responseData);
   } catch (error: any) {
@@ -43,8 +57,12 @@ export const getUserProfile = async (req: AuthRequest, res: Response): Promise<a
     const userObj = user.toObject ? user.toObject() : user;
     const responseData = {
       ...userObj,
-      id: user._id
+      id: user._id,
+      avatarUrl: buildAvatarDataUrl(userObj),
     };
+    if ('avatar' in responseData) {
+      delete (responseData as any).avatar;
+    }
 
     return res.json(responseData);
   } catch (error: any) {
@@ -93,7 +111,29 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     if (updateData.phone) user.phone = updateData.phone;
     if (updateData.address) user.address = updateData.address;
     if (updateData.gender !== undefined) user.gender = updateData.gender;
-    if (updateData.avatarUrl !== undefined) user.avatarUrl = updateData.avatarUrl;
+    if (updateData.avatarUrl !== undefined) {
+      if (updateData.avatarUrl === null || updateData.avatarUrl === '') {
+        user.avatarUrl = undefined;
+        (user as any).avatar = undefined;
+      } else if (typeof updateData.avatarUrl === 'string' && updateData.avatarUrl.startsWith('data:image/')) {
+        const matches = updateData.avatarUrl.match(/^data:(.+);base64,(.+)$/);
+        if (matches) {
+          const [, contentType, base64Data] = matches;
+          (user as any).avatar = {
+            data: Buffer.from(base64Data, 'base64'),
+            contentType,
+            uploadedAt: new Date(),
+          };
+          user.avatarUrl = undefined;
+        } else {
+          user.avatarUrl = updateData.avatarUrl;
+          (user as any).avatar = undefined;
+        }
+      } else {
+        user.avatarUrl = updateData.avatarUrl;
+        (user as any).avatar = undefined;
+      }
+    }
 
     console.log('✏️ Utilisateur après mise à jour des champs:', {
       email: user.email,
@@ -167,8 +207,12 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     const userObj = updatedUser.toObject ? updatedUser.toObject() : updatedUser;
     const responseData = {
       ...userObj,
-      id: updatedUser._id
+      id: updatedUser._id,
+      avatarUrl: buildAvatarDataUrl(userObj),
     };
+    if ('avatar' in responseData) {
+      delete (responseData as any).avatar;
+    }
 
     return res.json(responseData);
   } catch (error: any) {

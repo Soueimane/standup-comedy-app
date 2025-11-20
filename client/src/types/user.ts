@@ -66,7 +66,7 @@ export interface IUserData {
   };
   onboardingCompleted?: boolean;
   emailVerified?: boolean;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   createdAt?: string;
   lastLoginAt?: string;
 } 

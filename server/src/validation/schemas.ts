@@ -294,12 +294,13 @@ export const updateProfileSchema = z.object({
   gender: z.enum(['femme', 'homme'], {
     errorMap: () => ({ message: 'Le genre doit être "femme" ou "homme"' })
   }).optional(),
-  avatarUrl: z.string()
-    .refine(
+  avatarUrl: z.union([
+    z.string().refine(
       (val) => !val || val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
       { message: 'URL d\'avatar ou format base64 invalide' }
-    )
-    .optional(),
+    ),
+    z.null()
+  ]).optional(),
   profile: z.object({
     bio: z.string().max(500).optional(),
     experience: z.number()

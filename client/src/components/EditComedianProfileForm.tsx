@@ -54,7 +54,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
 
   const handleRemoveAvatar = () => {
     setPreviewImage(null);
-    setFormData(prev => ({ ...prev, avatarUrl: undefined }));
+    setFormData(prev => ({ ...prev, avatarUrl: null }));
     setAvatarRemoved(true);
     setError(null);
   };

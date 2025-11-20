@@ -160,6 +160,12 @@ const userProfileSchema = new Schema<UserProfile>({
   performances: [performanceSchema]
 });
 
+const AvatarSchema = new Schema({
+  data: { type: Buffer },
+  contentType: { type: String },
+  uploadedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const userSchema = new Schema<UserDocument>({
   email: {
     type: String,
@@ -221,6 +227,7 @@ const userSchema = new Schema<UserDocument>({
   onboardingCompleted: { type: Boolean, default: false },
   emailVerified: { type: Boolean, default: false },
   avatarUrl: { type: String },
+  avatar: { type: AvatarSchema, required: false },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {
