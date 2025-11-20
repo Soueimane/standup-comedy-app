@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
+import type { IUserData } from '../types/user';
 
 export interface IUser {
   _id: string;
@@ -367,6 +368,7 @@ function ApplicationsPage() {
     fontSize: '1.2em',
     textTransform: 'uppercase',
     flexShrink: 0,
+    overflow: 'hidden'
   };
 
   const comedianNameTextStyle: CSSProperties = {
@@ -836,7 +838,15 @@ function ApplicationsPage() {
                     {user?.role === 'ORGANIZER' && (
                       <div style={comedianInfoStyle}>
                         <div style={comedianInitialBubbleStyle}>
-                          {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                          {(app.comedian as IUserData)?.avatarUrl ? (
+                            <img
+                              src={(app.comedian as IUserData).avatarUrl as string}
+                              alt={`${app.comedian.firstName} ${app.comedian.lastName}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            `${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'
+                          )}
                         </div>
                         <div style={comedianDetailsStyle}>
                           <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
