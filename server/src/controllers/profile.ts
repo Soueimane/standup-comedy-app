@@ -5,47 +5,67 @@ import { AuthRequest } from '../middleware/auth';
 /**
  * Récupère le profil de l'utilisateur authentifié
  */
-export const getMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getMyProfile = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const user = await UserModel.findById(req.user?.id);
     if (!user) {
       console.log('Utilisateur non trouvé pour /me avec ID:', req.user?.id);
-      res.status(404).json({ message: 'Utilisateur non trouvé' });
-      return;
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
     console.log('Données utilisateur renvoyées par /api/profile/me:', user.stats?.totalEvents);
-    res.json(user);
+
+    // Transform the response to include 'id' instead of just '_id' for consistency with JWT token
+    const userObj = user.toObject ? user.toObject() : user;
+    const responseData = {
+      ...userObj,
+      id: user._id // Add 'id' property for consistency with token
+    };
+
+    return res.json(responseData);
   } catch (error: any) {
     console.error('Erreur lors de la récupération du profil /me:', error.message);
-    res.status(500).json({ message: 'Erreur lors de la récupération du profil', error: error.message });
+    return res.status(500).json({ message: 'Erreur lors de la récupération du profil', error: error.message });
   }
 };
 
 /**
  * Récupère le profil d'un utilisateur par son ID (pour les organisateurs qui veulent voir le profil d'un humoriste)
  */
-export const getUserProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getUserProfile = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
     const user = await UserModel.findById(userId).select('-password');
     if (!user) {
-      res.status(404).json({ message: 'Utilisateur non trouvé' });
-      return;
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
-    res.json(user);
+
+    // Transform the response to include 'id' for consistency
+    const userObj = user.toObject ? user.toObject() : user;
+    const responseData = {
+      ...userObj,
+      id: user._id
+    };
+
+    return res.json(responseData);
   } catch (error: any) {
     console.error('Erreur lors de la récupération du profil:', error.message);
-    res.status(500).json({ message: 'Erreur lors de la récupération du profil', error: error.message });
+    return res.status(500).json({ message: 'Erreur lors de la récupération du profil', error: error.message });
   }
 };
 
 /**
  * Met à jour le profil d'un utilisateur avec gestion des profils secondaires (comedianProfile, organizerProfile)
  */
-export const updateUserProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateUserProfile = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
     const updateData = req.body;
+
+    console.log('📝 [updateUserProfile] Données reçues:', {
+      userId,
+      updateDataKeys: Object.keys(updateData),
+      updateData: JSON.stringify(updateData, null, 2)
+    });
 
     if (req.user?.id !== userId) {
       res.status(403).json({ message: 'Non autorisé à modifier ce profil' });
@@ -58,6 +78,13 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    console.log('👤 Utilisateur trouvé, avant mise à jour:', {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone
+    });
+
     // Update basic user fields
     if (updateData.firstName) user.firstName = updateData.firstName;
     if (updateData.lastName) user.lastName = updateData.lastName;
@@ -67,6 +94,13 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     if (updateData.address) user.address = updateData.address;
     if (updateData.gender !== undefined) user.gender = updateData.gender;
     if (updateData.avatarUrl !== undefined) user.avatarUrl = updateData.avatarUrl;
+
+    console.log('✏️ Utilisateur après mise à jour des champs:', {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone
+    });
 
     // Handle comedianProfile updates
     if (user.role === 'COMEDIAN') {
@@ -115,7 +149,9 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
       }
     }
 
+    console.log('💾 Tentative de sauvegarde...');
     await user.save();
+    console.log('✅ Utilisateur sauvegardé avec succès');
 
     // Retrieve updated user with profiles populated
     const updatedUser = await UserModel.findById(userId)
@@ -123,8 +159,35 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
       .populate('profile')
       .populate('organizerProfile');
 
-    res.json(updatedUser);
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé après mise à jour' });
+    }
+
+    // Transform the response to include 'id' for consistency
+    const userObj = updatedUser.toObject ? updatedUser.toObject() : updatedUser;
+    const responseData = {
+      ...userObj,
+      id: updatedUser._id
+    };
+
+    return res.json(responseData);
   } catch (error: any) {
-    res.status(500).json({ message: 'Erreur lors de la mise à jour du profil', error: error.message });
+    console.error('❌ Erreur validation/sauvegarde:', {
+      message: error.message,
+      name: error.name,
+      errors: error.errors ? Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message,
+        value: error.errors[key].value
+      })) : null
+    });
+    return res.status(500).json({
+      message: 'Erreur lors de la mise à jour du profil',
+      error: error.message,
+      errors: error.errors ? Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      })) : null
+    });
   }
 };

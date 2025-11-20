@@ -320,7 +320,10 @@ export const updateProfileSchema = z.object({
   organizerProfile: z.object({
     companyName: z.string().optional(),
     description: z.string().max(1000).optional(),
-    website: z.string().url('URL du site invalide').optional(),
+    website: z.string()
+      .url('URL du site invalide')
+      .optional()
+      .or(z.string().length(0)), // Allow empty string
     venueTypes: z.array(z.string()).optional(),
     eventFrequency: z.enum(['weekly', 'monthly', 'occasional']).optional(),
     location: updateLocationSchema.optional(),

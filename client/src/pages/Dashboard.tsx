@@ -32,7 +32,11 @@ const Dashboard = () => {
         throw new Error("Vous devez être connecté pour voir les statistiques d'événements.");
       }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/events/stats`, {
+      const apiUrl = import.meta.env.PROD
+        ? (import.meta.env.VITE_API_URL || 'https://standup-comedy-app.onrender.com/api')
+        : '/api';
+
+      const res = await fetch(`${apiUrl}/events/stats`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

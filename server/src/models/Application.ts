@@ -16,8 +16,8 @@ export interface ApplicationDocument extends Document {
 }
 
 const performanceDetailsSchema = new Schema<PerformanceDetails>({
-  duration: { type: Number, required: true },
-  description: { type: String, required: true },
+  duration: { type: Number, required: false },
+  description: { type: String, required: false },
   videoLink: { type: String }
 });
 

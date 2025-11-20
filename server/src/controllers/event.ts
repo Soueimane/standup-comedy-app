@@ -516,15 +516,14 @@ export const getOrganizerEvents = async (req: AuthRequest, res: Response): Promi
 // ============================================================================
 // GET EVENT STATS
 // ============================================================================
-export const getEventStats = async (req: AuthRequest, res: Response) => {
+export const getEventStats = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const organizerId = req.user?.id;
     const userRole = req.user?.role;
 
     // Vérifier que l'utilisateur est authentifié
     if (!organizerId) {
-      res.status(401).json({ message: 'Utilisateur non authentifié' });
-      return;
+      return res.status(401).json({ message: 'Utilisateur non authentifié' });
     }
 
     console.log('🔍 [DEBUG] getEventStats appelé:');
@@ -632,14 +631,25 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
     console.log('👤 Utilisateur normal (non super admin) - Role:', userRole);
 
     // Logique existante pour les organisateurs normaux
-    const objectOrganizerId = new mongoose.Types.ObjectId(organizerId);
+    let objectOrganizerId;
+    try {
+      objectOrganizerId = new mongoose.Types.ObjectId(organizerId);
+      console.log('✅ ObjectId créé avec succès:', objectOrganizerId);
+    } catch (e) {
+      console.error('❌ Erreur création ObjectId:', e);
+      return res.status(400).json({ message: 'ID organisateur invalide' });
+    }
 
     // Récupérer tous les événements de l'organisateur avec participants peuplés
+    console.log('🔍 Recherche événements pour organisateur:', objectOrganizerId);
     const allEvents = await EventModel.find({ organizer: objectOrganizerId }).populate('participants');
+    console.log('📊 Événements trouvés:', allEvents.length);
     const eventIds = allEvents.map(event => event._id);
 
     // Récupérer toutes les candidatures liées à ces événements
+    console.log('🔍 Recherche candidatures pour événements:', eventIds.length);
     const allApplications = await ApplicationModel.find({ event: { $in: eventIds } });
+    console.log('📊 Candidatures trouvées:', allApplications.length);
 
     const totalEvents = allEvents.length;
     const pendingApplications = allApplications.filter(app => app.status === 'PENDING').length;
@@ -680,7 +690,7 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
       rejectedApplications
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       totalEvents,
       upcomingIncompleteEvents,
       completedEvents,
@@ -690,8 +700,11 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
       rejectedApplications
     });
   } catch (err) {
-    console.error('Error fetching event stats:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error fetching event stats:', err);
+    return res.status(500).json({
+      message: 'Erreur lors du chargement des statistiques',
+      error: err instanceof Error ? err.message : 'Erreur interne du serveur'
+    });
   }
 };
 
