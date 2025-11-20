@@ -58,6 +58,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   const endTimeRef = useRef<HTMLDivElement>(null);
   const addressSearchTimeoutRef = useRef<number | null>(null);
   const isAutoFillingRef = useRef(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; city: string; postalCode: string }>>([]);
 
   // Fermer les dropdowns quand on clique en dehors
   useEffect(() => {
@@ -127,24 +128,24 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   };
 
   // Fonction pour rechercher ville et code postal par adresse
-  const searchLocationByAddress = async (address: string): Promise<{ city: string; postalCode: string; address: string } | null> => {
-    if (!address || address.length < 5) return null;
+  const searchLocationByAddress = async (address: string): Promise<Array<{ label: string; city: string; postalCode: string }>> => {
+    if (!address || address.length < 5) return [];
     
     try {
-      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=1`);
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=5`);
       const data = await response.json();
       
       if (data.features && data.features.length > 0) {
-        const feature = data.features[0];
-        const city = feature.properties.city || feature.properties.name;
-        const code = feature.properties.postcode;
-        const fullAddress = feature.properties.label;
-        return { city, postalCode: code, address: fullAddress };
+        return data.features.map((feature: any) => ({
+          label: feature.properties.label,
+          city: feature.properties.city || feature.properties.name,
+          postalCode: feature.properties.postcode
+        }));
       }
     } catch (error) {
       console.error('Erreur lors de la recherche par adresse:', error);
     }
-    return null;
+    return [];
   };
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -244,21 +245,11 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       
       // Attendre 800ms après la dernière frappe
       addressSearchTimeoutRef.current = setTimeout(async () => {
-        const result = await searchLocationByAddress(value);
-        if (result) {
-          isAutoFillingRef.current = true;
-          setFormData(prev => ({
-            ...prev,
-            address: result.address,
-            // Ne remplir ville et code postal que s'ils sont vides
-            city: prev.city && prev.city.length >= 2 ? prev.city : result.city,
-            postalCode: prev.postalCode && prev.postalCode.length >= 5 ? prev.postalCode : result.postalCode
-          }));
-          setTimeout(() => {
-            isAutoFillingRef.current = false;
-          }, 100);
-        }
+        const results = await searchLocationByAddress(value);
+        setAddressSuggestions(results);
       }, 800);
+    } else if (id === 'address' && value.length < 5) {
+      setAddressSuggestions([]);
     }
 
     // Validation en temps réel pour la date et l'heure de début
@@ -333,6 +324,20 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
         }
       }
     }
+  };
+
+  const handleSelectAddressSuggestion = (suggestion: { label: string; city: string; postalCode: string }) => {
+    isAutoFillingRef.current = true;
+    setFormData(prev => ({
+      ...prev,
+      address: suggestion.label,
+      city: suggestion.city,
+      postalCode: suggestion.postalCode
+    }));
+    setAddressSuggestions([]);
+    setTimeout(() => {
+      isAutoFillingRef.current = false;
+    }, 100);
   };
 
   const handleTimeSelect = (timeValue: string, field: 'startTime' | 'endTime') => {
@@ -707,6 +712,29 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     position: 'relative',
     zIndex: 1
   };
+  
+  const addressSuggestionListStyle: CSSProperties = {
+    marginTop: '8px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    maxHeight: '180px',
+    overflowY: 'auto',
+    boxShadow: '0 8px 20px rgba(0,0,0,0.4)'
+  };
+
+  const addressSuggestionItemStyle: CSSProperties = {
+    width: '100%',
+    textAlign: 'left',
+    padding: '10px 12px',
+    background: 'transparent',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  };
 
   const buttonStyle: CSSProperties = {
     padding: isMobile ? '16px 24px' : '12px 24px',
@@ -880,6 +908,25 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                       {errors.address}
                     </p>
+                  )}
+                  {addressSuggestions.length > 0 && (
+                    <div style={addressSuggestionListStyle}>
+                      {addressSuggestions.map((suggestion, idx) => (
+                        <button
+                          key={`${suggestion.label}-${idx}`}
+                          type="button"
+                          onClick={() => handleSelectAddressSuggestion(suggestion)}
+                          style={addressSuggestionItemStyle}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{suggestion.label}</span>
+                          <span style={{ fontSize: '0.85em', color: '#aaa' }}>
+                            {suggestion.postalCode} · {suggestion.city}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
 
