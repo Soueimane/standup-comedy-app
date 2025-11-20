@@ -882,12 +882,6 @@ function MyEventsPage() {
     color: '#ffffff',
   };
 
-  const cardSubInfoTextStyle: CSSProperties = {
-    fontSize: '0.95em',
-    color: '#b0b0b0',
-    marginTop: '4px',
-  };
-
   const cardMetaGridStyle: CSSProperties = {
     display: 'grid',
     gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
@@ -1262,7 +1256,6 @@ function MyEventsPage() {
                 <div style={cardHeaderRowStyle}>
                   <div>
                     <h3 style={eventTitleStyle}>{event.title}</h3>
-                    <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
                   </div>
                   <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
@@ -1342,7 +1335,6 @@ function MyEventsPage() {
                 <div style={cardHeaderRowStyle}>
                   <div>
                     <h3 style={eventTitleStyle}>{event.title}</h3>
-                    <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
                   </div>
                   <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
@@ -1356,15 +1348,8 @@ function MyEventsPage() {
                     <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
                   </div>
                   <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Participants</span>
-                    <span style={cardMetaValueStyle}>{participantsRatio}</span>
-                  </div>
-                  <div style={cardMetaItemStyle}>
                     <span style={cardMetaLabelStyle}>Statut</span>
-                    <span style={cardMetaValueStyle}>
-                      {statusLabel}
-                      <span style={{ fontSize: '0.8em', color: '#888', marginLeft: 6 }}>({event.status})</span>
-                    </span>
+                    <span style={cardMetaValueStyle}>{statusLabel}</span>
                   </div>
                 </div>
               </div>
@@ -1480,7 +1465,6 @@ function MyEventsPage() {
                   <div style={cardHeaderRowStyle}>
                     <div>
                       <h3 style={eventTitleStyle}>{event.title}</h3>
-                      <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
                     </div>
                     <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
                   </div>
@@ -1492,17 +1476,6 @@ function MyEventsPage() {
                     <div style={cardMetaItemStyle}>
                       <span style={cardMetaLabelStyle}>Horaires</span>
                       <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
-                    </div>
-                    <div style={cardMetaItemStyle}>
-                      <span style={cardMetaLabelStyle}>Participants</span>
-                      <span style={cardMetaValueStyle}>{participantsRatio}</span>
-                    </div>
-                    <div style={cardMetaItemStyle}>
-                      <span style={cardMetaLabelStyle}>Statut</span>
-                      <span style={cardMetaValueStyle}>
-                        {statusLabel}
-                        <span style={{ fontSize: '0.8em', color: '#888', marginLeft: 6 }}>({event.status})</span>
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -1745,7 +1718,6 @@ function MyEventsPage() {
                   <div style={cardHeaderRowStyle}>
                     <div>
                       <h3 style={eventTitleStyle}>{event.title}</h3>
-                      <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
                     </div>
                     <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
                   </div>
@@ -1757,10 +1729,6 @@ function MyEventsPage() {
                     <div style={cardMetaItemStyle}>
                       <span style={cardMetaLabelStyle}>Horaires</span>
                       <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
-                    </div>
-                    <div style={cardMetaItemStyle}>
-                      <span style={cardMetaLabelStyle}>Participants</span>
-                      <span style={cardMetaValueStyle}>{getParticipantsRatio(event)}</span>
                     </div>
                   </div>
                   {reason && (
