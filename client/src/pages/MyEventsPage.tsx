@@ -46,6 +46,7 @@ function MyEventsPage() {
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
+  const [focusParticipantsSection, setFocusParticipantsSection] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -53,6 +54,17 @@ function MyEventsPage() {
   // Refs pour le scroll automatique
   const cancelledSectionRef = useRef<HTMLDivElement>(null);
   const archivedSectionRef = useRef<HTMLDivElement>(null);
+  const participantsSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isModalOpen && focusParticipantsSection && participantsSectionRef.current) {
+      const timeout = setTimeout(() => {
+        participantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setFocusParticipantsSection(false);
+      }, 200);
+      return () => clearTimeout(timeout);
+    }
+  }, [isModalOpen, focusParticipantsSection]);
 
   console.log("MyEventsPage: Initial token", token);
   console.log("MyEventsPage: Initial user", user);
@@ -470,9 +482,10 @@ function MyEventsPage() {
     }
   }, [upcomingPage, totalUpcomingPages]);
 
-  const handleCardClick = (event: IEvent) => {
+  const handleCardClick = (event: IEvent, shouldFocusParticipants = false) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
+    setFocusParticipantsSection(shouldFocusParticipants);
     // Charger les absences si l'utilisateur est organisateur
     if (user?.role === 'ORGANIZER') {
       loadEventAbsences(event._id);
@@ -530,6 +543,7 @@ function MyEventsPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedEvent(null);
+    setFocusParticipantsSection(false);
   };
 
   const handleComedianClick = (comedian: any) => {
@@ -1391,6 +1405,15 @@ function MyEventsPage() {
                 {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
                   <div style={cardActionStackStyle}>
                     <button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.stopPropagation();
+                        handleCardClick(event, true);
+                      }}
+                      style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+                    >
+                      Gérer absences
+                    </button>
+                    <button
                       onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
                       style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
                     >
@@ -1487,6 +1510,19 @@ function MyEventsPage() {
                   {renderStatusChip(`Statut: ${statusLabel}`, '#4dd0e1', 'rgba(77, 208, 225, 0.18)')}
                   {renderStatusChip(`Participants: ${participantsRatio}`, '#9b8bff', 'rgba(155, 139, 255, 0.18)')}
                   {isFutureButArchived && renderStatusChip('Événement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
+                  {user?.role === 'ORGANIZER' && (
+                    <div style={cardActionStackStyle}>
+                      <button
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          e.stopPropagation();
+                          handleCardClick(event, true);
+                        }}
+                        style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+                      >
+                        Gérer absences
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1550,7 +1586,7 @@ function MyEventsPage() {
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements.duration} min</span></p>
 
             {user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN' ? (
-              <>
+              <div ref={participantsSectionRef}>
                 <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                   Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements.maxPerformers})
                 </h3>
@@ -1661,7 +1697,7 @@ function MyEventsPage() {
                 ) : (
                   <p style={modalValueStyle}>Aucun participant pour l'instant.</p>
                 )}
-              </>
+              </div>
             ) : (
               <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                 Participants attendus ({selectedEvent.requirements.maxPerformers})
