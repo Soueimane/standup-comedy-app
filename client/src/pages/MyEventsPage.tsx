@@ -844,6 +844,14 @@ function MyEventsPage() {
     cursor: 'not-allowed',
   };
 
+  const organizerMobileButtonAdjustments: CSSProperties = isMobile
+    ? {
+        padding: '6px 10px',
+        fontSize: '0.85em',
+        minWidth: 'auto',
+      }
+    : {};
+
   const translateEventStatus = (status: IEvent['status']) => {
     switch (status) {
       case 'DRAFT':
@@ -1170,20 +1178,20 @@ function MyEventsPage() {
               <div style={actionButtonContainerStyle}>
                 <button 
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                  style={editButtonStyle}
+                  style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
                 >
                   Modifier
                 </button>
                 <button 
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8' }}
+                  style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
                   disabled={notifyingEventId === event._id}
                 >
                   {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
                 </button>
                 <button 
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d' }}
+                  style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
                 >
                   Annuler
                 </button>
