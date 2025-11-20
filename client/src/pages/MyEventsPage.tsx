@@ -1038,12 +1038,16 @@ function MyEventsPage() {
   const translateEventStatus = (status: IEvent['status']) => {
     switch (status) {
       case 'DRAFT':
+      case 'draft':
         return 'Brouillon';
       case 'PUBLISHED':
+      case 'published':
         return 'Publié';
       case 'CANCELLED':
+      case 'cancelled':
         return 'Annulé';
       case 'COMPLETED':
+      case 'completed':
         return 'Terminé';
       default:
         return status;
