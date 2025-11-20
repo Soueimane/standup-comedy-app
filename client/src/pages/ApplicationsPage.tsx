@@ -499,7 +499,8 @@ function ApplicationsPage() {
         color = '#28a745'; // texte vert
         break;
       case 'REJECTED':
-        backgroundColor = '#dc3545'; // red
+        backgroundColor = 'transparent'; // pas de fond rouge
+        color = '#dc3545'; // texte rouge
         break;
       default:
         backgroundColor = '#6c757d'; // gray
@@ -508,8 +509,8 @@ function ApplicationsPage() {
       display: 'inline-block',
       padding: '6px 12px',
       borderRadius: '6px',
-      backgroundColor: status === 'ACCEPTED' ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED
-      color: status === 'ACCEPTED' ? '#28a745' : color, // Force vert pour ACCEPTED
+      backgroundColor: (status === 'ACCEPTED' || status === 'REJECTED') ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED et REJECTED
+      color: status === 'ACCEPTED' ? '#28a745' : (status === 'REJECTED' ? '#dc3545' : color), // Force vert pour ACCEPTED, rouge pour REJECTED
       fontWeight: 'bold',
       fontSize: '0.9em',
       border: status === 'ACCEPTED' ? 'none' : undefined, // Pas de bordure pour ACCEPTED
