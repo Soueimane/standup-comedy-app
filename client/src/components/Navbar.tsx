@@ -323,21 +323,39 @@ function Navbar() {
               backgroundColor: '#f8f9fa',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: roleStyles.avatarGradient,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ffffff',
-                  fontSize: '1.2rem',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                }}>
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
-                </div>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: user?.avatarUrl ? 'transparent' : roleStyles.avatarGradient,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                overflow: 'hidden',
+              }}
+            >
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                <>
+                  {user?.firstName?.[0]}
+                  {user?.lastName?.[0]}
+                </>
+              )}
+            </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ 
                     margin: 0, 
