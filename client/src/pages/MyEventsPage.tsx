@@ -198,6 +198,38 @@ function MyEventsPage() {
     return organizer._id || organizer.id;
   };
 
+  const formatEventLocation = (event: IEvent): string => {
+    const location = event.location;
+    if (location && typeof location === 'object') {
+      const venue = location.venue || '';
+      const address = location.address || '';
+      const city = location.city || '';
+      return [venue, address, city].filter(Boolean).join(', ') || 'Lieu non spécifié';
+    }
+    return 'Lieu non spécifié';
+  };
+
+  const formatEventTimeRange = (event: IEvent): string => {
+    const { startTime, endTime } = event;
+    if (startTime && endTime) return `${startTime} - ${endTime}`;
+    if (startTime) return startTime;
+    if (endTime) return endTime;
+    return 'Horaires non précisés';
+  };
+
+  const getParticipantsRatio = (event: IEvent): string => {
+    const current = event.participants?.length || 0;
+    const max = event.requirements?.maxPerformers || 0;
+    return `${current}/${max}`;
+  };
+
+  const isEventComplete = (event: IEvent): boolean => {
+    const current = event.participants?.length || 0;
+    const max = event.requirements?.maxPerformers || 0;
+    if (!max) return false;
+    return current >= max;
+  };
+
   // Extraire la liste unique des organisateurs pour le dropdown
   const availableOrganizers = useMemo(() => {
     if (!fetchedEvents || user?.role !== 'SUPER_ADMIN') return [];
@@ -798,44 +830,115 @@ function MyEventsPage() {
 
   const eventCardStyle: CSSProperties = {
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: '8px',
-    padding: '20px',
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
-    border: '1px solid #444',
+    borderRadius: '12px',
+    padding: isMobile ? '16px' : '20px',
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     marginBottom: '15px',
     cursor: 'pointer',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    gap: isMobile ? '16px' : '24px',
+    alignItems: isMobile ? 'flex-start' : 'stretch',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
   };
 
-  const eventTitleStyle: CSSProperties = {
-    fontSize: '1.5em',
+  const cardContentStyle: CSSProperties = {
+    flex: '1 1 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  };
+
+  const cardHeaderRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    justifyContent: 'space-between',
+    gap: isMobile ? '8px' : '16px',
+  };
+
+  const cardDateBadgeStyle: CSSProperties = {
+    padding: '6px 16px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    fontSize: '0.85em',
+    fontWeight: 600,
     color: '#ffffff',
-    marginBottom: '5px',
+  };
+
+  const cardSubInfoTextStyle: CSSProperties = {
+    fontSize: '0.95em',
+    color: '#b0b0b0',
+    marginTop: '4px',
+  };
+
+  const cardMetaGridStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+    gap: '12px 18px',
+  };
+
+  const cardMetaItemStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  };
+
+  const cardMetaLabelStyle: CSSProperties = {
+    fontSize: '0.72em',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  };
+
+  const cardMetaValueStyle: CSSProperties = {
+    fontSize: '0.95em',
+    color: '#ffffff',
+    fontWeight: 600,
+  };
+
+  const cardStatusBlockStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: isMobile ? 'flex-start' : 'flex-end',
+    justifyContent: 'space-between',
+    gap: '10px',
+    minWidth: isMobile ? 'auto' : '240px',
+  };
+
+  const cardActionStackStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    justifyContent: isMobile ? 'flex-start' : 'flex-end',
+  };
+
+  const statusBadgeStyle: CSSProperties = {
+    padding: '6px 14px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.18)',
+    fontSize: '0.85em',
+    fontWeight: 600,
+    color: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  };
+
+  const renderStatusChip = (label: string, color: string, backgroundColor: string) => (
+    <span style={{ ...statusBadgeStyle, color, backgroundColor }}>{label}</span>
+  );
+
+  const eventTitleStyle: CSSProperties = {
+    fontSize: isMobile ? '1.2em' : '1.45em',
+    color: '#ffffff',
+    margin: 0,
   };
 
   const eventDetailStyle: CSSProperties = {
     fontSize: '0.9em',
     color: '#bbb',
     marginBottom: '3px',
-  };
-
-  const eventStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#ff416c',
-    fontWeight: 'bold',
-  };
-
-  const completionStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#28a745',
-    fontWeight: 'bold',
-    marginTop: '5px',
-  };
-
-  const incompleteStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#ffc107',
-    fontWeight: 'bold',
-    marginTop: '5px',
   };
 
   const modalDetailStyle: CSSProperties = {
@@ -862,13 +965,6 @@ function MyEventsPage() {
   //   color: '#ffffff',
   //   marginBottom: '3px',
   // };
-
-  const actionButtonContainerStyle: CSSProperties = {
-    marginTop: '15px',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '10px',
-  };
 
   const actionButtonStyleSmall: CSSProperties = {
     padding: '8px 15px',
@@ -1148,26 +1244,35 @@ function MyEventsPage() {
           )}
           {acceptedUpcomingEvents.map((event) => (
             <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <h3 style={eventTitleStyle}>{event.title}</h3>
-              <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-              <p style={eventDetailStyle}>Lieu: {(() => {
-                const location = event.location;
-                if (typeof location === 'object' && location !== null) {
-                  const address = location.address || '';
-                  const city = location.city || '';
-                  return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-                }
-                return 'Lieu non spécifié';
-              })()}</p>
-              <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-              <p style={{ ...eventStatusStyle, color: '#28a745' }}>Statut: Accepté</p>
-              <div style={actionButtonContainerStyle}>
-                <button
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
-                  style={deleteButtonStyle}
-                >
-                  Me désinscrire
-                </button>
+              <div style={cardContentStyle}>
+                <div style={cardHeaderRowStyle}>
+                  <div>
+                    <h3 style={eventTitleStyle}>{event.title}</h3>
+                    <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
+                  </div>
+                  <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                </div>
+                <div style={cardMetaGridStyle}>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Lieu</span>
+                    <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                  </div>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Horaires</span>
+                    <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={cardStatusBlockStyle}>
+                {renderStatusChip('Statut: Accepté', '#28a745', 'rgba(40, 167, 69, 0.15)')}
+                <div style={cardActionStackStyle}>
+                  <button
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
+                    style={deleteButtonStyle}
+                  >
+                    Me désinscrire
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -1192,92 +1297,124 @@ function MyEventsPage() {
         {filteredUpcomingEvents.length === 0 && !eventsLoading && !eventsError && (
           <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
         )}
-        {paginatedUpcomingEvents.map((event) => (
-          <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-            <h3 style={eventTitleStyle}>{event.title}</h3>
-            <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-            <p style={eventDetailStyle}>Lieu: {(() => {
-              const location = event.location;
-              if (typeof location === 'object' && location !== null) {
-                const address = location.address || '';
-                const city = location.city || '';
-                return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
+        {paginatedUpcomingEvents.map((event) => {
+          const isCompleteEvent = isEventComplete(event);
+          const participantsRatio = getParticipantsRatio(event);
+          const statusLabel = translateEventStatus(event.status);
+
+          let comedianApplicationChip: React.ReactNode = null;
+          if (user?.role === 'COMEDIAN' && comedianApplications) {
+            const application = comedianApplications.find(app => app.event && app.event._id === event._id);
+            if (application) {
+              let color = '#ffc107';
+              let bg = 'rgba(255, 193, 7, 0.18)';
+              let label = 'Candidature: En cours';
+              if (application.status === 'ACCEPTED') {
+                color = '#28a745';
+                bg = 'rgba(40, 167, 69, 0.18)';
+                label = 'Candidature: Acceptée';
+              } else if (application.status === 'REJECTED') {
+                color = '#dc3545';
+                bg = 'rgba(220, 53, 69, 0.2)';
+                label = 'Candidature: Refusée';
               }
-              return 'Lieu non spécifié';
-            })()}</p>
-            <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-            <p style={eventStatusStyle}>Statut: {translateEventStatus(event.status)} <span style={{fontSize: '0.8em', color: '#aaa'}}>({event.status})</span></p>
-            {(event.participants?.length || 0) < event.requirements.maxPerformers ? (
-              <p style={incompleteStatusStyle}>Non complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            ) : (
-              <p style={completionStatusStyle}>Complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            )}
-            {user?.role === 'COMEDIAN' && (
-              <div style={actionButtonContainerStyle}>
-                {!appliedEventIds.has(event._id) ? (
-                  <button 
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
-                    style={
-                      (event.participants?.length || 0) >= event.requirements.maxPerformers
-                        ? disabledApplyButtonStyle 
-                        : applyButtonStyle
-                    }
-                    disabled={(event.participants?.length || 0) >= event.requirements.maxPerformers}
-                  >
-                    {(event.participants?.length || 0) >= event.requirements.maxPerformers
-                      ? 'Événement complet'
-                      : 'Postuler'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
-                    style={deleteButtonStyle}
-                  >
-                    Me désinscrire
-                  </button>
+              comedianApplicationChip = renderStatusChip(label, color, bg);
+            }
+          }
+
+          return (
+            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+              <div style={cardContentStyle}>
+                <div style={cardHeaderRowStyle}>
+                  <div>
+                    <h3 style={eventTitleStyle}>{event.title}</h3>
+                    <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
+                  </div>
+                  <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                </div>
+                <div style={cardMetaGridStyle}>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Lieu</span>
+                    <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                  </div>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Horaires</span>
+                    <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                  </div>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Participants</span>
+                    <span style={cardMetaValueStyle}>{participantsRatio}</span>
+                  </div>
+                  <div style={cardMetaItemStyle}>
+                    <span style={cardMetaLabelStyle}>Statut</span>
+                    <span style={cardMetaValueStyle}>
+                      {statusLabel}
+                      <span style={{ fontSize: '0.8em', color: '#888', marginLeft: 6 }}>({event.status})</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={cardStatusBlockStyle}>
+                {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                {renderStatusChip(
+                  isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                  isCompleteEvent ? '#28a745' : '#ffc107',
+                  isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
                 )}
-                {comedianApplications &&
-                  (() => {
-                    const app = comedianApplications.find(app => app.event && app.event._id === event._id);
-                    if (app) {
-                      let color = '#ffc107';
-                      let label = 'En cours';
-                      if (app.status === 'ACCEPTED') { color = '#28a745'; label = 'Acceptée'; }
-                      if (app.status === 'REJECTED') { color = '#dc3545'; label = 'Refusée'; }
-                      return (
-                        <span style={{ marginLeft: 12, fontWeight: 'bold', color }}>{label}</span>
-                      );
-                    }
-                    return null;
-                  })()
-                }
+                {comedianApplicationChip}
+                {user?.role === 'COMEDIAN' && (
+                  <div style={cardActionStackStyle}>
+                    {!appliedEventIds.has(event._id) ? (
+                      <button
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
+                        style={
+                          (event.participants?.length || 0) >= event.requirements.maxPerformers
+                            ? disabledApplyButtonStyle
+                            : applyButtonStyle
+                        }
+                        disabled={(event.participants?.length || 0) >= event.requirements.maxPerformers}
+                      >
+                        {(event.participants?.length || 0) >= event.requirements.maxPerformers
+                          ? 'Événement complet'
+                          : 'Postuler'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
+                        style={deleteButtonStyle}
+                      >
+                        Me désinscrire
+                      </button>
+                    )}
+                  </div>
+                )}
+                {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
+                  <div style={cardActionStackStyle}>
+                    <button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
+                      style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+                      style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
+                      disabled={notifyingEventId === event._id}
+                    >
+                      {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+                    </button>
+                    <button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
+                      style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-            {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                  style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
-                >
-                  Modifier
-                </button>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
-                  disabled={notifyingEventId === event._id}
-                >
-                  {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-                </button>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
-                >
-                  Annuler
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
         {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
           <div style={paginationControlsStyle}>
             <button
@@ -1309,89 +1446,51 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && archivedEventsToShow.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement archivé.</p>
           )}
-          {paginatedArchivedEvents.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-            <h3 style={eventTitleStyle}>{event.title}</h3>
-            <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-            <p style={eventDetailStyle}>Lieu: {(() => {
-              const location = event.location;
-              if (typeof location === 'object' && location !== null) {
-                const address = location.address || '';
-                const city = location.city || '';
-                return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-              }
-              return 'Lieu non spécifié';
-            })()}</p>
-            <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-            <p style={eventStatusStyle}>Statut: {translateEventStatus(event.status)} <span style={{fontSize: '0.8em', color: '#aaa'}}>({event.status})</span></p>
-            {new Date(event.date) >= new Date() && (
-              <p style={{...eventDetailStyle, color: '#ffc107', fontWeight: 'bold'}}>⚠️ Événement futur (classé en archive)</p>
-            )}
-            {(event.participants?.length || 0) < event.requirements.maxPerformers ? (
-              <p style={incompleteStatusStyle}>Non complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            ) : (
-              <p style={completionStatusStyle}>Complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            )}
-            {user?.role === 'COMEDIAN' && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
-                  style={{
-                    ...applyButtonStyle,
-                    ...(appliedEventIds.has(event._id) || 
-                        new Date(event.date) < new Date() || 
-                        (event.participants?.length || 0) >= event.requirements.maxPerformers 
-                        ? disabledApplyButtonStyle : {})
-                  }}
-                  disabled={
-                    appliedEventIds.has(event._id) || 
-                    new Date(event.date) < new Date() ||
-                    (event.participants?.length || 0) >= event.requirements.maxPerformers
-                  }
-                >
-                  {appliedEventIds.has(event._id)
-                    ? 'Déjà postulé'
-                    : new Date(event.date) < new Date()
-                      ? 'Candidature fermée'
-                      : (event.participants?.length || 0) >= event.requirements.maxPerformers
-                      ? 'Événement complet'
-                      : 'Postuler'}
-                </button>
-                {comedianApplications &&
-                  (() => {
-                    const app = comedianApplications.find(app => app.event && app.event._id === event._id);
-                    if (app) {
-                      let color = '#ffc107';
-                      let label = 'En cours';
-                      if (app.status === 'ACCEPTED') { color = '#28a745'; label = 'Acceptée'; }
-                      if (app.status === 'REJECTED') { color = '#dc3545'; label = 'Refusée'; }
-                      return (
-                        <span style={{ marginLeft: 12, fontWeight: 'bold', color }}>{label}</span>
-                      );
-                    }
-                    return null;
-                  })()
-                }
-                {new Date(event.date) < new Date() && (
-                  <span style={{ marginLeft: 12, color: '#aaa', fontStyle: 'italic' }}>
-                    Impossible de postuler à un événement passé.
-                  </span>
-                )}
+          {paginatedArchivedEvents.map((event) => {
+            const participantsRatio = getParticipantsRatio(event);
+            const statusLabel = translateEventStatus(event.status);
+            const isFutureButArchived = new Date(event.date) >= new Date();
+
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                      <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
+                    </div>
+                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Participants</span>
+                      <span style={cardMetaValueStyle}>{participantsRatio}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Statut</span>
+                      <span style={cardMetaValueStyle}>
+                        {statusLabel}
+                        <span style={{ fontSize: '0.8em', color: '#888', marginLeft: 6 }}>({event.status})</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#4dd0e1', 'rgba(77, 208, 225, 0.18)')}
+                  {renderStatusChip(`Participants: ${participantsRatio}`, '#9b8bff', 'rgba(155, 139, 255, 0.18)')}
+                  {isFutureButArchived && renderStatusChip('Événement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
+                </div>
               </div>
-            )}
-            {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                  style={editButtonStyle}
-                >
-                  Modifier
-                </button>
-                
-              </div>
-            )}
-            </div>
-          ))}
+            );
+          })}
           {archivedEventsToShow.length > ITEMS_PER_PAGE && (
             <div style={paginationControlsStyle}>
               <button
@@ -1600,28 +1699,46 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && cancelledEvents.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement annulé.</p>
           )}
-          {paginatedCancelledEvents.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <h3 style={eventTitleStyle}>{event.title}</h3>
-              <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-              <p style={eventDetailStyle}>Lieu: {(() => {
-                const location = event.location;
-                if (typeof location === 'object' && location !== null) {
-                  const address = location.address || '';
-                  const city = location.city || '';
-                  return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-                }
-                return 'Lieu non spécifié';
-              })()}</p>
-              <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-              <p style={{ ...eventStatusStyle, color: '#dc3545' }}>Statut: Annulé</p>
-              {event.cancellationReason && (
-                <p style={{ ...eventDetailStyle, marginTop: 6 }}>
-                  <span style={{ fontWeight: 'bold', color: '#ff4b2b' }}>Raison:</span> {event.cancellationReason}
-                </p>
-              )}
-            </div>
-          ))}
+          {paginatedCancelledEvents.map((event) => {
+            const statusLabel = translateEventStatus(event.status);
+            const reason = event.cancellationReason;
+
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                      <p style={cardSubInfoTextStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
+                    </div>
+                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Participants</span>
+                      <span style={cardMetaValueStyle}>{getParticipantsRatio(event)}</span>
+                    </div>
+                  </div>
+                  {reason && (
+                    <p style={{ ...eventDetailStyle, marginTop: 8, color: '#ffb199' }}>
+                      <span style={{ fontWeight: 'bold', color: '#ff4b2b' }}>Raison:</span> {reason}
+                    </p>
+                  )}
+                </div>
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#dc3545', 'rgba(220, 53, 69, 0.18)')}
+                </div>
+              </div>
+            );
+          })}
           {cancelledEvents.length > ITEMS_PER_PAGE && (
             <div style={paginationControlsStyle}>
               <button
