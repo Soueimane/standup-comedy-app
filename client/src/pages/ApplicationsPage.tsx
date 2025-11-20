@@ -732,18 +732,26 @@ function ApplicationsPage() {
                               <div style={comedianApplicationRowStyle}>
                                 <div style={comedianApplicationInfoStyle}>
                                   <div style={comedianApplicationTitleRowStyle}>
-                                    <h3 style={cardTitleStyle}>{app.event.title}</h3>
-                                    <span style={comedianApplicationDateBadgeStyle}>
-                                      {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
-                                    </span>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                                      <h3 style={cardTitleStyle}>{app.event.title}</h3>
+                                      <span style={comedianApplicationDateBadgeStyle}>
+                                        {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                                      </span>
+                                      <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap', color: '#9ad7ff' }}>
+                                        · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
+                                      </p>
+                                      {app.message && (
+                                        <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap' }}>
+                                          · Message: {app.message}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {app.performanceDetails && (
+                                      <p style={{ ...cardDetailStyle, color: '#9ad7ff', marginTop: 6 }}>
+                                        Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                                      </p>
+                                    )}
                                   </div>
-                                  <p style={cardDetailStyle}>Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}</p>
-                                  {app.performanceDetails && (
-                                    <p style={{ ...cardDetailStyle, color: '#9ad7ff' }}>
-                                      Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
-                                    </p>
-                                  )}
-                                  {app.message && <p style={cardDetailStyle}>Message: {app.message}</p>}
                                 </div>
                                 <div style={comedianApplicationStatusStyle}>
                                   <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
