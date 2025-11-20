@@ -82,7 +82,7 @@ function ComedianProfilePage() {
     maxWidth: '1200px',
     margin: '0 auto',
     display: 'grid',
-    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr',
+    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '340px 1fr',
     gap: '20px',
     alignItems: 'flex-start',
   };
@@ -187,8 +187,34 @@ function ComedianProfilePage() {
         />
       ) : (
         <div style={sectionContainerStyle}>
+          {/* Profil principal (avatar et rôle) */}
+          <div style={profileCardStyle}>
+            <div style={{
+              ...avatarStyle,
+              backgroundImage: user?.avatarUrl ? `url(${user.avatarUrl})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundColor: user?.avatarUrl ? 'transparent' : '#ff416c',
+            }}>
+              {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
+            </div>
+            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Nom Humoriste'}</h3>
+            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Humoriste'}</p>
+
+            {/* Stats rapides */}
+            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Candidatures acceptées</span>
+              <span style={statsValueStyle}>{user?.stats?.applicationsAccepted || 0}</span>
+            </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Net Promoter Score</span>
+              <span style={statsValueStyle}>{user?.stats?.netPromoterScore || 0}</span>
+            </div>
+          </div>
+
           {/* Informations personnelles */}
-          <div style={cardStyle}>
+          <div style={{ ...cardStyle, minHeight: '100%' }}>
             <h2 style={cardTitleStyle}>
               <i className="fas fa-user-circle" style={{ marginRight: '10px' }}></i> Informations personnelles
             </h2>
@@ -220,32 +246,9 @@ function ComedianProfilePage() {
               <span style={infoLabelStyle}>Adresse</span>
               <span style={infoValueStyle}>{user?.address || 'Non définie'}</span>
             </div>
-          </div>
-
-          {/* Profil principal (avatar et rôle) */}
-          <div style={profileCardStyle}>
-            <div style={{
-              ...avatarStyle,
-              backgroundImage: user?.avatarUrl ? `url(${user.avatarUrl})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundColor: user?.avatarUrl ? 'transparent' : '#ff416c',
-            }}>
-              {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
-            </div>
-            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Nom Humoriste'}</h3>
-            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Humoriste'}</p>
-
-            {/* Stats rapides */}
-            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Candidatures acceptées</span>
-              <span style={statsValueStyle}>{user?.stats?.applicationsAccepted || 0}</span>
-            </div>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Net Promoter Score</span>
-              <span style={statsValueStyle}>{user?.stats?.netPromoterScore || 0}</span>
-            </div>
+            {!isViewingOtherProfile && (
+              <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>Modifier</button>
+            )}
           </div>
 
           {/* Profil Humoriste */}
@@ -288,7 +291,7 @@ function ComedianProfilePage() {
               </span>
             </div>
             <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Langues du spectacle:</span>
+              <span style={infoLabelStyle}>Langues:</span>
               <span style={infoValueStyle}>
                 {user?.profile?.performanceLanguages && user.profile.performanceLanguages.length > 0
                   ? user.profile.performanceLanguages.map(lang => {
