@@ -17,10 +17,12 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
 
   useEffect(() => {
     setFormData(currentUser);
     setPreviewImage(currentUser?.avatarUrl || null);
+    setAvatarRemoved(false);
   }, [currentUser]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,10 +45,18 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         const base64String = reader.result as string;
         setPreviewImage(base64String);
         setFormData(prev => ({ ...prev, avatarUrl: base64String }));
+        setAvatarRemoved(false);
         setError(null);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleRemoveAvatar = () => {
+    setPreviewImage(null);
+    setFormData(prev => ({ ...prev, avatarUrl: undefined }));
+    setAvatarRemoved(true);
+    setError(null);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -86,7 +96,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         phone: formData.phone,
         address: formData.address,
         gender: formData.gender,
-        avatarUrl: formData.avatarUrl,
+        avatarUrl: avatarRemoved ? null : formData.avatarUrl,
         profile: {
             bio: formData.profile?.bio,
             experience: formData.profile?.experience ? Number(formData.profile.experience) : undefined,
@@ -169,6 +179,23 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
                 }} 
               />
             </div>
+          )}
+          {(previewImage || (!previewImage && !avatarRemoved && currentUser?.avatarUrl)) && (
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              style={{
+                marginBottom: '10px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                color: '#ffb3b3',
+                cursor: 'pointer',
+              }}
+            >
+              Supprimer la photo
+            </button>
           )}
           <input
             type="file"
