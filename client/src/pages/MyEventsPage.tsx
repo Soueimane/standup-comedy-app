@@ -14,6 +14,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 
+const ITEMS_PER_PAGE = 5;
+
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
   const [isMobile, setIsMobile] = useState<boolean>(false);
@@ -41,6 +43,9 @@ function MyEventsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [cancelledPage, setCancelledPage] = useState(1);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -340,6 +345,22 @@ function MyEventsPage() {
     return { upcomingEvents: upcoming, archivedEvents: archived, cancelledEvents: cancelled };
   }, [fetchedEvents, location.search]);
 
+  const totalCancelledPages = Math.max(1, Math.ceil(cancelledEvents.length / ITEMS_PER_PAGE));
+  const paginatedCancelledEvents = cancelledEvents.slice(
+    (cancelledPage - 1) * ITEMS_PER_PAGE,
+    cancelledPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCancelledPage(1);
+  }, [cancelledEvents]);
+
+  useEffect(() => {
+    if (cancelledPage > totalCancelledPages) {
+      setCancelledPage(totalCancelledPages);
+    }
+  }, [cancelledPage, totalCancelledPages]);
+
   // Filtrer les événements archivés côté HUMORISTE: afficher uniquement ceux auxquels il a postulé
   const archivedEventsToShow = useMemo(() => {
     if (user?.role === 'COMEDIAN') {
@@ -347,6 +368,22 @@ function MyEventsPage() {
     }
     return archivedEvents;
   }, [archivedEvents, appliedEventIds, user?.role]);
+
+  const totalArchivedPages = Math.max(1, Math.ceil(archivedEventsToShow.length / ITEMS_PER_PAGE));
+  const paginatedArchivedEvents = archivedEventsToShow.slice(
+    (archivedPage - 1) * ITEMS_PER_PAGE,
+    archivedPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setArchivedPage(1);
+  }, [archivedEventsToShow]);
+
+  useEffect(() => {
+    if (archivedPage > totalArchivedPages) {
+      setArchivedPage(totalArchivedPages);
+    }
+  }, [archivedPage, totalArchivedPages]);
 
   // Fonction de filtrage pour les événements à venir
   // Événements ACCEPTÉS (à venir) pour l'humoriste
@@ -380,6 +417,26 @@ function MyEventsPage() {
     }
     return base;
   };
+
+  const filteredUpcomingEvents = useMemo(
+    () => getFilteredUpcomingEvents(),
+    [completionFilter, upcomingEventsForApply]
+  );
+  const totalUpcomingPages = Math.max(1, Math.ceil(filteredUpcomingEvents.length / ITEMS_PER_PAGE));
+  const paginatedUpcomingEvents = filteredUpcomingEvents.slice(
+    (upcomingPage - 1) * ITEMS_PER_PAGE,
+    upcomingPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setUpcomingPage(1);
+  }, [completionFilter, upcomingEventsForApply]);
+
+  useEffect(() => {
+    if (upcomingPage > totalUpcomingPages) {
+      setUpcomingPage(totalUpcomingPages);
+    }
+  }, [upcomingPage, totalUpcomingPages]);
 
   const handleCardClick = (event: IEvent) => {
     setSelectedEvent(event);
@@ -844,6 +901,28 @@ function MyEventsPage() {
     cursor: 'not-allowed',
   };
 
+  const paginationControlsStyle: CSSProperties = {
+    marginTop: '18px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+  };
+
+  const paginationButtonStyle: CSSProperties = {
+    ...actionButtonStyleSmall,
+    backgroundColor: '#2d2d44',
+    padding: '8px 14px',
+    minWidth: '90px',
+  };
+
+  const paginationInfoStyle: CSSProperties = {
+    color: '#aaa',
+    fontWeight: 'bold',
+    fontSize: '0.95em',
+  };
+
   const organizerMobileButtonAdjustments: CSSProperties = isMobile
     ? {
         padding: '6px 10px',
@@ -1110,10 +1189,10 @@ function MyEventsPage() {
         </div>
         {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
         {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
-        {getFilteredUpcomingEvents().length === 0 && !eventsLoading && !eventsError && (
+        {filteredUpcomingEvents.length === 0 && !eventsLoading && !eventsError && (
           <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
         )}
-        {getFilteredUpcomingEvents().map((event) => (
+        {paginatedUpcomingEvents.map((event) => (
           <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
             <h3 style={eventTitleStyle}>{event.title}</h3>
             <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
@@ -1199,6 +1278,27 @@ function MyEventsPage() {
             )}
           </div>
         ))}
+        {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+          <div style={paginationControlsStyle}>
+            <button
+              style={paginationButtonStyle}
+              disabled={upcomingPage === 1}
+              onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+            >
+              Précédent
+            </button>
+            <span style={paginationInfoStyle}>
+              Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+            </span>
+            <button
+              style={paginationButtonStyle}
+              disabled={upcomingPage >= totalUpcomingPages}
+              onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+            >
+              Suivant
+            </button>
+          </div>
+        )}
       </div>
 
       {user?.role !== 'COMEDIAN' && (
@@ -1209,7 +1309,7 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && archivedEventsToShow.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement archivé.</p>
           )}
-          {archivedEventsToShow.map((event) => (
+          {paginatedArchivedEvents.map((event) => (
             <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
             <h3 style={eventTitleStyle}>{event.title}</h3>
             <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
@@ -1292,6 +1392,27 @@ function MyEventsPage() {
             )}
             </div>
           ))}
+          {archivedEventsToShow.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={archivedPage === 1}
+                onClick={() => setArchivedPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(archivedPage, totalArchivedPages)} / {Math.max(totalArchivedPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={archivedPage >= totalArchivedPages}
+                onClick={() => setArchivedPage(prev => Math.min(totalArchivedPages, prev + 1))}
+              >
+                Suivant
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1479,7 +1600,7 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && cancelledEvents.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement annulé.</p>
           )}
-          {cancelledEvents.map((event) => (
+          {paginatedCancelledEvents.map((event) => (
             <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
               <h3 style={eventTitleStyle}>{event.title}</h3>
               <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
@@ -1501,6 +1622,27 @@ function MyEventsPage() {
               )}
             </div>
           ))}
+          {cancelledEvents.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={cancelledPage === 1}
+                onClick={() => setCancelledPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(cancelledPage, totalCancelledPages)} / {Math.max(totalCancelledPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={cancelledPage >= totalCancelledPages}
+                onClick={() => setCancelledPage(prev => Math.min(totalCancelledPages, prev + 1))}
+              >
+                Suivant
+              </button>
+            </div>
+          )}
         </div>
       )}
 
