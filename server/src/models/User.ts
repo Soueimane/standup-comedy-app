@@ -71,8 +71,8 @@ interface UserDocument extends User, Document {
 // 2. Schémas Mongoose
 
 const LocationSchema = new Schema<ILocation>({
-  city: { type: String, required: true },
-  postalCode: { type: String, required: true },
+  city: { type: String, required: false },
+  postalCode: { type: String, required: false },
   address: { type: String },
   latitude: { type: Number },
   longitude: { type: Number },
@@ -211,7 +211,7 @@ const userSchema = new Schema<UserDocument>({
   },
   profile: {
     type: userProfileSchema,
-    required: true
+    required: false
   },
   organizerProfile: {
     type: OrganisateurProfileSchema,

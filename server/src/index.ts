@@ -50,10 +50,16 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
 
+// Middleware de logging global pour toutes les requêtes
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.log(`📨 Requête entrante: ${req.method} ${req.path}`);
+  next();
+});
+
 // Route de santé pour maintenir l'instance active
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
