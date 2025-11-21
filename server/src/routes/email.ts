@@ -1,7 +1,7 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import nodemailer from 'nodemailer';
 import { config } from '../config/env';
-import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron } from '../controllers/email';
+import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron } from '../controllers/email';
 
 const router = express.Router();
 
@@ -31,9 +31,7 @@ const transporter = nodemailer.createTransport({
  * Envoie un email (protégée)
  * Body: { to, subject, text }
  */
-router.post('/send', async (req: Request, res: Response) => {
-  await sendEmail(req, res, transporter);
-});
+router.post('/send', (req, res) => sendEmail(req, res, transporter));
 
 /**
  * GET /test-config
@@ -54,5 +52,13 @@ router.post('/test-send', testEmailSend);
  * Header: X-CRON-KEY (authentification)
  */
 router.post('/jobs/reminders', sendRemindersCron);
+
+/**
+ * POST /jobs/organizer-reminders
+ * Cron job pour envoyer les relances automatiques aux organisateurs
+ * Délais: J-10, J-7, J-5, J-3, J-2, J-1
+ * Header: X-CRON-KEY (authentification)
+ */
+router.post('/jobs/organizer-reminders', sendOrganizerRemindersCron);
 
 export default router;

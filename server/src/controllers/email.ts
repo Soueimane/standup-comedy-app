@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { config } from '../config/env';
 import { ApplicationModel } from '../models/Application';
-import { sendEventReminder, sendNewEventNotificationToHumorists } from '../services/emailService';
+import { sendEventReminder, sendNewEventNotificationToHumorists, sendOrganizerEventReminder } from '../services/emailService';
 import { UserModel } from '../models/User';
+import { EventModel } from '../models/Event';
 
 /**
  * Envoie un email via POST /api/email/send
@@ -105,7 +106,7 @@ export const testEmailSend = async (req: Request, res: Response): Promise<void> 
 export const sendRemindersCron = async (req: Request, res: Response): Promise<void> => {
   try {
     const cronKey = req.header('X-CRON-KEY');
-    if (!cronKey || cronKey !== process.env.CRON_SECRET) {
+    if (!cronKey || cronKey !== config.cron.secret) {
       res.status(401).json({ message: 'Non autorisé' });
       return;
     }
@@ -168,5 +169,240 @@ export const sendRemindersCron = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     console.error('Erreur CRON reminders:', error);
     res.status(500).json({ message: 'Erreur lors du traitement des rappels' });
+  }
+};
+
+/**
+ * Traite les relances automatiques aux organisateurs - Cron job
+ *
+ * Envoie des rappels aux organisateurs dont les événements n'ont pas atteint
+ * leur quota d'humoristes ou qui ont des candidatures en attente.
+ *
+ * Délais: J-10, J-7, J-5, J-3, J-2, J-1
+ */
+export const sendOrganizerRemindersCron = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // --- SÉCURITÉ: Vérifier l'authentification du cron ---
+    const cronKey = req.header('X-CRON-KEY');
+    if (!cronKey || cronKey !== config.cron.secret) {
+      console.error('❌ Tentative d\'accès non autorisée à l\'endpoint cron organizer-reminders');
+      res.status(401).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    console.log('🔔 Démarrage du job cron: relances organisateurs');
+    const now = new Date();
+
+    // Définition des délais de relance en millisecondes
+    const reminderDelays = {
+      j10: 10 * 24 * 60 * 60 * 1000,  // 10 jours
+      j7: 7 * 24 * 60 * 60 * 1000,    // 7 jours
+      j5: 5 * 24 * 60 * 60 * 1000,    // 5 jours
+      j3: 3 * 24 * 60 * 60 * 1000,    // 3 jours
+      j2: 2 * 24 * 60 * 60 * 1000,    // 2 jours
+      j1: 1 * 24 * 60 * 60 * 1000     // 1 jour
+    };
+
+    // Récupérer tous les événements publiés avec date future
+    const events = await EventModel.find({
+      status: 'published',
+      date: { $gt: now }
+    })
+      .populate('organizer')
+      .populate('applications');
+
+    console.log(`📊 ${events.length} événements publiés trouvés`);
+
+    let sentCount = 0;
+    const processedEvents: string[] = [];
+
+    // Traiter chaque événement
+    for (const event of events as any[]) {
+      try {
+        const organizer = event.organizer;
+
+        // Vérifier que l'organisateur existe
+        if (!organizer || !organizer.email) {
+          console.log(`⚠️ Événement ${event._id}: organisateur manquant ou sans email`);
+          continue;
+        }
+
+        // Vérifier qu'il y a un quota défini
+        const targetCount = event.requirements?.maxPerformers;
+        if (!targetCount || targetCount === 0) {
+          continue;  // Pas de quota défini, on ne relance pas
+        }
+
+        // Calculer le nombre de participants acceptés
+        const currentCount = event.participants?.length || 0;
+
+        // Compter les candidatures en attente
+        const applications = await ApplicationModel.find({
+          event: event._id,
+          status: 'PENDING'
+        });
+        const pendingCount = applications.length;
+
+        // --- CONDITION DE RELANCE ---
+        // On relance SI : quota non atteint OU candidatures en attente
+        const shouldRemind = currentCount < targetCount || pendingCount > 0;
+
+        if (!shouldRemind) {
+          continue;  // Événement complet et aucune candidature en attente
+        }
+
+        // Calculer la différence en JOURS seulement (ignorer les heures)
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);  // Reset à minuit
+
+        const todayDate = new Date(now);
+        todayDate.setHours(0, 0, 0, 0);  // Reset à minuit
+
+        // Différence en jours (convertir en ms)
+        const diffDays = Math.ceil((eventDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+        const diffMs = diffDays * 24 * 60 * 60 * 1000;
+
+        // Initialiser organizerReminders si nécessaire
+        if (!event.organizerReminders) {
+          event.organizerReminders = {};
+        }
+
+        let reminderSent = false;
+
+        // --- VÉRIFIER CHAQUE DÉLAI ---
+
+        // J-10
+        if (
+          diffMs >= reminderDelays.j10 &&
+          !event.organizerReminders.j10Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            10,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j10Sent = true;
+          reminderSent = true;
+        }
+        // J-7
+        else if (
+          diffMs >= reminderDelays.j7 &&
+          diffMs < reminderDelays.j10 &&
+          !event.organizerReminders.j7Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            7,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j7Sent = true;
+          reminderSent = true;
+        }
+        // J-5
+        else if (
+          diffMs >= reminderDelays.j5 &&
+          diffMs < reminderDelays.j7 &&
+          !event.organizerReminders.j5Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            5,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j5Sent = true;
+          reminderSent = true;
+        }
+        // J-3
+        else if (
+          diffMs >= reminderDelays.j3 &&
+          diffMs < reminderDelays.j5 &&
+          !event.organizerReminders.j3Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            3,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j3Sent = true;
+          reminderSent = true;
+        }
+        // J-2
+        else if (
+          diffMs >= reminderDelays.j2 &&
+          diffMs < reminderDelays.j3 &&
+          !event.organizerReminders.j2Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            2,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j2Sent = true;
+          reminderSent = true;
+        }
+        // J-1
+        else if (
+          diffMs >= 0 &&
+          diffMs < reminderDelays.j2 &&
+          !event.organizerReminders.j1Sent
+        ) {
+          await sendOrganizerEventReminder(
+            organizer,
+            event,
+            1,
+            currentCount,
+            targetCount,
+            pendingCount
+          );
+          event.organizerReminders.j1Sent = true;
+          reminderSent = true;
+        }
+
+        // Sauvegarder le tracking si une relance a été envoyée
+        if (reminderSent) {
+          await event.save();
+          sentCount++;
+          processedEvents.push(event.title);
+          console.log(`✅ Relance envoyée pour l'événement "${event.title}"`);
+        }
+
+      } catch (eventError) {
+        // Ne pas bloquer le traitement des autres événements en cas d'erreur
+        console.error(`❌ Erreur lors du traitement de l'événement ${event._id}:`, eventError);
+      }
+    }
+
+    const response = {
+      message: 'Relances organisateurs traitées',
+      sent: sentCount,
+      totalEvents: events.length,
+      processedEvents: processedEvents,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📊 Résumé: ${sentCount} relances envoyées sur ${events.length} événements`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ Erreur CRON organizer-reminders:', error);
+    res.status(500).json({
+      message: 'Erreur lors du traitement des relances organisateurs',
+      error: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
   }
 };
