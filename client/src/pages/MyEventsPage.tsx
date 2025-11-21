@@ -15,10 +15,13 @@ import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 
 const ITEMS_PER_PAGE = 5;
+const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
+type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const isComedianView = user?.role === 'COMEDIAN';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -26,6 +29,27 @@ function MyEventsPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
+
+  useEffect(() => {
+    if (!isComedianView) {
+      setFavoriteEventIds([]);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(getFavoritesStorageKey(user?._id));
+      if (stored) {
+        setFavoriteEventIds(JSON.parse(stored));
+      } else {
+        setFavoriteEventIds([]);
+      }
+    } catch (error) {
+      console.error('❌ [MyEventsPage] Erreur lors du chargement des favoris:', error);
+      setFavoriteEventIds([]);
+    }
+  }, [isComedianView, user?._id]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
@@ -39,7 +63,8 @@ function MyEventsPage() {
   const [selectedAbsenceParticipant, setSelectedAbsenceParticipant] = useState<any>(null);
   const [eventAbsences, setEventAbsences] = useState<any[]>([]);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
-  const [comedianTab, setComedianTab] = useState<'opportunities' | 'accepted' | 'pending' | 'rejected'>('opportunities');
+  const [comedianTab, setComedianTab] = useState<ComedianTab>('opportunities');
+  const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
@@ -180,6 +205,29 @@ function MyEventsPage() {
     }
     return new Set<string>();
   }, [comedianApplications, user?.role]);
+
+  const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
+
+  const toggleFavoriteEvent = (eventId: string) => {
+    if (!isComedianView) return;
+    setFavoriteEventIds(prev => {
+      const updated = new Set(prev);
+      if (updated.has(eventId)) {
+        updated.delete(eventId);
+      } else {
+        updated.add(eventId);
+      }
+      const next = Array.from(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(getFavoritesStorageKey(user?._id), JSON.stringify(next));
+        } catch (error) {
+          console.error('❌ [MyEventsPage] Erreur lors de la sauvegarde des favoris:', error);
+        }
+      }
+      return next;
+    });
+  };
 
   const comedianApplicationsMap = useMemo(() => {
     const map = new Map<string, IApplication>();
@@ -481,6 +529,23 @@ function MyEventsPage() {
     return [] as IEvent[];
   }, [comedianApplications, user?.role]);
 
+  const comedianVisibleEvents = useMemo(() => {
+    if (!isComedianView) return [] as IEvent[];
+    const map = new Map<string, IEvent>();
+    [...upcomingEventsForApply, ...acceptedUpcomingEvents, ...pendingApplicationEvents, ...rejectedApplicationEvents].forEach(event => {
+      if (event?._id) {
+        map.set(event._id, event);
+      }
+    });
+    return Array.from(map.values());
+  }, [isComedianView, upcomingEventsForApply, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+
+  const favoriteEvents = useMemo(() => {
+    if (!isComedianView || favoriteEventIds.length === 0) return [] as IEvent[];
+    const favoriteSet = favoriteIdsSet;
+    return comedianVisibleEvents.filter(event => favoriteSet.has(event._id));
+  }, [isComedianView, favoriteEventIds, favoriteIdsSet, comedianVisibleEvents]);
+
   const getFilteredUpcomingEvents = () => {
     const base = upcomingEventsForApply;
     if (completionFilter === 'all') return base;
@@ -508,45 +573,50 @@ function MyEventsPage() {
         return pendingApplicationEvents;
       case 'rejected':
         return rejectedApplicationEvents;
+      case 'favorites':
+        return favoriteEvents;
       default:
         return filteredUpcomingEvents;
     }
-  }, [user?.role, comedianTab, filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+  }, [user?.role, comedianTab, filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
 
-  const comedianTabCounts = useMemo(() => ({
+  const comedianTabCounts: Record<ComedianTab, number> = useMemo(() => ({
     opportunities: filteredUpcomingEvents.length,
     accepted: acceptedUpcomingEvents.length,
     pending: pendingApplicationEvents.length,
     rejected: rejectedApplicationEvents.length,
-  }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+    favorites: favoriteEvents.length,
+  }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
 
-  const comedianTabTitles: Record<'opportunities' | 'accepted' | 'pending' | 'rejected', string> = {
+  const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
     accepted: 'Événements acceptés',
     pending: 'Candidatures en attente',
     rejected: 'Candidatures refusées',
+    favorites: 'Mes favoris',
   };
 
-  const comedianEmptyStates: Record<'opportunities' | 'accepted' | 'pending' | 'rejected', string> = {
+  const comedianEmptyStates: Record<ComedianTab, string> = {
     opportunities: 'Aucune opportunité disponible pour le moment.',
     accepted: 'Aucun événement accepté à venir.',
     pending: 'Aucune candidature en attente.',
     rejected: 'Aucune candidature refusée.',
+    favorites: 'Aucun événement en favori.',
   };
 
-  const isComedianView = user?.role === 'COMEDIAN';
   const isOpportunitiesTab = comedianTab === 'opportunities';
+  const isFavoritesTab = comedianTab === 'favorites';
 
   const listIsLoading = isComedianView
-    ? (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading)
+    ? (isFavoritesTab ? eventsLoading : (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading))
     : eventsLoading;
 
   const listHasError = isComedianView
-    ? (isOpportunitiesTab ? eventsError : comedianApplicationsError)
+    ? (isFavoritesTab ? eventsError : (isOpportunitiesTab ? eventsError : comedianApplicationsError))
     : eventsError;
 
   const listErrorMessage = isComedianView
-    ? (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message)
+    ? (isFavoritesTab ? eventsErrorMessage?.message : (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message))
     : eventsErrorMessage?.message;
 
   const totalUpcomingPages = Math.max(1, Math.ceil(eventsToDisplay.length / ITEMS_PER_PAGE));
@@ -925,6 +995,8 @@ function MyEventsPage() {
     fontSize: '1.1em',
   };
 
+  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
     flexWrap: 'wrap',
@@ -997,6 +1069,23 @@ function MyEventsPage() {
     fontWeight: 600,
     color: '#ffffff',
   };
+
+  const cardHeaderActionsStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  };
+
+  const favoriteStarButtonStyle = (isFavorite: boolean): CSSProperties => ({
+    border: 'none',
+    background: 'transparent',
+    color: isFavorite ? '#ffd700' : '#888888',
+    fontSize: '1.4em',
+    cursor: 'pointer',
+    transition: 'color 0.2s ease, transform 0.2s ease',
+    padding: 0,
+    lineHeight: 1,
+  });
 
   const cardMetaGridStyle: CSSProperties = {
     display: 'grid',
@@ -1366,7 +1455,7 @@ function MyEventsPage() {
       <div style={sectionStyle}>
         {isComedianView && (
           <div style={comedianTabsContainerStyle}>
-            {(['opportunities', 'accepted', 'pending', 'rejected'] as const).map((tabId) => (
+            {comedianTabs.map((tabId) => (
               <button
                 key={tabId}
                 style={comedianTabButtonStyle(comedianTab === tabId)}
@@ -1434,7 +1523,22 @@ function MyEventsPage() {
                   <div>
                     <h3 style={eventTitleStyle}>{event.title}</h3>
                   </div>
-                  <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                  <div style={cardHeaderActionsStyle}>
+                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                    {isComedianView && (
+                      <button
+                        type="button"
+                        aria-label={favoriteIdsSet.has(event._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                        style={favoriteStarButtonStyle(favoriteIdsSet.has(event._id))}
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          e.stopPropagation();
+                          toggleFavoriteEvent(event._id);
+                        }}
+                      >
+                        {favoriteIdsSet.has(event._id) ? '★' : '☆'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div style={cardMetaGridStyle}>
                   <div style={cardMetaItemStyle}>
