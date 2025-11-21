@@ -39,6 +39,7 @@ function MyEventsPage() {
   const [selectedAbsenceParticipant, setSelectedAbsenceParticipant] = useState<any>(null);
   const [eventAbsences, setEventAbsences] = useState<any[]>([]);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
+  const [comedianTab, setComedianTab] = useState<'opportunities' | 'accepted' | 'pending' | 'rejected'>('opportunities');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
@@ -127,7 +128,7 @@ function MyEventsPage() {
   });
 
   // New useQuery for comedian's applications
-  const { data: comedianApplications } = useQuery<IApplication[], Error>({
+  const { data: comedianApplications, isLoading: comedianApplicationsLoading, isError: comedianApplicationsError, error: comedianApplicationsErrorMessage } = useQuery<IApplication[], Error>({
     queryKey: ['comedianApplications', user?._id, token],
     queryFn: async () => {
       if (!token || !user?._id) {
@@ -179,6 +180,18 @@ function MyEventsPage() {
     }
     return new Set<string>();
   }, [comedianApplications, user?.role]);
+
+  const comedianApplicationsMap = useMemo(() => {
+    const map = new Map<string, IApplication>();
+    if (comedianApplications) {
+      comedianApplications.forEach(app => {
+        if (app.event?._id) {
+          map.set(app.event._id, app);
+        }
+      });
+    }
+    return map;
+  }, [comedianApplications]);
 
   // Fonction utilitaire pour comparer les dates (ignorer l'heure)
   const isEventPast = (eventDateString: string, endTime?: string): boolean => {
@@ -450,6 +463,24 @@ function MyEventsPage() {
     return upcomingEvents;
   }, [user?.role, acceptedUpcomingEvents, upcomingEvents]);
 
+  const pendingApplicationEvents = useMemo(() => {
+    if (user?.role === 'COMEDIAN' && comedianApplications) {
+      return comedianApplications
+        .filter(app => app.status === 'PENDING' && app.event)
+        .map(app => app.event as unknown as IEvent);
+    }
+    return [] as IEvent[];
+  }, [comedianApplications, user?.role]);
+
+  const rejectedApplicationEvents = useMemo(() => {
+    if (user?.role === 'COMEDIAN' && comedianApplications) {
+      return comedianApplications
+        .filter(app => app.status === 'REJECTED' && app.event)
+        .map(app => app.event as unknown as IEvent);
+    }
+    return [] as IEvent[];
+  }, [comedianApplications, user?.role]);
+
   const getFilteredUpcomingEvents = () => {
     const base = upcomingEventsForApply;
     if (completionFilter === 'all') return base;
@@ -466,15 +497,67 @@ function MyEventsPage() {
     () => getFilteredUpcomingEvents(),
     [completionFilter, upcomingEventsForApply]
   );
-  const totalUpcomingPages = Math.max(1, Math.ceil(filteredUpcomingEvents.length / ITEMS_PER_PAGE));
-  const paginatedUpcomingEvents = filteredUpcomingEvents.slice(
+  const eventsToDisplay = useMemo(() => {
+    if (user?.role !== 'COMEDIAN') {
+      return filteredUpcomingEvents;
+    }
+    switch (comedianTab) {
+      case 'accepted':
+        return acceptedUpcomingEvents;
+      case 'pending':
+        return pendingApplicationEvents;
+      case 'rejected':
+        return rejectedApplicationEvents;
+      default:
+        return filteredUpcomingEvents;
+    }
+  }, [user?.role, comedianTab, filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+
+  const comedianTabCounts = useMemo(() => ({
+    opportunities: filteredUpcomingEvents.length,
+    accepted: acceptedUpcomingEvents.length,
+    pending: pendingApplicationEvents.length,
+    rejected: rejectedApplicationEvents.length,
+  }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+
+  const comedianTabTitles: Record<'opportunities' | 'accepted' | 'pending' | 'rejected', string> = {
+    opportunities: 'Opportunités à venir (pour postuler)',
+    accepted: 'Événements acceptés',
+    pending: 'Candidatures en attente',
+    rejected: 'Candidatures refusées',
+  };
+
+  const comedianEmptyStates: Record<'opportunities' | 'accepted' | 'pending' | 'rejected', string> = {
+    opportunities: 'Aucune opportunité disponible pour le moment.',
+    accepted: 'Aucun événement accepté à venir.',
+    pending: 'Aucune candidature en attente.',
+    rejected: 'Aucune candidature refusée.',
+  };
+
+  const isComedianView = user?.role === 'COMEDIAN';
+  const isOpportunitiesTab = comedianTab === 'opportunities';
+
+  const listIsLoading = isComedianView
+    ? (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading)
+    : eventsLoading;
+
+  const listHasError = isComedianView
+    ? (isOpportunitiesTab ? eventsError : comedianApplicationsError)
+    : eventsError;
+
+  const listErrorMessage = isComedianView
+    ? (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message)
+    : eventsErrorMessage?.message;
+
+  const totalUpcomingPages = Math.max(1, Math.ceil(eventsToDisplay.length / ITEMS_PER_PAGE));
+  const paginatedUpcomingEvents = eventsToDisplay.slice(
     (upcomingPage - 1) * ITEMS_PER_PAGE,
     upcomingPage * ITEMS_PER_PAGE
   );
 
   useEffect(() => {
     setUpcomingPage(1);
-  }, [completionFilter, upcomingEventsForApply]);
+  }, [eventsToDisplay]);
 
   useEffect(() => {
     if (upcomingPage > totalUpcomingPages) {
@@ -840,6 +923,39 @@ function MyEventsPage() {
   const emptyStateStyle: CSSProperties = {
     color: '#aaa',
     fontSize: '1.1em',
+  };
+
+  const comedianTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '20px',
+  };
+
+  const comedianTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    flex: isMobile ? '1 1 45%' : '0 0 auto',
+    minWidth: '140px',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: isActive ? 'rgba(255, 75, 43, 0.25)' : 'rgba(0, 0, 0, 0.35)',
+    color: isActive ? '#ffffff' : '#ddd',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: isActive ? '0 4px 12px rgba(255, 75, 43, 0.25)' : 'none',
+  });
+
+  const comedianTabTitleStyle: CSSProperties = {
+    fontSize: '0.95em',
+    fontWeight: 600,
+  };
+
+  const comedianTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    color: '#ffb3c1',
   };
 
   const eventCardStyle: CSSProperties = {
@@ -1247,66 +1363,43 @@ function MyEventsPage() {
         </>
       )}
 
-      {/* Section Événements acceptés (humoriste) */}
-      {user?.role === 'COMEDIAN' && (
-        <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>Événements acceptés</h2>
-          {acceptedUpcomingEvents.length === 0 && (
-            <p style={emptyStateStyle}>Aucun événement accepté à venir.</p>
-          )}
-          {acceptedUpcomingEvents.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <div style={cardContentStyle}>
-                <div style={cardHeaderRowStyle}>
-                  <div>
-                    <h3 style={eventTitleStyle}>{event.title}</h3>
-                  </div>
-                  <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
-                </div>
-                <div style={cardMetaGridStyle}>
-                  <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Lieu</span>
-                    <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
-                  </div>
-                  <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Horaires</span>
-                    <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
-                  </div>
-                </div>
-              </div>
-              <div style={cardStatusBlockStyle}>
-                {renderStatusChip('Statut: Accepté', '#28a745', 'rgba(40, 167, 69, 0.15)')}
-                <div style={cardActionStackStyle}>
-                  <button
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
-                    style={deleteButtonStyle}
-                  >
-                    Me désinscrire
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div style={sectionStyle}>
+        {isComedianView && (
+          <div style={comedianTabsContainerStyle}>
+            {(['opportunities', 'accepted', 'pending', 'rejected'] as const).map((tabId) => (
+              <button
+                key={tabId}
+                style={comedianTabButtonStyle(comedianTab === tabId)}
+                onClick={() => setComedianTab(tabId)}
+              >
+                <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} événement(s)</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
-          <h2 style={sectionTitleStyle}>Événements à venir {user?.role === 'COMEDIAN' ? '(pour postuler)' : ''}</h2>
-          <select
-            value={completionFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-            style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
-          >
-            <option value="all">Tous</option>
-            <option value="complete">Complet</option>
-            <option value="incomplete">Non complet</option>
-          </select>
+          <h2 style={sectionTitleStyle}>
+            {isComedianView ? comedianTabTitles[comedianTab] : 'Événements à venir'}
+          </h2>
+          {(!isComedianView || isOpportunitiesTab) && (
+            <select
+              value={completionFilter}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+              style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+            >
+              <option value="all">Tous</option>
+              <option value="complete">Complet</option>
+              <option value="incomplete">Non complet</option>
+            </select>
+          )}
         </div>
-        {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
-        {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
-        {filteredUpcomingEvents.length === 0 && !eventsLoading && !eventsError && (
-          <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
+        {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+        {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+        {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+          <p style={emptyStateStyle}>
+            {isComedianView ? comedianEmptyStates[comedianTab] : 'Aucun événement à venir pour ce filtre.'}
+          </p>
         )}
         {paginatedUpcomingEvents.map((event) => {
           const isCompleteEvent = isEventComplete(event);
@@ -1314,17 +1407,18 @@ function MyEventsPage() {
           const statusLabel = translateEventStatus(event.status);
 
           let comedianApplicationChip: React.ReactNode = null;
-          if (user?.role === 'COMEDIAN' && comedianApplications) {
-            const application = comedianApplications.find(app => app.event && app.event._id === event._id);
-            if (application) {
+          let relatedApplication: IApplication | undefined;
+          if (isComedianView && comedianApplicationsMap.size > 0) {
+            relatedApplication = comedianApplicationsMap.get(event._id);
+            if (relatedApplication) {
               let color = '#ffc107';
               let bg = 'rgba(255, 193, 7, 0.18)';
-              let label = 'Candidature: En cours';
-              if (application.status === 'ACCEPTED') {
+              let label = 'Candidature: En attente';
+              if (relatedApplication.status === 'ACCEPTED') {
                 color = '#28a745';
                 bg = 'rgba(40, 167, 69, 0.18)';
                 label = 'Candidature: Acceptée';
-              } else if (application.status === 'REJECTED') {
+              } else if (relatedApplication.status === 'REJECTED') {
                 color = '#dc3545';
                 bg = 'rgba(220, 53, 69, 0.2)';
                 label = 'Candidature: Refusée';
@@ -1365,7 +1459,7 @@ function MyEventsPage() {
                   isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
                 )}
                 {comedianApplicationChip}
-                {user?.role === 'COMEDIAN' && (
+                {isComedianView && (
                   <div style={cardActionStackStyle}>
                     {!appliedEventIds.has(event._id) ? (
                       <button
