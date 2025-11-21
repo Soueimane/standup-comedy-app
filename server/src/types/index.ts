@@ -46,4 +46,27 @@ export interface Application {
   comedian: Types.ObjectId | IPopulatedUser;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   performanceDetails: PerformanceDetails;
+}
+
+/**
+ * Interface pour les données de relance organisateur
+ * Utilisée par le système de cron pour envoyer des rappels automatiques
+ */
+export interface OrganizerReminderData {
+  organizer: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  event: {
+    _id: any;
+    title: string;
+    date: Date;
+    location?: Location;
+    startTime?: string;
+  };
+  daysRemaining: number;
+  currentCount: number;
+  targetCount: number;
+  pendingApplicationsCount: number;
 } 

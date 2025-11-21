@@ -23,6 +23,13 @@ export const config = {
     smtpUser: process.env.SMTP_USER || 'contact.standupconnect@gmail.com',
     smtpPass: process.env.SMTP_PASS || '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',
   },
+
+  cron: {
+    secret: process.env.CRON_SECRET || 'dev_cron_secret_key',
+    enabled: process.env.ENABLE_CRONS !== 'false', // true by default
+    comedianReminderSchedule: process.env.CRON_COMEDIAN_SCHEDULE || '0 * * * *', // Toutes les heures
+    organizerReminderSchedule: process.env.CRON_ORGANIZER_SCHEDULE || '0 */6 * * *', // Toutes les 6 heures
+  },
 };
 
 // Validation de la configuration
