@@ -41,6 +41,8 @@ export interface IApplication {
   createdAt: string;
 }
 
+type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
+
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
   const [applications, setApplications] = useState<IApplication[]>([]);
@@ -51,6 +53,7 @@ function ApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState<IApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED'>('all');
+  const [comedianTab, setComedianTab] = useState<ComedianApplicationTab>('accepted');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusToSet, setStatusToSet] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
   const [statusAppId, setStatusAppId] = useState<string | null>(null);
@@ -258,6 +261,136 @@ function ApplicationsPage() {
     });
     return sorted;
   }
+
+  // Fonctions de filtrage pour les onglets humoriste
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const isEventUpcoming = (eventDate: string): boolean => {
+    if (!eventDate) return false;
+    const eventDateObj = new Date(eventDate);
+    eventDateObj.setHours(0, 0, 0, 0);
+    return eventDateObj >= todayMidnight;
+  };
+
+  const isEventPast = (eventDate: string): boolean => {
+    if (!eventDate) return false;
+    const eventDateObj = new Date(eventDate);
+    eventDateObj.setHours(0, 0, 0, 0);
+    return eventDateObj < todayMidnight;
+  };
+
+  const getComedianFilteredApplications = (): IApplication[] => {
+    const base = applications.filter(app => app.event);
+    
+    switch (comedianTab) {
+      case 'accepted':
+        // Événements à venir + statut ACCEPTED
+        return base.filter(app => 
+          app.status === 'ACCEPTED' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'pending':
+        // Événements à venir + statut PENDING
+        return base.filter(app => 
+          app.status === 'PENDING' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'rejected':
+        // Événements à venir + statut REJECTED
+        return base.filter(app => 
+          app.status === 'REJECTED' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'archived':
+        // Événements dans le passé + tous les statuts (sauf PENDING)
+        return base.filter(app => 
+          app.event?.date && 
+          isEventPast(app.event.date) &&
+          app.status !== 'PENDING'
+        );
+      
+      case 'cancelled':
+        // Statut événement CANCELLED
+        return base.filter(app => 
+          app.event?.status === 'CANCELLED'
+        );
+      
+      default:
+        return [];
+    }
+  };
+
+  const comedianFilteredApplications = user?.role === 'COMEDIAN' 
+    ? getComedianFilteredApplications() 
+    : [];
+
+  const comedianTabCounts = {
+    accepted: applications.filter(app => 
+      app.status === 'ACCEPTED' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    pending: applications.filter(app => 
+      app.status === 'PENDING' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    rejected: applications.filter(app => 
+      app.status === 'REJECTED' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    archived: applications.filter(app => 
+      app.event?.date && 
+      isEventPast(app.event.date) &&
+      app.status !== 'PENDING'
+    ).length,
+    cancelled: applications.filter(app => 
+      app.event?.status === 'CANCELLED'
+    ).length,
+  };
+
+  const comedianTabTitles: Record<ComedianApplicationTab, string> = {
+    accepted: 'Acceptées',
+    pending: 'En attente',
+    rejected: 'Refusées',
+    archived: 'Archivées',
+    cancelled: 'Annulées',
+  };
+
+  const comedianEmptyStates: Record<ComedianApplicationTab, string> = {
+    accepted: 'Aucune candidature acceptée à venir.',
+    pending: 'Aucune candidature en attente.',
+    rejected: 'Aucune candidature refusée à venir.',
+    archived: 'Aucune candidature archivée.',
+    cancelled: 'Aucun événement annulé.',
+  };
+
+  // Pagination pour les candidatures humoriste
+  const totalComedianPages = Math.max(1, Math.ceil(comedianFilteredApplications.length / ITEMS_PER_PAGE));
+  const [comedianPage, setComedianPage] = useState(1);
+
+  useEffect(() => {
+    setComedianPage(1);
+  }, [comedianTab]);
+
+  useEffect(() => {
+    if (comedianPage > totalComedianPages) {
+      setComedianPage(totalComedianPages);
+    }
+  }, [comedianPage, totalComedianPages]);
+
+  const paginatedComedianApplications = comedianFilteredApplications.slice(
+    (comedianPage - 1) * ITEMS_PER_PAGE,
+    comedianPage * ITEMS_PER_PAGE
+  );
 
   const allApplicationsCount = applications.length;
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
@@ -612,6 +745,41 @@ function ApplicationsPage() {
     fontWeight: 600,
   };
 
+  // Styles pour les onglets humoriste
+  const comedianTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
+    paddingBottom: '10px',
+  };
+
+  const comedianTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 16px',
+    borderRadius: '8px 8px 0 0',
+    border: 'none',
+    backgroundColor: isActive ? 'rgba(255, 65, 108, 0.2)' : 'transparent',
+    color: isActive ? '#ff416c' : '#aaa',
+    fontWeight: isActive ? 'bold' : 'normal',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    borderBottom: isActive ? '2px solid #ff416c' : '2px solid transparent',
+    fontSize: '0.95em',
+  });
+
+  const comedianTabTitleStyle: CSSProperties = {
+    display: 'block',
+    fontSize: '1em',
+  };
+
+  const comedianTabCountStyle: CSSProperties = {
+    display: 'block',
+    fontSize: '0.85em',
+    opacity: 0.8,
+    marginTop: '2px',
+  };
+
   // Détermine si l'événement a été modifié par l'organisateur
   const wasEventUpdatedAfterApplication = (app: IApplication): boolean => {
     // Utiliser le champ modifiedByOrganizer qui est défini uniquement lors de vraies modifications
@@ -633,32 +801,52 @@ function ApplicationsPage() {
       </div>
 
       <div style={contentContainerStyle}>
+        {/* Onglets pour humoriste */}
+        {user?.role === 'COMEDIAN' && (
+          <div style={comedianTabsContainerStyle}>
+            {(['accepted', 'pending', 'rejected', 'archived', 'cancelled'] as ComedianApplicationTab[]).map((tabId) => (
+              <button
+                key={tabId}
+                style={comedianTabButtonStyle(comedianTab === tabId)}
+                onClick={() => setComedianTab(tabId)}
+              >
+                <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} candidature(s)</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-          {/* Onglets de statut */}
-          <button 
-            style={selectedTab === 'all' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('all')}
-          >
-            Toutes ({allApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'PENDING' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('PENDING')}
-          >
-            En attente ({pendingApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'ACCEPTED' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('ACCEPTED')}
-          >
-            Acceptées ({acceptedApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'REJECTED' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('REJECTED')}
-          >
-            Refusées ({rejectedApplicationsCount})
-          </button>
+          {/* Onglets de statut - Organisateur uniquement */}
+          {user?.role === 'ORGANIZER' && (
+            <>
+              <button 
+                style={selectedTab === 'all' ? activeTabButtonStyle : tabButtonStyle}
+                onClick={() => handleTabChange('all')}
+              >
+                Toutes ({allApplicationsCount})
+              </button>
+              <button 
+                style={selectedTab === 'PENDING' ? activeTabButtonStyle : tabButtonStyle}
+                onClick={() => handleTabChange('PENDING')}
+              >
+                En attente ({pendingApplicationsCount})
+              </button>
+              <button 
+                style={selectedTab === 'ACCEPTED' ? activeTabButtonStyle : tabButtonStyle}
+                onClick={() => handleTabChange('ACCEPTED')}
+              >
+                Acceptées ({acceptedApplicationsCount})
+              </button>
+              <button 
+                style={selectedTab === 'REJECTED' ? activeTabButtonStyle : tabButtonStyle}
+                onClick={() => handleTabChange('REJECTED')}
+              >
+                Refusées ({rejectedApplicationsCount})
+              </button>
+            </>
+          )}
           {/* Menu déroulant de filtrage par humoriste (ORGANIZER uniquement) */}
           {user?.role === 'ORGANIZER' && (
             <select
@@ -702,119 +890,136 @@ function ApplicationsPage() {
 
         {loading && <p style={{ textAlign: 'center', color: '#ccc' }}>Chargement des candidatures...</p>}
         {error && <p style={{ textAlign: 'center', color: '#dc3545' }}>Erreur: {error}</p>}
-        {!loading && !error && getFilteredApplications().length === 0 && (
-          <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
-            Aucune candidature trouvée pour ce filtre.
-          </p>
-        )}
-
-        {!loading && !error && getFilteredApplications().length > 0 && (
+        
+        {user?.role === 'COMEDIAN' ? (
           <>
-            {user?.role === 'COMEDIAN' ? (
+            {!loading && !error && comedianFilteredApplications.length === 0 && (
+              <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
+                {comedianEmptyStates[comedianTab]}
+              </p>
+            )}
+            {!loading && !error && comedianFilteredApplications.length > 0 && (
               <>
-                {/* Séparation à venir / archivées côté humoriste */}
-                {(() => {
-                  const today = new Date();
-                  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                  const list = getFilteredApplications().filter(app => app.event);
-                  const upcoming = list.filter(app => app.event?.date && new Date(app.event.date) >= todayMidnight);
-                  const archived = list.filter(app => app.event?.date && new Date(app.event.date) < todayMidnight);
-                  const Section = ({ title, items }: { title: string; items: IApplication[] }) => (
-                    <div style={{ marginBottom: 30 }}>
-                      <h2 style={{ color: '#ff416c', margin: '10px 0' }}>{title}</h2>
-                      {items.length === 0 ? (
-                        <p style={{ color: '#ccc' }}>Aucune candidature.</p>
-                      ) : (
-                        <div style={applicationsListStyle}>
-                          {items.map(app => (
-                            <div 
-                              key={app._id} 
-                              style={applicationCardStyle}
-                              onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
-                            >
-                              <div style={comedianApplicationRowStyle}>
-                                <div style={comedianApplicationInfoStyle}>
-                                  <div style={comedianApplicationTitleRowStyle}>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-                                      <h3 style={cardTitleStyle}>{app.event.title}</h3>
-                                      <span style={comedianApplicationDateBadgeStyle}>
-                                        {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
-                                      </span>
-                                      <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap', color: '#9ad7ff' }}>
-                                        · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
-                                      </p>
-                                      {app.message && (
-                                        <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap' }}>
-                                          · Message: {app.message}
-                                        </p>
-                                      )}
-                                    </div>
-                                    {app.performanceDetails && (
-                                      <p style={{ ...cardDetailStyle, color: '#9ad7ff', marginTop: 6 }}>
-                                        Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div style={comedianApplicationStatusStyle}>
-                                  <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                                  {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
-                                    <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                      <button
-                                        onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
-                                          e.stopPropagation(); 
-                                          try {
-                                            await api.patch(`/applications/${app._id}/confirm`, {}, {
-                                              headers: { Authorization: `Bearer ${token}` }
-                                            });
-                                            alert('Confirmation enregistrée !');
-                                            fetchApplications();
-                                          } catch (error) {
-                                            alert('Erreur lors de la confirmation.');
-                                          }
-                                        }}
-                                        style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
-                                      >
-                                        Je reste inscrit
-                                      </button>
-                                      <button
-                                        onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
-                                          e.stopPropagation();
-                                          if (!token) return;
-                                          if (!confirm('Confirmer la désinscription ?')) return;
-                                          try {
-                                            const config = { headers: { Authorization: `Bearer ${token}` } };
-                                            await api.delete(`/applications/${app._id}`, config);
-                                            alert('Candidature retirée.');
-                                            fetchApplications();
-                                            refreshUser();
-                                          } catch (err: any) {
-                                            alert('Échec de la désinscription.');
-                                          }
-                                        }}
-                                        style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
-                                      >
-                                        Me désinscrire
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                <div style={applicationsListStyle}>
+                  {paginatedComedianApplications.map(app => (
+                    <div 
+                      key={app._id} 
+                      style={applicationCardStyle}
+                      onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
+                    >
+                      <div style={comedianApplicationRowStyle}>
+                        <div style={comedianApplicationInfoStyle}>
+                          <div style={comedianApplicationTitleRowStyle}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                              <h3 style={cardTitleStyle}>{app.event.title}</h3>
+                              <span style={comedianApplicationDateBadgeStyle}>
+                                {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                              </span>
+                              <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap', color: '#9ad7ff' }}>
+                                · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
+                              </p>
+                              {app.message && (
+                                <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap' }}>
+                                  · Message: {app.message}
+                                </p>
+                              )}
                             </div>
-                          ))}
+                            {app.performanceDetails && (
+                              <p style={{ ...cardDetailStyle, color: '#9ad7ff', marginTop: 6 }}>
+                                Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <div style={comedianApplicationStatusStyle}>
+                          <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                          {/* Afficher le statut sur les cartes archivées */}
+                          {comedianTab === 'archived' && (
+                            <span style={{
+                              ...statusBadgeStyle(app.status),
+                              marginTop: '8px',
+                              display: 'block',
+                            }}>
+                              {app.status === 'ACCEPTED' ? '✓ Acceptée' : app.status === 'REJECTED' ? '✕ Refusée' : ''}
+                            </span>
+                          )}
+                          {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
+                                  e.stopPropagation(); 
+                                  try {
+                                    await api.patch(`/applications/${app._id}/confirm`, {}, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    alert('Confirmation enregistrée !');
+                                    fetchApplications();
+                                  } catch (error) {
+                                    alert('Erreur lors de la confirmation.');
+                                  }
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
+                              >
+                                Je reste inscrit
+                              </button>
+                              <button
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.stopPropagation();
+                                  if (!token) return;
+                                  if (!confirm('Confirmer la désinscription ?')) return;
+                                  try {
+                                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                                    await api.delete(`/applications/${app._id}`, config);
+                                    alert('Candidature retirée.');
+                                    fetchApplications();
+                                    refreshUser();
+                                  } catch (err: any) {
+                                    alert('Échec de la désinscription.');
+                                  }
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
+                              >
+                                Me désinscrire
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  );
-                  return (
-                    <>
-                      <Section title="Candidatures à venir" items={upcoming} />
-                      <Section title="Candidatures archivées" items={archived} />
-                    </>
-                  );
-                })()}
+                  ))}
+                </div>
+                {comedianFilteredApplications.length > ITEMS_PER_PAGE && (
+                  <div style={paginationContainerStyle}>
+                    <button
+                      style={paginationButtonStyle}
+                      disabled={comedianPage === 1}
+                      onClick={() => setComedianPage(prev => Math.max(1, prev - 1))}
+                    >
+                      Précédent
+                    </button>
+                    <span style={paginationInfoStyle}>
+                      Page {Math.min(comedianPage, totalComedianPages)} / {Math.max(totalComedianPages, 1)}
+                    </span>
+                    <button
+                      style={paginationButtonStyle}
+                      disabled={comedianPage >= totalComedianPages}
+                      onClick={() => setComedianPage(prev => Math.min(totalComedianPages, prev + 1))}
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                )}
               </>
-            ) : (
+            )}
+          </>
+        ) : (
+          <>
+            {!loading && !error && getFilteredApplications().length === 0 && (
+              <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
+                Aucune candidature trouvée pour ce filtre.
+              </p>
+            )}
+            {!loading && !error && getFilteredApplications().length > 0 && (
               // Affichage organisateur - Liste horizontale
               <>
                 <div style={applicationsListStyle}>
