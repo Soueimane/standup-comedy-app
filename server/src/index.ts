@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config/env';
 import { connectDatabase } from './config/database';
+import { initializeCronJobs, stopCronJobs } from './services/cronScheduler';
 import authRoutes from './routes/auth';
 import eventsRoutes from './routes/events';
 import applicationsRoutes from './routes/applications';
@@ -85,13 +86,35 @@ const startServer = async () => {
   try {
     // Valider la configuration avant de démarrer
     validateConfig();
-    
+
     await connectDatabase();
-    
-    app.listen(config.port, () => {
+
+    // Initialiser les cron jobs
+    initializeCronJobs();
+
+    const server = app.listen(config.port, () => {
       console.log(`🚀 Serveur démarré sur le port ${config.port} en mode ${config.nodeEnv}`);
       console.log(`📊 Niveau de log: ${config.logLevel}`);
       console.log(`🌐 CORS origin: ${config.cors.origin}`);
+    });
+
+    // Gérer l'arrêt du serveur proprement
+    process.on('SIGTERM', () => {
+      console.log('\n⏹️ Signal SIGTERM reçu, arrêt du serveur...');
+      stopCronJobs();
+      server.close(() => {
+        console.log('✅ Serveur arrêté');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      console.log('\n⏹️ Signal SIGINT reçu, arrêt du serveur...');
+      stopCronJobs();
+      server.close(() => {
+        console.log('✅ Serveur arrêté');
+        process.exit(0);
+      });
     });
   } catch (error) {
     console.error('❌ Échec du démarrage du serveur:', error);
