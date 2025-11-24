@@ -1584,10 +1584,11 @@ useEffect(() => {
               <h3 style={{ color: '#ff4b2b', marginBottom: '15px', fontSize: '1.2em' }}>Filtres de recherche</h3>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                gap: '15px'
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 320px))',
+                gap: '15px',
+                justifyContent: isMobile ? 'stretch' : 'flex-start'
               }}>
-                <div>
+                <div style={{ maxWidth: isMobile ? '100%' : 320 }}>
                 <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
                   Filtrer par organisateur:
                 </label>
@@ -1626,7 +1627,7 @@ useEffect(() => {
                   ))}
                 </select>
               </div>
-                <div>
+                <div style={{ maxWidth: isMobile ? '100%' : 320 }}>
                   <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
                     Recherche par mots-clés:
                   </label>
@@ -1680,7 +1681,8 @@ useEffect(() => {
                 marginTop: '15px',
                 display: 'flex',
                 flexDirection: isMobile ? 'column' : 'row',
-                gap: '10px'
+                gap: '10px',
+                alignItems: 'center'
               }}>
                 <button
                   onClick={() => {
@@ -1698,7 +1700,8 @@ useEffect(() => {
                     color: '#ffffff',
                     cursor: 'pointer',
                     fontSize: '14px',
-                    width: isMobile ? '100%' : 'auto'
+                    width: isMobile ? '100%' : 'auto',
+                    maxWidth: isMobile ? '100%' : 220
                   }}
                 >
                   Réinitialiser les filtres
