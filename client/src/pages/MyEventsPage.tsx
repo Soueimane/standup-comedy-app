@@ -18,12 +18,14 @@ const ITEMS_PER_PAGE = 5;
 const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
 type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
+type SuperAdminTab = 'completed' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const isComedianView = user?.role === 'COMEDIAN';
   const isOrganizerView = user?.role === 'ORGANIZER';
+  const isSuperAdminView = user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -37,6 +39,12 @@ function MyEventsPage() {
       setOrganizerTab('upcoming');
     }
   }, [isOrganizerView]);
+
+  useEffect(() => {
+    if (user?.role !== 'SUPER_ADMIN') {
+      setSuperAdminTab('completed');
+    }
+  }, [user?.role]);
 
   const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
 
@@ -73,6 +81,7 @@ function MyEventsPage() {
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
   const [comedianTab, setComedianTab] = useState<ComedianTab>('opportunities');
   const [organizerTab, setOrganizerTab] = useState<OrganizerTab>('upcoming');
+  const [superAdminTab, setSuperAdminTab] = useState<SuperAdminTab>('completed');
   const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -576,23 +585,57 @@ function MyEventsPage() {
   const completedUpcomingEvents = useMemo(() => {
     return upcomingEvents.filter(event => isEventComplete(event));
   }, [upcomingEvents]);
+
+  const incompleteUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter(event => !isEventComplete(event));
+  }, [upcomingEvents]);
   const eventsToDisplay = useMemo(() => {
-    if (user?.role !== 'COMEDIAN') {
-      return filteredUpcomingEvents;
+    if (isComedianView) {
+      switch (comedianTab) {
+        case 'accepted':
+          return acceptedUpcomingEvents;
+        case 'pending':
+          return pendingApplicationEvents;
+        case 'rejected':
+          return rejectedApplicationEvents;
+        case 'favorites':
+          return favoriteEvents;
+        default:
+          return filteredUpcomingEvents;
+      }
     }
-    switch (comedianTab) {
-      case 'accepted':
-        return acceptedUpcomingEvents;
-      case 'pending':
-        return pendingApplicationEvents;
-      case 'rejected':
-        return rejectedApplicationEvents;
-      case 'favorites':
-        return favoriteEvents;
-      default:
-        return filteredUpcomingEvents;
+
+    if (isSuperAdminView) {
+      switch (superAdminTab) {
+        case 'upcoming':
+          return incompleteUpcomingEvents;
+        case 'completed':
+          return completedUpcomingEvents;
+        case 'archived':
+          return archivedEventsToShow;
+        case 'cancelled':
+          return cancelledEvents;
+        default:
+          return incompleteUpcomingEvents;
+      }
     }
-  }, [user?.role, comedianTab, filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
+
+    return filteredUpcomingEvents;
+  }, [
+    isComedianView,
+    isSuperAdminView,
+    superAdminTab,
+    comedianTab,
+    filteredUpcomingEvents,
+    acceptedUpcomingEvents,
+    pendingApplicationEvents,
+    rejectedApplicationEvents,
+    favoriteEvents,
+    incompleteUpcomingEvents,
+    completedUpcomingEvents,
+    archivedEventsToShow,
+    cancelledEvents,
+  ]);
 
   const comedianTabCounts: Record<ComedianTab, number> = useMemo(() => ({
     opportunities: filteredUpcomingEvents.length,
@@ -609,6 +652,13 @@ function MyEventsPage() {
     cancelled: cancelledEvents.length,
   }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents]);
 
+  const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
+    completed: completedUpcomingEvents.length,
+    upcoming: incompleteUpcomingEvents.length,
+    archived: archivedEventsToShow.length,
+    cancelled: cancelledEvents.length,
+  }), [completedUpcomingEvents, incompleteUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
     accepted: 'Événements acceptés',
@@ -620,6 +670,13 @@ function MyEventsPage() {
   const organizerTabTitles: Record<OrganizerTab, string> = {
     upcoming: 'Événements à venir',
     completed: 'Événements complets',
+    archived: 'Événements archivés',
+    cancelled: 'Événements annulés',
+  };
+
+  const superAdminTabTitles: Record<SuperAdminTab, string> = {
+    completed: 'Événements complets',
+    upcoming: 'Événements à venir (non complets)',
     archived: 'Événements archivés',
     cancelled: 'Événements annulés',
   };
@@ -647,10 +704,22 @@ function MyEventsPage() {
     ? (isFavoritesTab ? eventsErrorMessage?.message : (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message))
     : eventsErrorMessage?.message;
 
-  const showOrganizerUpcomingSection = !isComedianView && (!isOrganizerView || organizerTab === 'upcoming');
-  const showCompletedSection = !isComedianView && (!isOrganizerView || organizerTab === 'completed');
-  const showArchivedSection = !isComedianView && (!isOrganizerView || organizerTab === 'archived');
-  const showCancelledSection = !isComedianView && (!isOrganizerView || organizerTab === 'cancelled');
+  const showOrganizerUpcomingSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'upcoming') ||
+    (isSuperAdminView && superAdminTab === 'upcoming')
+  );
+  const showCompletedSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'completed') ||
+    (isSuperAdminView && superAdminTab === 'completed')
+  );
+  const showArchivedSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'archived') ||
+    (isSuperAdminView && superAdminTab === 'archived')
+  );
+  const showCancelledSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'cancelled') ||
+    (isSuperAdminView && superAdminTab === 'cancelled')
+  );
 
   const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'completed' | 'archived') => {
     if (user?.role !== 'ORGANIZER') {
@@ -1092,6 +1161,7 @@ function MyEventsPage() {
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
   const organizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
+  const superAdminTabs: SuperAdminTab[] = ['completed', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
@@ -1749,24 +1819,44 @@ function MyEventsPage() {
               </div>
             </div>
           )}
+          {isSuperAdminView && (
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={organizerTabsContainerStyle}>
+                {superAdminTabs.map(tabId => (
+                  <button
+                    key={tabId}
+                    style={organizerTabButtonStyle(superAdminTab === tabId)}
+                    onClick={() => setSuperAdminTab(tabId)}
+                  >
+                    <span>{superAdminTabTitles[tabId]}</span>
+                    <span style={organizerTabCountStyle}>{superAdminTabCounts[tabId]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {showOrganizerUpcomingSection && (
             <div style={sectionStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
                 <h2 style={sectionTitleStyle}>Événements à venir</h2>
-                <select
-                  value={completionFilter}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-                  style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
-                >
-                  <option value="all">Tous</option>
-                  <option value="complete">Complet</option>
-                  <option value="incomplete">Non complet</option>
-                </select>
+                {isOrganizerView && (
+                  <select
+                    value={completionFilter}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+                    style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+                  >
+                    <option value="all">Tous</option>
+                    <option value="complete">Complet</option>
+                    <option value="incomplete">Non complet</option>
+                  </select>
+                )}
               </div>
               {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
               {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
               {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
-                <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
+                <p style={emptyStateStyle}>
+                  {isOrganizerView ? 'Aucun événement à venir pour ce filtre.' : 'Aucun événement à venir (non complet).'}
+                </p>
               )}
               {paginatedUpcomingEvents.map((event) => {
                 const isCompleteEvent = isEventComplete(event);
