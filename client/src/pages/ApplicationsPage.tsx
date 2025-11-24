@@ -77,6 +77,7 @@ function ApplicationsPage() {
     () => new Set(favoriteApplicationIds),
     [favoriteApplicationIds]
   );
+  const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
 
   const toggleFavoriteApplication = (appId: string) => {
     if (!isOrganizerView) return;
@@ -146,6 +147,12 @@ function ApplicationsPage() {
     setSelectedTab(getStatusFromUrlOrTab());
   }, [location.search]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const appIdParam = params.get('applicationId');
+    setApplicationIdFromUrl(appIdParam);
+  }, [location.search]);
+
   // Affichage message après action email (?update=kept|withdrawn)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -190,6 +197,15 @@ function ApplicationsPage() {
     fetchApplications();
   }, [token, selectedTab, selectedEventId]);
 
+  useEffect(() => {
+    if (!applicationIdFromUrl) return;
+    const found = applications.find(app => app._id === applicationIdFromUrl);
+    if (found) {
+      setSelectedApplication(found);
+      setIsModalOpen(true);
+    }
+  }, [applicationIdFromUrl, applications]);
+
   // Charger les événements de l'organisateur pour le sélecteur
   useEffect(() => {
     const loadOrganizerEvents = async () => {
@@ -226,6 +242,20 @@ function ApplicationsPage() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  const clearApplicationParam = () => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('applicationId')) return;
+    params.delete('applicationId');
+    const newSearch = params.toString();
+    navigate(newSearch ? `${location.pathname}?${newSearch}` : location.pathname, { replace: true });
+  };
+
+  const closeApplicationModal = () => {
+    setIsModalOpen(false);
+    setSelectedApplication(null);
+    clearApplicationParam();
+  };
 
   const openStatusModal = (appId: string, status: 'ACCEPTED' | 'REJECTED') => {
     setStatusAppId(appId);
@@ -761,10 +791,18 @@ function ApplicationsPage() {
     flex: isMobile ? 1 : undefined,
   };
 
-  const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
+  const handleViewComedianProfile = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    comedianId: string,
+    applicationId?: string
+  ) => {
     e.stopPropagation();
-    // Naviguer vers la page de profil de l'humoriste
-    navigate(`/profile/comedian/${comedianId}`);
+    const params = new URLSearchParams();
+    params.set('from', 'applications');
+    if (applicationId) {
+      params.set('applicationId', applicationId);
+    }
+    navigate(`/profile/comedian/${comedianId}?${params.toString()}`);
   };
 
   const organizerTabsContainerStyle: CSSProperties = {
@@ -1146,7 +1184,7 @@ function ApplicationsPage() {
                           style={viewProfileInlineButtonStyle}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
-                            handleViewComedianProfile(e, app.comedian._id);
+                            handleViewComedianProfile(e, app.comedian._id, app._id);
                           }}
                         >
                           👤 Voir le profil
@@ -1241,7 +1279,7 @@ function ApplicationsPage() {
       {selectedApplication && (
         <ApplicationDetailsModal 
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={closeApplicationModal}
           application={selectedApplication}
         />
       )}

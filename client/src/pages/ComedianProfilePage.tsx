@@ -1,5 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
@@ -8,11 +8,16 @@ import api from '../services/api';
 
 function ComedianProfilePage() {
   const { id } = useParams<{ id?: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user: authUser, token, refreshUser } = useAuth();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
+  const searchParams = new URLSearchParams(location.search);
+  const fromApplications = searchParams.get('from') === 'applications';
+  const applicationIdFromQuery = searchParams.get('applicationId');
 
   useEffect(() => {
     if (id && id !== authUser?._id) {
@@ -50,6 +55,14 @@ function ComedianProfilePage() {
     setIsEditing(false);
   };
 
+  const handleBackToApplication = () => {
+    if (applicationIdFromQuery) {
+      navigate(`/applications?applicationId=${applicationIdFromQuery}`);
+    } else {
+      navigate('/applications');
+    }
+  };
+
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#ffffff',
@@ -76,6 +89,19 @@ function ComedianProfilePage() {
     fontSize: '1.1em',
     color: '#aaa',
     marginBottom: '20px',
+  };
+
+  const backButtonStyle: CSSProperties = {
+    padding: '10px 18px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    background: 'rgba(0, 0, 0, 0.35)',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   };
 
   const sectionContainerStyle: CSSProperties = {
@@ -173,9 +199,16 @@ function ComedianProfilePage() {
               : 'Gère tes informations et préférences en tant qu\'humoriste'}
           </p>
         </div>
-        {!isViewingOtherProfile && (
-          <button style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
-        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {fromApplications && (
+            <button type="button" style={backButtonStyle} onClick={handleBackToApplication}>
+              ← Retour à la candidature
+            </button>
+          )}
+          {!isViewingOtherProfile && (
+            <button type="button" style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
+          )}
+        </div>
       </div>
 
       {isEditing && user ? (
