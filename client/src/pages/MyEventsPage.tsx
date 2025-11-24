@@ -17,11 +17,13 @@ import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 const ITEMS_PER_PAGE = 5;
 const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
+type OrganizerTab = 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const isComedianView = user?.role === 'COMEDIAN';
+  const isOrganizerView = user?.role === 'ORGANIZER';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -29,6 +31,12 @@ function MyEventsPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!isOrganizerView) {
+      setOrganizerTab('upcoming');
+    }
+  }, [isOrganizerView]);
 
   const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
 
@@ -64,6 +72,7 @@ function MyEventsPage() {
   const [eventAbsences, setEventAbsences] = useState<any[]>([]);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
   const [comedianTab, setComedianTab] = useState<ComedianTab>('opportunities');
+  const [organizerTab, setOrganizerTab] = useState<OrganizerTab>('upcoming');
   const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -588,12 +597,24 @@ function MyEventsPage() {
     favorites: favoriteEvents.length,
   }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
 
+  const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
+    upcoming: filteredUpcomingEvents.length,
+    archived: archivedEventsToShow.length,
+    cancelled: cancelledEvents.length,
+  }), [filteredUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
     accepted: 'Événements acceptés',
     pending: 'Candidatures en attente',
     rejected: 'Candidatures refusées',
     favorites: 'Mes favoris',
+  };
+
+  const organizerTabTitles: Record<OrganizerTab, string> = {
+    upcoming: 'Événements à venir',
+    archived: 'Événements archivés',
+    cancelled: 'Événements annulés',
   };
 
   const comedianEmptyStates: Record<ComedianTab, string> = {
@@ -618,6 +639,10 @@ function MyEventsPage() {
   const listErrorMessage = isComedianView
     ? (isFavoritesTab ? eventsErrorMessage?.message : (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message))
     : eventsErrorMessage?.message;
+
+  const showOrganizerUpcomingSection = !isComedianView && (!isOrganizerView || organizerTab === 'upcoming');
+  const showArchivedSection = !isComedianView && (!isOrganizerView || organizerTab === 'archived');
+  const showCancelledSection = !isComedianView && (!isOrganizerView || organizerTab === 'cancelled');
 
   const totalUpcomingPages = Math.max(1, Math.ceil(eventsToDisplay.length / ITEMS_PER_PAGE));
   const paginatedUpcomingEvents = eventsToDisplay.slice(
@@ -996,6 +1021,7 @@ function MyEventsPage() {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
@@ -1028,6 +1054,35 @@ function MyEventsPage() {
   const comedianTabCountStyle: CSSProperties = {
     fontSize: '0.85em',
     color: '#ffb3c1',
+  };
+
+  const organizerTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '20px',
+    justifyContent: isMobile ? 'center' : 'flex-start',
+  };
+
+  const organizerTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 18px',
+    borderRadius: '999px',
+    border: isActive ? '1px solid #ff4b2b' : '1px solid rgba(255, 255, 255, 0.25)',
+    backgroundColor: isActive ? 'rgba(255, 75, 43, 0.25)' : 'rgba(0, 0, 0, 0.25)',
+    color: isActive ? '#ffffff' : '#ddd',
+    fontWeight: isActive ? 700 : 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  });
+
+  const organizerTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '999px',
   };
 
   const eventCardStyle: CSSProperties = {
@@ -1452,8 +1507,8 @@ function MyEventsPage() {
         </>
       )}
 
-      <div style={sectionStyle}>
-        {isComedianView && (
+      {isComedianView ? (
+        <div style={sectionStyle}>
           <div style={comedianTabsContainerStyle}>
             {comedianTabs.map((tabId) => (
               <button
@@ -1466,66 +1521,60 @@ function MyEventsPage() {
               </button>
             ))}
           </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
-          <h2 style={sectionTitleStyle}>
-            {isComedianView ? comedianTabTitles[comedianTab] : 'Événements à venir'}
-          </h2>
-          {(!isComedianView || isOpportunitiesTab) && (
-            <select
-              value={completionFilter}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-              style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
-            >
-              <option value="all">Tous</option>
-              <option value="complete">Complet</option>
-              <option value="incomplete">Non complet</option>
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+            <h2 style={sectionTitleStyle}>{comedianTabTitles[comedianTab]}</h2>
+            {isOpportunitiesTab && (
+              <select
+                value={completionFilter}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+                style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+              >
+                <option value="all">Tous</option>
+                <option value="complete">Complet</option>
+                <option value="incomplete">Non complet</option>
+              </select>
+            )}
+          </div>
+          {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+          {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+          {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+            <p style={emptyStateStyle}>{comedianEmptyStates[comedianTab]}</p>
           )}
-        </div>
-        {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
-        {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
-        {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
-          <p style={emptyStateStyle}>
-            {isComedianView ? comedianEmptyStates[comedianTab] : 'Aucun événement à venir pour ce filtre.'}
-          </p>
-        )}
-        {paginatedUpcomingEvents.map((event) => {
-          const isCompleteEvent = isEventComplete(event);
-          const participantsRatio = getParticipantsRatio(event);
-          const statusLabel = translateEventStatus(event.status);
+          {paginatedUpcomingEvents.map((event) => {
+            const isCompleteEvent = isEventComplete(event);
+            const participantsRatio = getParticipantsRatio(event);
+            const statusLabel = translateEventStatus(event.status);
 
-          let comedianApplicationChip: React.ReactNode = null;
-          let relatedApplication: IApplication | undefined;
-          if (isComedianView && comedianApplicationsMap.size > 0) {
-            relatedApplication = comedianApplicationsMap.get(event._id);
-            if (relatedApplication) {
-              let color = '#ffc107';
-              let bg = 'rgba(255, 193, 7, 0.18)';
-              let label = 'Candidature: En attente';
-              if (relatedApplication.status === 'ACCEPTED') {
-                color = '#28a745';
-                bg = 'rgba(40, 167, 69, 0.18)';
-                label = 'Candidature: Acceptée';
-              } else if (relatedApplication.status === 'REJECTED') {
-                color = '#dc3545';
-                bg = 'rgba(220, 53, 69, 0.2)';
-                label = 'Candidature: Refusée';
+            let comedianApplicationChip: React.ReactNode = null;
+            let relatedApplication: IApplication | undefined;
+            if (comedianApplicationsMap.size > 0) {
+              relatedApplication = comedianApplicationsMap.get(event._id);
+              if (relatedApplication) {
+                let color = '#ffc107';
+                let bg = 'rgba(255, 193, 7, 0.18)';
+                let label = 'Candidature: En attente';
+                if (relatedApplication.status === 'ACCEPTED') {
+                  color = '#28a745';
+                  bg = 'rgba(40, 167, 69, 0.18)';
+                  label = 'Candidature: Acceptée';
+                } else if (relatedApplication.status === 'REJECTED') {
+                  color = '#dc3545';
+                  bg = 'rgba(220, 53, 69, 0.2)';
+                  label = 'Candidature: Refusée';
+                }
+                comedianApplicationChip = renderStatusChip(label, color, bg);
               }
-              comedianApplicationChip = renderStatusChip(label, color, bg);
             }
-          }
 
-          return (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <div style={cardContentStyle}>
-                <div style={cardHeaderRowStyle}>
-                  <div>
-                    <h3 style={eventTitleStyle}>{event.title}</h3>
-                  </div>
-                  <div style={cardHeaderActionsStyle}>
-                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
-                    {isComedianView && (
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                    </div>
+                    <div style={cardHeaderActionsStyle}>
+                      <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
                       <button
                         type="button"
                         aria-label={favoriteIdsSet.has(event._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
@@ -1537,33 +1586,31 @@ function MyEventsPage() {
                       >
                         {favoriteIdsSet.has(event._id) ? '★' : '☆'}
                       </button>
-                    )}
+                    </div>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Statut</span>
+                      <span style={cardMetaValueStyle}>{statusLabel}</span>
+                    </div>
                   </div>
                 </div>
-                <div style={cardMetaGridStyle}>
-                  <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Lieu</span>
-                    <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
-                  </div>
-                  <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Horaires</span>
-                    <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
-                  </div>
-                  <div style={cardMetaItemStyle}>
-                    <span style={cardMetaLabelStyle}>Statut</span>
-                    <span style={cardMetaValueStyle}>{statusLabel}</span>
-                  </div>
-                </div>
-              </div>
-              <div style={cardStatusBlockStyle}>
-                {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
-                {renderStatusChip(
-                  isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
-                  isCompleteEvent ? '#28a745' : '#ffc107',
-                  isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
-                )}
-                {comedianApplicationChip}
-                {isComedianView && (
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                  {renderStatusChip(
+                    isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                    isCompleteEvent ? '#28a745' : '#ffc107',
+                    isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                  )}
+                  {comedianApplicationChip}
                   <div style={cardActionStackStyle}>
                     {!appliedEventIds.has(event._id) ? (
                       <button
@@ -1588,67 +1635,170 @@ function MyEventsPage() {
                       </button>
                     )}
                   </div>
-                )}
-                {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
-                  <div style={cardActionStackStyle}>
-                    <button
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                        e.stopPropagation();
-                        handleCardClick(event, true);
-                      }}
-                      style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
-                    >
-                      Gérer absences
-                    </button>
-                    <button
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                      style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                      style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
-                      disabled={notifyingEventId === event._id}
-                    >
-                      {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-                    </button>
-                    <button
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                      style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                )}
+                </div>
+              </div>
+            );
+          })}
+          {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={upcomingPage === 1}
+                onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={upcomingPage >= totalUpcomingPages}
+                onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+              >
+                Suivant
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {isOrganizerView && (
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={organizerTabsContainerStyle}>
+                {organizerTabs.map(tabId => (
+                  <button
+                    key={tabId}
+                    style={organizerTabButtonStyle(organizerTab === tabId)}
+                    onClick={() => setOrganizerTab(tabId)}
+                  >
+                    <span>{organizerTabTitles[tabId]}</span>
+                    <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
+                  </button>
+                ))}
               </div>
             </div>
-          );
-        })}
-        {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
-          <div style={paginationControlsStyle}>
-            <button
-              style={paginationButtonStyle}
-              disabled={upcomingPage === 1}
-              onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
-            >
-              Précédent
-            </button>
-            <span style={paginationInfoStyle}>
-              Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
-            </span>
-            <button
-              style={paginationButtonStyle}
-              disabled={upcomingPage >= totalUpcomingPages}
-              onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
-            >
-              Suivant
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+          {showOrganizerUpcomingSection && (
+            <div style={sectionStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+                <h2 style={sectionTitleStyle}>Événements à venir</h2>
+                <select
+                  value={completionFilter}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+                  style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+                >
+                  <option value="all">Tous</option>
+                  <option value="complete">Complet</option>
+                  <option value="incomplete">Non complet</option>
+                </select>
+              </div>
+              {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+              {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+                <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
+              )}
+              {paginatedUpcomingEvents.map((event) => {
+                const isCompleteEvent = isEventComplete(event);
+                const participantsRatio = getParticipantsRatio(event);
+                const statusLabel = translateEventStatus(event.status);
 
-      {user?.role !== 'COMEDIAN' && (
+                return (
+                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                    <div style={cardContentStyle}>
+                      <div style={cardHeaderRowStyle}>
+                        <div>
+                          <h3 style={eventTitleStyle}>{event.title}</h3>
+                        </div>
+                        <div style={cardHeaderActionsStyle}>
+                          <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div style={cardMetaGridStyle}>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Lieu</span>
+                          <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Horaires</span>
+                          <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Statut</span>
+                          <span style={cardMetaValueStyle}>{statusLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={cardStatusBlockStyle}>
+                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                      {renderStatusChip(
+                        isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                        isCompleteEvent ? '#28a745' : '#ffc107',
+                        isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                      )}
+                      {user?.role === 'ORGANIZER' && (
+                        <div style={cardActionStackStyle}>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                              e.stopPropagation();
+                              handleCardClick(event, true);
+                            }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+                          >
+                            Gérer absences
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
+                            style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
+                            disabled={notifyingEventId === event._id}
+                          >
+                            {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+                <div style={paginationControlsStyle}>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={upcomingPage === 1}
+                    onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+                  >
+                    Précédent
+                  </button>
+                  <span style={paginationInfoStyle}>
+                    Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+                  </span>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={upcomingPage >= totalUpcomingPages}
+                    onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {showArchivedSection && (
         <div ref={archivedSectionRef} style={sectionStyle}>
           <h2 style={sectionTitleStyle}>Événements archivés</h2>
           {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
@@ -1901,8 +2051,8 @@ function MyEventsPage() {
         )}
       </Modal>
 
-      {/* Section Événements annulés (organisateur et super admin) */}
-      {user?.role !== 'COMEDIAN' && (
+      {/* Section Événements annulés */}
+      {showCancelledSection && (
         <div ref={cancelledSectionRef} style={sectionStyle}>
           <h2 style={sectionTitleStyle}>Événements annulés</h2>
           {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
