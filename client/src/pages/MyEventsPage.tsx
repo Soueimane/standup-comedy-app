@@ -1582,8 +1582,12 @@ useEffect(() => {
               border: '1px solid #444'
             }}>
               <h3 style={{ color: '#ff4b2b', marginBottom: '15px', fontSize: '1.2em' }}>Filtres de recherche</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                              <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                gap: '15px'
+              }}>
+                <div>
                 <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
                   Filtrer par organisateur:
                 </label>
@@ -1631,7 +1635,12 @@ useEffect(() => {
                       e.preventDefault();
                       applyKeywordSearch();
                     }}
-                    style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: '10px',
+                      alignItems: isMobile ? 'stretch' : 'center'
+                    }}
                   >
                     <input
                       type="text"
@@ -1639,7 +1648,8 @@ useEffect(() => {
                       value={searchTerm}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                       style={{
-                        flex: 1,
+                        flex: isMobile ? undefined : 1,
+                        width: isMobile ? '100%' : undefined,
                         padding: '10px',
                         borderRadius: '5px',
                         border: '1px solid #555',
@@ -1657,7 +1667,8 @@ useEffect(() => {
                         background: '#ff4b2b',
                         color: '#fff',
                         fontWeight: 600,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        width: isMobile ? '100%' : 'auto'
                       }}
                     >
                       Rechercher
@@ -1665,15 +1676,20 @@ useEffect(() => {
                   </form>
                 </div>
               </div>
-              <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+              <div style={{
+                marginTop: '15px',
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: '10px'
+              }}>
                 <button
-                                  onClick={() => {
-                  const params = new URLSearchParams(location.search);
-                  params.delete('organizer');
-                  params.delete('search');
-                  navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                  setSearchTerm('');
-                }}
+                  onClick={() => {
+                    const params = new URLSearchParams(location.search);
+                    params.delete('organizer');
+                    params.delete('search');
+                    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                    setSearchTerm('');
+                  }}
                   style={{
                     padding: '8px 15px',
                     borderRadius: '5px',
@@ -1681,7 +1697,8 @@ useEffect(() => {
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
                     color: '#ffffff',
                     cursor: 'pointer',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    width: isMobile ? '100%' : 'auto'
                   }}
                 >
                   Réinitialiser les filtres
