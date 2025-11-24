@@ -1,4 +1,4 @@
-import { type CSSProperties, useState, useEffect, useRef } from 'react';
+import { type CSSProperties, useState, useEffect, useRef, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -42,7 +42,9 @@ export interface IApplication {
 }
 
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
-type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
+type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
+
+const ORGANIZER_FAVORITES_STORAGE_PREFIX = 'organizerFavoriteApplications';
 
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
@@ -70,6 +72,38 @@ function ApplicationsPage() {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 768;
   });
+  const [favoriteApplicationIds, setFavoriteApplicationIds] = useState<string[]>([]);
+  const favoriteApplicationIdsSet = useMemo(
+    () => new Set(favoriteApplicationIds),
+    [favoriteApplicationIds]
+  );
+
+  const toggleFavoriteApplication = (appId: string) => {
+    if (!isOrganizerView) return;
+    setFavoriteApplicationIds(prev => {
+      const updated = new Set(prev);
+      if (updated.has(appId)) {
+        updated.delete(appId);
+      } else {
+        updated.add(appId);
+      }
+      const next = Array.from(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            getOrganizerFavoriteStorageKey(user?._id),
+            JSON.stringify(next)
+          );
+        } catch (err) {
+          console.error('Erreur lors de la sauvegarde des favoris organisateur:', err);
+        }
+      }
+      return next;
+    });
+  };
+  const isOrganizerView = user?.role === 'ORGANIZER';
+  const getOrganizerFavoriteStorageKey = (userId?: string) =>
+    `${ORGANIZER_FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
 
   useEffect(() => {
     const handleResize = () => {
@@ -81,11 +115,29 @@ function ApplicationsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOrganizerView) {
+      setFavoriteApplicationIds([]);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(getOrganizerFavoriteStorageKey(user?._id));
+      setFavoriteApplicationIds(stored ? JSON.parse(stored) : []);
+    } catch (err) {
+      console.error('Erreur lors du chargement des favoris organisateur:', err);
+      setFavoriteApplicationIds([]);
+    }
+  }, [isOrganizerView, user?._id]);
+
   const getStatusFromUrlOrTab = () => {
     const queryParams = new URLSearchParams(location.search);
     const statusParam = queryParams.get('status');
+    if (statusParam === 'favorites') {
+      return 'favorites';
+    }
     if (statusParam && ['PENDING', 'ACCEPTED', 'REJECTED'].includes(statusParam)) {
-      return statusParam as 'PENDING' | 'ACCEPTED' | 'REJECTED';
+      return statusParam as OrganizerApplicationTab;
     }
     return 'all';
   };
@@ -213,6 +265,8 @@ function ApplicationsPage() {
     setSelectedTab(status);
     if (status === 'all') {
       navigate('/applications');
+    } else if (status === 'favorites') {
+      navigate('/applications?status=favorites');
     } else {
       navigate(`/applications?status=${status}`);
     }
@@ -229,7 +283,7 @@ function ApplicationsPage() {
   // Fonction de filtrage combinée
   function getFilteredApplications(): IApplication[] {
     let filtered = applications;
-    if (selectedTab !== 'all') {
+    if (selectedTab !== 'all' && selectedTab !== 'favorites') {
       filtered = filtered.filter(app => app.status === selectedTab);
     }
     // Filtre par humoriste: seulement utile côté ORGANIZER
@@ -260,7 +314,11 @@ function ApplicationsPage() {
       }
       return 0;
     });
-    return sorted;
+    const withFavoritesFilter = selectedTab === 'favorites'
+      ? sorted.filter(app => favoriteApplicationIdsSet.has(app._id))
+      : sorted;
+
+    return withFavoritesFilter;
   }
 
   // Fonctions de filtrage pour les onglets humoriste
@@ -397,12 +455,14 @@ function ApplicationsPage() {
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
   const acceptedApplicationsCount = applications.filter(app => app.status === 'ACCEPTED').length;
   const rejectedApplicationsCount = applications.filter(app => app.status === 'REJECTED').length;
+  const favoriteApplicationsCount = applications.filter(app => favoriteApplicationIdsSet.has(app._id)).length;
 
   const organizerTabsConfig: Array<{ id: OrganizerApplicationTab; label: string; count: number }> = [
     { id: 'all', label: 'Toutes', count: allApplicationsCount },
     { id: 'PENDING', label: 'En attente', count: pendingApplicationsCount },
     { id: 'ACCEPTED', label: 'Acceptées', count: acceptedApplicationsCount },
     { id: 'REJECTED', label: 'Refusées', count: rejectedApplicationsCount },
+    { id: 'favorites', label: 'Favoris', count: favoriteApplicationsCount },
   ];
 
   const mainContainerStyle: CSSProperties = {
@@ -772,6 +832,17 @@ function ApplicationsPage() {
     fontWeight: 600,
   };
 
+  const favoriteStarButtonStyle = (isActive: boolean): CSSProperties => ({
+    background: 'none',
+    border: 'none',
+    color: isActive ? '#ffd700' : '#bbb',
+    fontSize: '1.4em',
+    cursor: 'pointer',
+    padding: 0,
+    lineHeight: 1,
+    transition: 'color 0.2s ease, transform 0.2s ease',
+  });
+
   // Styles pour les onglets humoriste
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
@@ -1093,6 +1164,19 @@ function ApplicationsPage() {
 
                     {/* Section droite - Statut et actions */}
                     <div style={cardRightSectionStyle}>
+                      {isOrganizerView && (
+                        <button
+                          type="button"
+                          aria-label={favoriteApplicationIdsSet.has(app._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                          style={{ ...favoriteStarButtonStyle(favoriteApplicationIdsSet.has(app._id)), alignSelf: 'flex-end' }}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            toggleFavoriteApplication(app._id);
+                          }}
+                        >
+                          {favoriteApplicationIdsSet.has(app._id) ? '★' : '☆'}
+                        </button>
+                      )}
                       <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
                       {app.status === 'PENDING' && (
                         <div style={actionsContainerStyle}>
