@@ -58,8 +58,15 @@ export interface User {
   stats?: any;
   onboardingCompleted?: boolean;
   emailVerified?: boolean;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
+  avatar?: {
+    data?: Buffer;
+    contentType?: string;
+    uploadedAt?: Date;
+  };
+  favoriteComedians?: Types.ObjectId[];
   createdAt?: Date;
+  updatedAt?: Date;
   lastLoginAt?: Date;
   phone?: string;
   address?: string;

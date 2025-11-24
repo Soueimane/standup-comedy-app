@@ -6,13 +6,24 @@ import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
 import { sendNewEventNotificationToHumorists, sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants } from '../services/emailService';
 import { config } from '../config/env';
+import { AbsenceModel } from '../models/Absence';
 
+// ============================================================================
+// CREATE EVENT
+// ============================================================================
 export const createEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     console.log('🔍 [DEBUG] createEvent - Données reçues:', req.body);
-    const { title, description, date, location, requirements, startTime, endTime, budget, maxPerformers } = req.body;
+
+    // Vérifier que l'utilisateur est authentifié
     const organizerId = req.user?.id;
-    
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    const { title, description, date, location, requirements, startTime, endTime, budget, maxPerformers } = req.body;
+
     console.log('📅 Date reçue:', date, 'Type:', typeof date);
     console.log('📅 Date parsée:', new Date(date));
 
@@ -23,11 +34,11 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       location,
       requirements,
       organizer: organizerId,
-      status: 'published', // Événement directement publié et visible aux humoristes
+      status: 'published',
       applications: [],
       startTime,
       endTime,
-      venue: location.venue, // Utiliser venue depuis location
+      venue: location.venue,
       budget,
       maxPerformers
     });
@@ -38,81 +49,80 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
     // Récupérer les informations de l'organisateur pour l'email et mise à jour stats
     console.log('🔍 Récupération des infos organisateur pour email...');
     const organizer = await UserModel.findById(organizerId);
-    console.log('👤 Organisateur trouvé:', organizer ? `${organizer.firstName} ${organizer.lastName} (${organizer.email})` : 'AUCUN');
-    
-    // Update organizer's totalEvents count et envoi d'emails
-    if (organizer) {
-      try {
-        console.log('Organisateur trouvé dans events.ts:', organizer.email);
-        console.log('Total events avant incrémentation:', organizer.stats?.totalEvents);
-        if (!organizer.stats) {
-          organizer.stats = {};
-        }
-        organizer.stats.totalEvents = (organizer.stats.totalEvents || 0) + 1;
-        organizer.markModified('stats');
-        await organizer.save();
-        console.log('Total events après incrémentation et sauvegarde:', organizer.stats.totalEvents);
-      } catch (statsError) {
-        console.error('⚠️ Erreur lors de la mise à jour des stats de l\'organisateur:', statsError);
-        // Ne pas faire échouer la création de l'événement si les stats échouent
-      }
-      
-      // Envoyer les notifications par email aux humoristes (en arrière-plan)
-      // Ne pas attendre la fin de l'envoi pour répondre à l'utilisateur
-      console.log('📧 Démarrage envoi notifications email...');
-      console.log('📋 Données événement pour email:', {
-        title: event.title,
-        date: event.date,
-        location: event.location,
-        startTime: req.body.startTime,
-        endTime: req.body.endTime,
-        requirements: event.requirements
-      });
-      console.log('👤 Données organisateur pour email:', {
-        firstName: organizer.firstName,
-        lastName: organizer.lastName,
-        email: organizer.email
-      });
-      
-      // Vérifier les variables d'environnement avant d'envoyer
-      console.log('🔍 Vérification variables d\'environnement:', {
-        NODE_ENV: process.env.NODE_ENV,
-        DISABLE_EMAILS: process.env.DISABLE_EMAILS,
-        SMTP_USER: config.email.smtpUser ? 'Configuré' : 'MANQUANT',
-        SMTP_PASS: config.email.smtpPass ? 'Configuré (masqué)' : 'MANQUANT'
-      });
-      
-      sendNewEventNotificationToHumorists({
-        title: event.title,
-        description: event.description,
-        date: event.date,
-        location: event.location,
-        requirements: event.requirements,
-        startTime: req.body.startTime, // Si l'heure est fournie
-        endTime: req.body.endTime // Heure de fin si fournie
-      }, {
-        firstName: organizer.firstName,
-        lastName: organizer.lastName,
-        email: organizer.email
-      }).then((result) => {
-        console.log('✅ Fonction d\'envoi d\'emails terminée avec succès', result);
-      }).catch(emailError => {
-        console.error('❌ Erreur lors de l\'envoi des notifications:', emailError);
-        console.error('🔍 Détails de l\'erreur:', {
-          message: emailError?.message,
-          response: emailError?.response?.body,
-          code: emailError?.code,
-          stack: emailError instanceof Error ? emailError.stack : 'N/A'
-        });
-        // Ne pas faire échouer la création de l'événement si l'email échoue
-      });
-    } else {
-      console.log('⚠️ Impossible d\'envoyer les emails : organisateur non trouvé');
+    if (!organizer) {
+      console.error('❌ Organisateur non trouvé:', organizerId);
+      res.status(404).json({ message: 'Organisateur non trouvé' });
+      return;
     }
+    console.log('👤 Organisateur trouvé:', `${organizer.firstName} ${organizer.lastName} (${organizer.email})`);
+
+    // Update organizer's totalEvents count et envoi d'emails
+    try {
+      console.log('Organisateur trouvé dans events.ts:', organizer.email);
+      console.log('Total events avant incrémentation:', organizer.stats?.totalEvents);
+      if (!organizer.stats) {
+        organizer.stats = {};
+      }
+      organizer.stats.totalEvents = (organizer.stats.totalEvents || 0) + 1;
+      organizer.markModified('stats');
+      await organizer.save();
+      console.log('Total events après incrémentation et sauvegarde:', organizer.stats.totalEvents);
+    } catch (statsError) {
+      console.error('⚠️ Erreur lors de la mise à jour des stats de l\'organisateur:', statsError);
+      // Ne pas faire échouer la création de l'événement si les stats échouent
+    }
+
+    // Envoyer les notifications par email aux humoristes (en arrière-plan)
+    console.log('📧 Démarrage envoi notifications email...');
+    console.log('📋 Données événement pour email:', {
+      title: event.title,
+      date: event.date,
+      location: event.location,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      requirements: event.requirements
+    });
+    console.log('👤 Données organisateur pour email:', {
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+      email: organizer.email
+    });
+
+    // Vérifier les variables d'environnement avant d'envoyer
+    console.log('🔍 Vérification variables d\'environnement:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DISABLE_EMAILS: process.env.DISABLE_EMAILS,
+      SMTP_USER: config.email.smtpUser ? 'Configuré' : 'MANQUANT',
+      SMTP_PASS: config.email.smtpPass ? 'Configuré (masqué)' : 'MANQUANT'
+    });
+
+    sendNewEventNotificationToHumorists({
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      location: event.location,
+      requirements: event.requirements,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime
+    }, {
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+      email: organizer.email
+    }).then((result) => {
+      console.log('✅ Fonction d\'envoi d\'emails terminée avec succès', result);
+    }).catch(emailError => {
+      console.error('❌ Erreur lors de l\'envoi des notifications:', emailError);
+      console.error('🔍 Détails de l\'erreur:', {
+        message: emailError?.message,
+        response: emailError?.response?.body,
+        code: emailError?.code,
+        stack: emailError instanceof Error ? emailError.stack : 'N/A'
+      });
+    });
 
     // Convertir l'événement en objet JSON pour éviter les problèmes de sérialisation
     const eventResponse = event.toObject ? event.toObject() : event;
-    
+
     console.log('📤 Envoi de la réponse au client...');
     res.status(201).json({
       message: 'Event created successfully',
@@ -125,13 +135,93 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+// ============================================================================
+// GET EVENTS (with filtering by role)
+// ============================================================================
+export const getEventsList = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Vérifier que l'utilisateur est authentifié
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    const organizerId = req.query.organizerId as string;
+    const userRole = req.user?.role;
+    const userId = req.user?.id;
+
+    let query: any = {};
+
+    // If an organizerId is provided, filter events by it
+    if (organizerId && mongoose.Types.ObjectId.isValid(organizerId)) {
+      query.organizer = organizerId;
+    } else if (organizerId && !mongoose.Types.ObjectId.isValid(organizerId)) {
+      res.status(400).json({ message: 'Invalid organizerId format' });
+      return;
+    } else if (userRole === 'ORGANIZER') {
+      // If no specific organizerId, and user is an ORGANIZER, show their own events
+      query.organizer = userId;
+    } else if (userRole === 'COMEDIAN') {
+      // For comedians, show all published events
+      query.status = { $in: ['published', 'PUBLISHED', 'completed', 'COMPLETED', 'cancelled', 'CANCELLED'] };
+    } else if (userRole === 'SUPER_ADMIN') {
+      // Super Admin can see ALL events
+      query = {};
+    } else {
+      // Fallback
+      query.status = 'published';
+    }
+
+    const events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email');
+
+    // Filtrer les événements qui n'ont pas d'organisateur valide
+    const validEvents = events.filter(event => {
+      const hasValidOrganizer = event.organizer &&
+        (typeof event.organizer === 'object' ?
+          (event.organizer as any).firstName || (event.organizer as any)._id :
+          true);
+
+      if (!hasValidOrganizer) {
+        console.warn(`⚠️ [WARNING] Événement "${event.title}" (${event._id}) a un organisateur invalide/null - sera exclu des résultats`);
+      }
+
+      return hasValidOrganizer;
+    });
+
+    // Debug temporaire pour voir quels événements sont retournés
+    console.log(`🔍 [DEBUG] Route GET /api/events - Role: ${userRole}, Query:`, JSON.stringify(query, null, 2));
+    console.log(`📊 [DEBUG] Événements trouvés: ${events.length}, Événements valides (avec organisateur): ${validEvents.length}`);
+    validEvents.forEach(event => {
+      const organizerName = event.organizer && typeof event.organizer === 'object'
+        ? `${(event.organizer as any).firstName || ''} ${(event.organizer as any).lastName || ''}`.trim()
+        : 'N/A';
+      console.log(`📅 [DEBUG] - "${event.title}" (${new Date(event.date).toLocaleDateString('fr-FR')}) - Statut: ${event.status} - Organisateur: ${organizerName}`);
+    });
+
+    res.json({ events: validEvents });
+  } catch (error) {
+    console.error('Get events error:', error);
+    res.status(500).json({ message: 'Error fetching events' });
+  }
+};
+
+// ============================================================================
+// GET EVENTS (original, without role filtering)
+// ============================================================================
 export const getEvents = async (req: Request, res: Response): Promise<void> => {
   try {
     const { status, date, city, organizerId } = req.query;
     const query: any = {};
 
     if (status) query.status = status;
-    if (date) query.date = { $gte: new Date(date as string) };
+    if (date) {
+      try {
+        query.date = { $gte: new Date(date as string) };
+      } catch {
+        res.status(400).json({ message: 'Invalid date format' });
+        return;
+      }
+    }
     if (city) query['location.city'] = city;
     if (organizerId) {
       if (mongoose.Types.ObjectId.isValid(organizerId as string)) {
@@ -153,36 +243,62 @@ export const getEvents = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// ============================================================================
+// GET EVENT BY ID
+// ============================================================================
 export const getEventById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const event = await EventModel.findById(req.params.id)
-      .populate('organizer', 'firstName lastName email')
-      .populate({
-        path: 'applications',
-        populate: {
-          path: 'comedian',
-          select: 'firstName lastName email profile'
-        }
-      });
+    const { eventId } = req.params;
 
-    if (!event) {
-      res.status(404).json({ message: 'Event not found' });
+    // Valider le format de l'ID
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Invalid event ID format' });
       return;
     }
 
-    res.json({ event });
+    const event = await EventModel.findById(eventId)
+      .select('+withdrawnComedians')
+      .populate('organizer', 'firstName lastName email')
+      .populate('participants');
+
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    // Vérifier que l'organisateur est valide
+    if (!event.organizer || (typeof event.organizer === 'object' && !(event.organizer as any).firstName)) {
+      console.warn(`⚠️ [WARNING] Événement "${event.title}" (${eventId}) a un organisateur invalide/null`);
+    }
+
+    res.json(event);
   } catch (error) {
     console.error('Get event error:', error);
     res.status(500).json({ message: 'Error fetching event' });
   }
 };
 
+// ============================================================================
+// UPDATE EVENT
+// ============================================================================
 export const updateEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // Support à la fois :id et :eventId pour compatibilité avec différentes routes
     const eventId = req.params.eventId || req.params.id;
     const organizerId = req.user?.id;
     const userRole = req.user?.role;
+
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Valider le format de l'ID
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Invalid event ID format' });
+      return;
+    }
 
     console.log('🔍 [DEBUG updateEvent] Début de la mise à jour', {
       eventId,
@@ -197,8 +313,8 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       : await EventModel.findOne({ _id: eventId, organizer: organizerId });
 
     if (!event) {
-      console.error('❌ [DEBUG updateEvent] Événement non trouvé ou non autorisé', { 
-        eventId, 
+      console.error('❌ [DEBUG updateEvent] Événement non trouvé ou non autorisé', {
+        eventId,
         organizerId,
         userRole,
         searchMethod: userRole === 'SUPER_ADMIN' ? 'findById' : 'findOne with organizer filter'
@@ -241,8 +357,8 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       if (organizer && applications.length > 0) {
         // Si l'événement est annulé, informer les candidats ACCEPTED et PENDING
         if (req.body.status === 'cancelled' || updatedEvent.status === 'cancelled') {
-          const affectedApplications = await ApplicationModel.find({ 
-            event: updatedEvent._id, 
+          const affectedApplications = await ApplicationModel.find({
+            event: updatedEvent._id,
             status: { $in: ['PENDING', 'ACCEPTED'] }
           }).populate('comedian', 'email firstName lastName');
           const participants = affectedApplications
@@ -276,30 +392,116 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+// ============================================================================
+// DELETE EVENT
+// ============================================================================
 export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Support à la fois :id et :eventId pour compatibilité avec différentes routes
-    const eventId = req.params.eventId || req.params.id;
+    const { eventId } = req.params;
     const organizerId = req.user?.id;
 
-    const event = await EventModel.findOne({ _id: eventId, organizer: organizerId });
-    if (!event) {
-      res.status(404).json({ message: 'Event not found or unauthorized' });
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
       return;
     }
 
+    // Valider le format de l'ID
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Invalid event ID format' });
+      return;
+    }
+
+    const event = await EventModel.findById(eventId).populate('organizer', 'firstName lastName email');
+
+    console.log('🔍 DEBUG Suppression événement:', {
+      eventId,
+      userId: organizerId,
+      eventOrganizer: event?.organizer,
+      eventOrganizerId: event?.organizer?._id?.toString(),
+      eventOrganizerString: event?.organizer?.toString()
+    });
+
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    // Vérifier si l'utilisateur est l'organisateur de l'événement
+    const organizerIdFromEvent = (event.organizer as any)._id?.toString() || event.organizer.toString();
+    if (organizerIdFromEvent !== organizerId) {
+      console.log('❌ Autorisation refusée:', {
+        eventOrganizer: event.organizer,
+        organizerId: organizerIdFromEvent,
+        userId: organizerId,
+        match: organizerIdFromEvent === organizerId
+      });
+      res.status(403).json({ message: 'Non autorisé à supprimer cet événement' });
+      return;
+    }
+
+    // Notifier les candidats PENDING et ACCEPTED avant suppression
+    try {
+      const applications = await ApplicationModel.find({
+        event: eventId,
+        status: { $in: ['PENDING', 'ACCEPTED'] }
+      }).populate('comedian', 'email firstName lastName');
+
+      const participants = applications
+        .map((app: any) => app.comedian)
+        .filter((c: any) => !!c?.email);
+
+      if (participants.length > 0 && event.organizer && (event.organizer as any).email) {
+        await sendEventCancellationToParticipants(
+          participants as any,
+          { title: event.title, date: event.date, location: (event as any).location } as any,
+          {
+            firstName: (event.organizer as any).firstName,
+            lastName: (event.organizer as any).lastName,
+            email: (event.organizer as any).email,
+          },
+          'Événement supprimé par l\'organisateur (plus de 10 jours avant).'
+        );
+      }
+    } catch (emailErr) {
+      console.error('❌ Erreur lors de l\'envoi des emails d\'annulation avant suppression:', emailErr);
+    }
+
+    // Delete all applications for this event after notifications
+    await ApplicationModel.deleteMany({ event: eventId });
+
     await EventModel.findByIdAndDelete(eventId);
 
-    res.json({ message: 'Event deleted successfully' });
+    // Décrémenter le compteur d'événements créés de l'organisateur
+    const organizer = await UserModel.findById(organizerId);
+    if (organizer) {
+      if (organizer.stats && organizer.stats.totalEvents && organizer.stats.totalEvents > 0) {
+        organizer.stats.totalEvents -= 1;
+        organizer.markModified('stats');
+        await organizer.save();
+        console.log('Total events après décrémentation et sauvegarde:', organizer.stats.totalEvents);
+      }
+    }
+
+    res.json({ message: 'Événement supprimé avec succès' });
   } catch (error) {
     console.error('Delete event error:', error);
     res.status(500).json({ message: 'Error deleting event' });
   }
 };
 
+// ============================================================================
+// GET ORGANIZER EVENTS
+// ============================================================================
 export const getOrganizerEvents = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const organizerId = req.user?.id;
+
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
 
     const events = await EventModel.find({ organizer: organizerId })
       .sort({ date: 1 });
@@ -311,32 +513,35 @@ export const getOrganizerEvents = async (req: AuthRequest, res: Response): Promi
   }
 };
 
-// GET /api/events/stats - Nombre d'événements créés par l'organisateur
-export const getEventStats = async (req: AuthRequest, res: Response) => {
+// ============================================================================
+// GET EVENT STATS
+// ============================================================================
+export const getEventStats = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const organizerId = req.user?.id; // Utiliser req.user?.id pour le middleware d'authentification
+    const organizerId = req.user?.id;
     const userRole = req.user?.role;
-    
+
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      return res.status(401).json({ message: 'Utilisateur non authentifié' });
+    }
+
     console.log('🔍 [DEBUG] getEventStats appelé:');
     console.log('   • User ID:', organizerId);
     console.log('   • User Role:', userRole);
     console.log('   • req.user:', req.user);
-    
-    if (!organizerId) {
-      return res.status(401).json({ message: 'Utilisateur non authentifié' });
-    }
 
     const now = new Date();
 
     // Si c'est un super admin, récupérer les statistiques globales de toute la plateforme
     if (userRole === 'SUPER_ADMIN') {
       console.log('🔥 Super Admin - Récupération des statistiques globales');
-      
+
       // Récupérer TOUS les événements de la plateforme avec participants peuplés
       console.log('🔍 Requête MongoDB: EventModel.find({}).populate("participants")');
       const allEvents = await EventModel.find({}).populate('participants');
       console.log('📊 Événements trouvés dans la DB:', allEvents.length);
-      
+
       // Log des premiers événements pour debug
       if (allEvents.length > 0) {
         console.log('📅 Détail des événements trouvés:');
@@ -351,7 +556,7 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
           if (mongoose.connection.db) {
             const collections = await mongoose.connection.db.listCollections().toArray();
             console.log('📚 Collections disponibles:', collections.map(c => c.name));
-            
+
             // Test direct sur la collection events
             const rawEvents = await mongoose.connection.db.collection('events').find({}).toArray();
             console.log('📊 Événements via collection directe:', rawEvents.length);
@@ -367,7 +572,7 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
           console.error('❌ Erreur test DB:', dbError);
         }
       }
-      
+
       const eventIds = allEvents.map(event => event._id);
 
       // Récupérer TOUTES les candidatures de la plateforme
@@ -379,7 +584,7 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
       const acceptedApplications = allApplications.filter(app => app.status === 'ACCEPTED').length;
       const rejectedApplications = allApplications.filter(app => app.status === 'REJECTED').length;
 
-      // Calculer les événements à venir non complets (date >= maintenant ET participants < maxPerformers)
+      // Calculer les événements à venir non complets
       const upcomingIncompleteEvents = allEvents.filter(event => {
         const eventDate = new Date(event.date);
         const isUpcoming = eventDate >= now;
@@ -387,23 +592,24 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
         const participantsCount = event.participants?.length || 0;
         const maxPerformers = event.requirements?.maxPerformers || 0;
         const isIncomplete = participantsCount < maxPerformers;
-        
+
         return isUpcoming && isPublished && isIncomplete;
       }).length;
 
-      // Calculer les événements complets (participants >= maxPerformers ET événement à venir)
-      // Un événement est "complet" seulement si le nombre de participants acceptés atteint le maximum
+      // Calculer les événements complets
       const completedEvents = allEvents.filter(event => {
         const participantsCount = event.participants?.length || 0;
         const maxPerformers = event.requirements?.maxPerformers || 0;
         const eventDate = new Date(event.date);
         const isUpcoming = eventDate >= now;
-        
-        // Un événement est complet si : participants >= maxPerformers ET événement à venir
+
         return participantsCount >= maxPerformers && maxPerformers > 0 && isUpcoming;
       }).length;
 
       const cancelledEvents = allEvents.filter(event => event.status === 'cancelled').length;
+
+      const organizerCount = await UserModel.countDocuments({ role: 'ORGANIZER' });
+      const comedianCount = await UserModel.countDocuments({ role: 'COMEDIAN' });
 
       console.log('📊 Statistiques globales calculées:', {
         totalEvents,
@@ -411,38 +617,54 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
         acceptedApplications,
         rejectedApplications,
         upcomingIncompleteEvents,
-        completedEvents
+        completedEvents,
+        cancelledEvents,
+        organizerCount,
+        comedianCount
       });
 
-      return res.status(200).json({ 
-        totalEvents, 
-        upcomingIncompleteEvents, 
-        completedEvents, 
+      return res.status(200).json({
+        totalEvents,
+        upcomingIncompleteEvents,
+        completedEvents,
         cancelledEvents,
-        pendingApplications, 
-        acceptedApplications, 
-        rejectedApplications 
+        pendingApplications,
+        acceptedApplications,
+        rejectedApplications,
+        organizerCount,
+        comedianCount
       });
     }
 
     console.log('👤 Utilisateur normal (non super admin) - Role:', userRole);
 
     // Logique existante pour les organisateurs normaux
-    const objectOrganizerId = new mongoose.Types.ObjectId(organizerId);
+    let objectOrganizerId;
+    try {
+      objectOrganizerId = new mongoose.Types.ObjectId(organizerId);
+      console.log('✅ ObjectId créé avec succès:', objectOrganizerId);
+    } catch (e) {
+      console.error('❌ Erreur création ObjectId:', e);
+      return res.status(400).json({ message: 'ID organisateur invalide' });
+    }
 
     // Récupérer tous les événements de l'organisateur avec participants peuplés
+    console.log('🔍 Recherche événements pour organisateur:', objectOrganizerId);
     const allEvents = await EventModel.find({ organizer: objectOrganizerId }).populate('participants');
+    console.log('📊 Événements trouvés:', allEvents.length);
     const eventIds = allEvents.map(event => event._id);
 
     // Récupérer toutes les candidatures liées à ces événements
+    console.log('🔍 Recherche candidatures pour événements:', eventIds.length);
     const allApplications = await ApplicationModel.find({ event: { $in: eventIds } });
+    console.log('📊 Candidatures trouvées:', allApplications.length);
 
     const totalEvents = allEvents.length;
     const pendingApplications = allApplications.filter(app => app.status === 'PENDING').length;
     const acceptedApplications = allApplications.filter(app => app.status === 'ACCEPTED').length;
     const rejectedApplications = allApplications.filter(app => app.status === 'REJECTED').length;
 
-    // Calculer les événements à venir non complets (date >= maintenant ET participants < maxPerformers)
+    // Calculer les événements à venir non complets
     const upcomingIncompleteEvents = allEvents.filter(event => {
       const eventDate = new Date(event.date);
       const isUpcoming = eventDate >= now;
@@ -450,19 +672,17 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
       const participantsCount = event.participants?.length || 0;
       const maxPerformers = event.requirements?.maxPerformers || 0;
       const isIncomplete = participantsCount < maxPerformers;
-      
+
       return isUpcoming && isPublished && isIncomplete;
     }).length;
 
-    // Calculer les événements complets (participants >= maxPerformers ET événement à venir)
-    // Un événement est "complet" seulement si le nombre de participants acceptés atteint le maximum
+    // Calculer les événements complets
     const completedEvents = allEvents.filter(event => {
       const participantsCount = event.participants?.length || 0;
       const maxPerformers = event.requirements?.maxPerformers || 0;
       const eventDate = new Date(event.date);
       const isUpcoming = eventDate >= now;
-      
-      // Un événement est complet si : participants >= maxPerformers ET événement à venir
+
       return participantsCount >= maxPerformers && maxPerformers > 0 && isUpcoming;
     }).length;
 
@@ -478,32 +698,58 @@ export const getEventStats = async (req: AuthRequest, res: Response) => {
       rejectedApplications
     });
 
-    res.status(200).json({ totalEvents, upcomingIncompleteEvents, completedEvents, cancelledEvents, pendingApplications, acceptedApplications, rejectedApplications });
+    return res.status(200).json({
+      totalEvents,
+      upcomingIncompleteEvents,
+      completedEvents,
+      cancelledEvents,
+      pendingApplications,
+      acceptedApplications,
+      rejectedApplications
+    });
   } catch (err) {
-    console.error('Error fetching event stats:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error fetching event stats:', err);
+    return res.status(500).json({
+      message: 'Erreur lors du chargement des statistiques',
+      error: err instanceof Error ? err.message : 'Erreur interne du serveur'
+    });
   }
 };
 
+// ============================================================================
+// NOTIFY HUMORISTS
+// ============================================================================
 export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const eventId = req.params.id;
     const organizerId = req.user?.id;
 
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Valider le format de l'ID
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Invalid event ID format' });
+      return;
+    }
+
     // Récupérer l'événement
     const event = await EventModel.findById(eventId)
       .populate('organizer', 'firstName lastName email');
-    
+
     if (!event) {
       res.status(404).json({ message: 'Événement non trouvé' });
       return;
     }
 
     // Vérifier que l'utilisateur est bien l'organisateur de l'événement
-    const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null 
-      ? (event.organizer as any)._id?.toString() 
+    const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null
+      ? (event.organizer as any)._id?.toString()
       : event.organizer?.toString();
-    
+
     if (eventOrganizerId !== organizerId) {
       res.status(403).json({ message: 'Vous n\'êtes pas autorisé à envoyer des notifications pour cet événement' });
       return;
@@ -544,7 +790,7 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
         console.error('❌ Erreur lors de l\'envoi manuel des notifications:', error);
       });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Envoi des notifications aux humoristes en cours',
       eventId: event._id,
       eventTitle: event.title
@@ -553,4 +799,129 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
     console.error('Error notifying humorists:', error);
     res.status(500).json({ message: 'Erreur lors de l\'envoi des notifications' });
   }
-}; 
+};
+
+// ============================================================================
+// PROCESS COMPLETED EVENTS
+// ============================================================================
+export const processCompletedEvents = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Vérifier que l'utilisateur est authentifié
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Vérifier que seul un super admin peut accéder à cette route
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ message: 'Accès refusé. Seuls les super-admins peuvent traiter les événements.' });
+      return;
+    }
+
+    const now = new Date();
+
+    // Trouver tous les événements passés qui ont des participants acceptés
+    const pastEvents = await EventModel.find({
+      date: { $lt: now },
+      status: { $in: ['published', 'completed'] }
+    }).populate('participants');
+
+    let totalProcessed = 0;
+    let participationsAdded = 0;
+
+    for (const event of pastEvents) {
+      // Pour chaque participant de l'événement
+      for (const participantId of event.participants) {
+        const participant = await UserModel.findById(participantId);
+
+        if (participant && participant.role === 'COMEDIAN') {
+          // Initialiser les stats si nécessaire
+          if (!participant.stats) {
+            participant.stats = {};
+          }
+          if (!participant.stats.processedEvents) {
+            participant.stats.processedEvents = [];
+          }
+
+          // Vérifier si cet événement a déjà été traité pour ce participant
+          const eventIdStr = (event._id as mongoose.Types.ObjectId).toString();
+          const alreadyProcessed = participant.stats.processedEvents.includes(eventIdStr);
+
+          if (!alreadyProcessed) {
+            // Vérifier si ce humoriste a été marqué absent pour cet événement
+            const absence = await AbsenceModel.findOne({
+              event: event._id,
+              comedian: participantId
+            });
+
+            // Si pas d'absence trouvée, incrémenter totalEvents (participation)
+            if (!absence) {
+              const currentTotalEvents = participant.stats.totalEvents || 0;
+              participant.stats.totalEvents = currentTotalEvents + 1;
+              participant.stats.processedEvents.push(eventIdStr);
+              participant.markModified('stats');
+              await participant.save();
+
+              participationsAdded++;
+              console.log(`✅ Participation ajoutée pour ${participant.firstName} ${participant.lastName} à l'événement "${event.title}"`);
+            } else {
+              // Marquer comme traité même si absent pour éviter de le retraiter
+              participant.stats.processedEvents.push(eventIdStr);
+              participant.markModified('stats');
+              await participant.save();
+              console.log(`⚠️ ${participant.firstName} ${participant.lastName} était absent à l'événement "${event.title}" - pas de participation ajoutée`);
+            }
+          } else {
+            console.log(`ℹ️ Événement "${event.title}" déjà traité pour ${participant.firstName} ${participant.lastName}`);
+          }
+        }
+      }
+      totalProcessed++;
+    }
+
+    res.json({
+      message: 'Traitement des événements terminés effectué avec succès',
+      eventsProcessed: totalProcessed,
+      participationsAdded: participationsAdded
+    });
+  } catch (error) {
+    console.error('Erreur lors du traitement des événements terminés:', error);
+    res.status(500).json({ message: 'Erreur lors du traitement des événements terminés' });
+  }
+};
+
+// ============================================================================
+// RESET PARTICIPATIONS
+// ============================================================================
+export const resetParticipations = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Vérifier que l'utilisateur est authentifié
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Vérifier que seul un super admin peut accéder à cette route
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ message: 'Accès refusé. Seuls les super-admins peuvent réinitialiser les participations.' });
+      return;
+    }
+
+    const humorists = await UserModel.find({ role: 'COMEDIAN' });
+    let resetCount = 0;
+
+    for (const humorist of humorists) {
+      if (!humorist.stats) humorist.stats = {};
+      humorist.stats.totalEvents = 0;
+      humorist.stats.processedEvents = [];
+      humorist.markModified('stats');
+      await humorist.save();
+      resetCount++;
+    }
+
+    res.json({ message: `Participations réinitialisées pour ${resetCount} humoristes.` });
+  } catch (error) {
+    console.error('Error resetting participations:', error);
+    res.status(500).json({ message: 'Erreur lors de la réinitialisation des participations' });
+  }
+};

@@ -1142,3 +1142,418 @@ L'équipe Standup Comedy Connect
 
   await Promise.all(sends);
 };
+
+/**
+ * Envoie une relance automatique à l'organisateur pour un événement incomplet
+ *
+ * Cette fonction est appelée par le système de cron pour relancer les organisateurs
+ * lorsque leur événement n'a pas atteint le quota d'humoristes ou qu'ils ont des
+ * candidatures en attente de traitement.
+ *
+ * @param organizer - Données de l'organisateur (email, firstName, lastName)
+ * @param event - Données de l'événement concerné
+ * @param daysRemaining - Nombre de jours restants avant l'événement
+ * @param currentCount - Nombre actuel de participants acceptés
+ * @param targetCount - Nombre d'humoristes visé par l'organisateur
+ * @param pendingApplicationsCount - Nombre de candidatures en attente
+ */
+export const sendOrganizerEventReminder = async (
+  organizer: { email: string; firstName?: string; lastName?: string },
+  event: {
+    _id: any;
+    title: string;
+    date: Date;
+    location?: any;
+    startTime?: string;
+  },
+  daysRemaining: number,
+  currentCount: number,
+  targetCount: number,
+  pendingApplicationsCount: number
+) => {
+  try {
+    console.log(`📬 Envoi relance organisateur: ${organizer.email} pour événement "${event.title}" (J-${daysRemaining})`);
+
+    // Mode économie mémoire - désactiver temporairement les emails
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire (plan gratuit)');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    // Construction de l'URL frontend pour les actions
+    const frontendBase = process.env.FRONTEND_URL || 'https://standup-comedy-app.netlify.app';
+    const eventId = event._id?.toString() || '';
+    const applicationsUrl = `${frontendBase}/applications?eventId=${eventId}`;
+    const editEventUrl = `${frontendBase}/events/edit/${eventId}`;
+    const eventsUrl = `${frontendBase}/events`;
+
+    // Construire le message principal selon la situation
+    let mainMessage = '';
+    let actionSuggestions = '';
+
+    if (pendingApplicationsCount > 0 && currentCount < targetCount) {
+      // Cas 1: Candidatures en attente ET quota non atteint
+      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>). De plus, vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
+      actionSuggestions = `
+        <li>📋 <b>Consulter les ${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> et faire votre sélection</li>
+        <li>✏️ <b>Modifier le nombre d'humoristes souhaité</b> si ${targetCount} est trop ambitieux</li>
+        <li>📢 <b>Envoyer un rappel</b> aux humoristes pour attirer de nouveaux candidats</li>
+      `;
+    } else if (pendingApplicationsCount > 0) {
+      // Cas 2: Uniquement des candidatures en attente
+      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
+      actionSuggestions = `
+        <li>📋 <b>Consulter les candidatures en attente</b> et faire votre sélection</li>
+        <li>✅ <b>Valider les humoristes</b> qui correspondent à vos attentes</li>
+      `;
+    } else {
+      // Cas 3: Uniquement quota non atteint
+      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>).`;
+      actionSuggestions = `
+        <li>✏️ <b>Réduire le nombre d'humoristes souhaité</b> si ${targetCount} est trop ambitieux</li>
+        <li>📢 <b>Envoyer un rappel</b> aux humoristes pour attirer de nouveaux candidats</li>
+        <li>📋 <b>Consulter les candidatures</b> pour voir s'il y a des profils intéressants</li>
+      `;
+    }
+
+    const subject = `⏰ J-${daysRemaining}: Action requise pour "${event.title}" (${currentCount}/${targetCount} humoristes)`;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relance événement</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .header .subtitle {
+            margin-top: 10px;
+            font-size: 16px;
+            opacity: 0.95;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-box {
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 8px 20px rgba(255, 152, 0, 0.3);
+        }
+        .alert-box p {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .event-summary {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .event-title {
+            font-size: 20px;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .event-details {
+            display: grid;
+            gap: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+        .detail-item {
+            display: flex;
+            align-items: center;
+        }
+        .detail-icon {
+            margin-right: 8px;
+            width: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-item.warning {
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 13px;
+            opacity: 0.95;
+        }
+        .action-section {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .action-section h3 {
+            margin: 0 0 15px 0;
+            color: #856404;
+            font-size: 18px;
+        }
+        .action-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .action-list li {
+            padding: 10px 0;
+            color: #856404;
+            font-size: 15px;
+            border-bottom: 1px solid #ffeaa7;
+        }
+        .action-list li:last-child {
+            border-bottom: none;
+        }
+        .cta-buttons {
+            display: grid;
+            gap: 12px;
+            margin: 25px 0;
+        }
+        .cta-button {
+            display: block;
+            padding: 14px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 15px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-tertiary {
+            background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4);
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            .header, .content {
+                padding: 20px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏰ Action Requise</h1>
+            <div class="subtitle">Relance pour votre événement à venir</div>
+        </div>
+
+        <div class="content">
+            <p>Bonjour <strong>${organizer.firstName || 'Organisateur'}</strong>,</p>
+
+            <div class="alert-box">
+                <p>${mainMessage}</p>
+            </div>
+
+            <div class="event-summary">
+                <div class="event-title">📅 ${event.title}</div>
+                <div class="event-details">
+                    <div class="detail-item">
+                        <span class="detail-icon">📍</span>
+                        <span>${event.location?.address || ''}, ${event.location?.city || ''}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-icon">📆</span>
+                        <span>${new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    </div>
+                    ${event.startTime ? `
+                    <div class="detail-item">
+                        <span class="detail-icon">⏰</span>
+                        <span>${event.startTime}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-item warning">
+                    <div class="stat-value">${currentCount}/${targetCount}</div>
+                    <div class="stat-label">Humoristes acceptés</div>
+                </div>
+                <div class="stat-item ${pendingApplicationsCount > 0 ? 'warning' : ''}">
+                    <div class="stat-value">${pendingApplicationsCount}</div>
+                    <div class="stat-label">Candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</div>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <h3>💡 Actions suggérées</h3>
+                <ul class="action-list">
+                    ${actionSuggestions}
+                </ul>
+            </div>
+
+            <div class="cta-buttons">
+                ${pendingApplicationsCount > 0 ? `
+                <a href="${applicationsUrl}" class="cta-button btn-primary">
+                    📋 Voir les ${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''}
+                </a>
+                ` : ''}
+                <a href="${editEventUrl}" class="cta-button btn-secondary">
+                    ✏️ Modifier l'événement
+                </a>
+                <a href="${eventsUrl}" class="cta-button btn-tertiary">
+                    📊 Tableau de bord
+                </a>
+            </div>
+
+            <p style="text-align: center; color: #666; font-size: 14px; margin-top: 25px;">
+                Connectez-vous à votre espace organisateur pour gérer votre événement.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Standup Comedy Connect</strong></p>
+            <p>Système de relance automatique - Ne pas répondre à cet email</p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    // Version texte pour améliorer la délivrabilité
+    const textContent = `
+⏰ Action Requise - Relance pour votre événement
+
+Bonjour ${organizer.firstName || 'Organisateur'},
+
+${mainMessage.replace(/<b>/g, '').replace(/<\/b>/g, '')}
+
+Événement: ${event.title}
+Date: ${new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
+${event.startTime ? `Heure: ${event.startTime}` : ''}
+
+Statistiques:
+- Humoristes acceptés: ${currentCount}/${targetCount}
+- Candidatures en attente: ${pendingApplicationsCount}
+
+Actions suggérées:
+${actionSuggestions.replace(/<li>/g, '- ').replace(/<\/li>/g, '').replace(/<b>/g, '').replace(/<\/b>/g, '')}
+
+Liens utiles:
+${pendingApplicationsCount > 0 ? `- Voir les candidatures: ${applicationsUrl}` : ''}
+- Modifier l'événement: ${editEventUrl}
+- Tableau de bord: ${eventsUrl}
+
+L'équipe Standup Comedy Connect
+Système de relance automatique - Ne pas répondre à cet email
+    `.trim();
+
+    // Envoi via SendGrid
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Standup Comedy Connect'
+      },
+      to: organizer.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      mailSettings: {
+        sandboxMode: {
+          enable: false
+        }
+      },
+      headers: {
+        'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'X-Entity-Ref-ID': `organizer-reminder-${eventId}-j${daysRemaining}-${Date.now()}`,
+        'Precedence': 'bulk'
+      },
+      categories: ['relance', 'organisateur', `j-${daysRemaining}`],
+      customArgs: {
+        eventId: eventId,
+        type: 'organizer_event_reminder',
+        daysRemaining: daysRemaining.toString()
+      }
+    });
+
+    console.log(`✅ Relance J-${daysRemaining} envoyée à ${organizer.email} pour "${event.title}"`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de la relance organisateur:', error);
+    console.error('🔍 Détail de l\'erreur:', error instanceof Error ? error.stack : 'Erreur inconnue');
+    // Ne pas bloquer le traitement des autres relances en cas d'erreur
+  }
+};

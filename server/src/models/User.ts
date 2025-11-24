@@ -71,8 +71,8 @@ interface UserDocument extends User, Document {
 // 2. Schémas Mongoose
 
 const LocationSchema = new Schema<ILocation>({
-  city: { type: String, required: true },
-  postalCode: { type: String, required: true },
+  city: { type: String, required: false },
+  postalCode: { type: String, required: false },
   address: { type: String },
   latitude: { type: Number },
   longitude: { type: Number },
@@ -160,6 +160,12 @@ const userProfileSchema = new Schema<UserProfile>({
   performances: [performanceSchema]
 });
 
+const AvatarSchema = new Schema({
+  data: { type: Buffer },
+  contentType: { type: String },
+  uploadedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const userSchema = new Schema<UserDocument>({
   email: {
     type: String,
@@ -211,7 +217,7 @@ const userSchema = new Schema<UserDocument>({
   },
   profile: {
     type: userProfileSchema,
-    required: true
+    required: false
   },
   organizerProfile: {
     type: OrganisateurProfileSchema,
@@ -221,6 +227,11 @@ const userSchema = new Schema<UserDocument>({
   onboardingCompleted: { type: Boolean, default: false },
   emailVerified: { type: Boolean, default: false },
   avatarUrl: { type: String },
+  avatar: { type: AvatarSchema, required: false },
+  favoriteComedians: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {

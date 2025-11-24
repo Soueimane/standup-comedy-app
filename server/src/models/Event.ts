@@ -21,6 +21,17 @@ export interface EventDocument extends Document {
   };
   modifiedByOrganizer?: boolean;
   cancellationReason?: string;
+  // Tracking des relances envoyées à l'organisateur
+  organizerReminders?: {
+    j10Sent?: boolean; // Relance 10 jours avant
+    j7Sent?: boolean;  // Relance 7 jours avant
+    j5Sent?: boolean;  // Relance 5 jours avant
+    j3Sent?: boolean;  // Relance 3 jours avant
+    j2Sent?: boolean;  // Relance 2 jours avant
+    j1Sent?: boolean;  // Relance 1 jour avant
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const locationSchema = new Schema<Location>({
@@ -105,6 +116,15 @@ const eventSchema = new Schema<EventDocument>({
   cancellationReason: {
     type: String,
     required: false
+  },
+  // Schéma pour le tracking des relances organisateur
+  organizerReminders: {
+    j10Sent: { type: Boolean, default: false },
+    j7Sent: { type: Boolean, default: false },
+    j5Sent: { type: Boolean, default: false },
+    j3Sent: { type: Boolean, default: false },
+    j2Sent: { type: Boolean, default: false },
+    j1Sent: { type: Boolean, default: false }
   }
 }, {
   timestamps: true
