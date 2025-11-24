@@ -42,6 +42,7 @@ export interface IApplication {
 }
 
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
+type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
 
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
@@ -52,7 +53,7 @@ function ApplicationsPage() {
   const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] = useState<IApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED'>('all');
+  const [selectedTab, setSelectedTab] = useState<OrganizerApplicationTab>('all');
   const [comedianTab, setComedianTab] = useState<ComedianApplicationTab>('accepted');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusToSet, setStatusToSet] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
@@ -208,7 +209,7 @@ function ApplicationsPage() {
     }
   };
 
-  const handleTabChange = (status: 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED') => {
+  const handleTabChange = (status: OrganizerApplicationTab) => {
     setSelectedTab(status);
     if (status === 'all') {
       navigate('/applications');
@@ -396,6 +397,13 @@ function ApplicationsPage() {
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
   const acceptedApplicationsCount = applications.filter(app => app.status === 'ACCEPTED').length;
   const rejectedApplicationsCount = applications.filter(app => app.status === 'REJECTED').length;
+
+  const organizerTabsConfig: Array<{ id: OrganizerApplicationTab; label: string; count: number }> = [
+    { id: 'all', label: 'Toutes', count: allApplicationsCount },
+    { id: 'PENDING', label: 'En attente', count: pendingApplicationsCount },
+    { id: 'ACCEPTED', label: 'Acceptées', count: acceptedApplicationsCount },
+    { id: 'REJECTED', label: 'Refusées', count: rejectedApplicationsCount },
+  ];
 
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
@@ -699,23 +707,42 @@ function ApplicationsPage() {
     navigate(`/profile/comedian/${comedianId}`);
   };
 
-  const tabButtonStyle: CSSProperties = {
-    padding: '10px 15px',
-    borderRadius: '20px',
-    border: 'none',
-    background: '#331f41',
-    color: '#ffffff',
-    fontSize: '1em',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'background-color 0.3s ease',
-    minWidth: '120px',
-    textAlign: 'center',
+  const organizerTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    paddingBottom: '12px',
   };
 
-  const activeTabButtonStyle: CSSProperties = {
-    ...tabButtonStyle,
-    background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+  const organizerTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 18px',
+    borderRadius: '999px',
+    border: isActive ? '1px solid #ff4b2b' : '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: isActive ? 'rgba(255, 65, 108, 0.15)' : 'rgba(0, 0, 0, 0.25)',
+    color: isActive ? '#ff4b2b' : '#ddd',
+    fontWeight: isActive ? 700 : 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  });
+
+  const organizerTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '999px',
+  };
+
+  const filtersRowStyle: CSSProperties = {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   };
 
   const paginationContainerStyle: CSSProperties = {
@@ -817,69 +844,55 @@ function ApplicationsPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-          {/* Onglets de statut - Organisateur uniquement */}
-          {user?.role === 'ORGANIZER' && (
-            <>
-              <button 
-                style={selectedTab === 'all' ? activeTabButtonStyle : tabButtonStyle}
-                onClick={() => handleTabChange('all')}
+        {/* Onglets pour organisateur */}
+        {user?.role === 'ORGANIZER' && (
+          <div style={organizerTabsContainerStyle}>
+            {organizerTabsConfig.map(tab => (
+              <button
+                key={tab.id}
+                style={organizerTabButtonStyle(selectedTab === tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
-                Toutes ({allApplicationsCount})
+                <span>{tab.label}</span>
+                <span style={organizerTabCountStyle}>{tab.count}</span>
               </button>
-              <button 
-                style={selectedTab === 'PENDING' ? activeTabButtonStyle : tabButtonStyle}
-                onClick={() => handleTabChange('PENDING')}
-              >
-                En attente ({pendingApplicationsCount})
-              </button>
-              <button 
-                style={selectedTab === 'ACCEPTED' ? activeTabButtonStyle : tabButtonStyle}
-                onClick={() => handleTabChange('ACCEPTED')}
-              >
-                Acceptées ({acceptedApplicationsCount})
-              </button>
-              <button 
-                style={selectedTab === 'REJECTED' ? activeTabButtonStyle : tabButtonStyle}
-                onClick={() => handleTabChange('REJECTED')}
-              >
-                Refusées ({rejectedApplicationsCount})
-              </button>
-            </>
-          )}
+            ))}
+          </div>
+        )}
+
+        <div style={filtersRowStyle}>
           {/* Menu déroulant de filtrage par humoriste (ORGANIZER uniquement) */}
           {user?.role === 'ORGANIZER' && (
-            <select
-              value={comedianFilter}
-              onChange={e => setComedianFilter(e.target.value)}
-              style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 180 }}
-            >
-              <option value="all">Tous les humoristes</option>
-              {uniqueComedians.map(comedian => (
-                <option key={comedian.id} value={comedian.id}>{comedian.name}</option>
-              ))}
-            </select>
-          )}
+            <>
+              <select
+                value={comedianFilter}
+                onChange={e => setComedianFilter(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 180 }}
+              >
+                <option value="all">Tous les humoristes</option>
+                {uniqueComedians.map(comedian => (
+                  <option key={comedian.id} value={comedian.id}>{comedian.name}</option>
+                ))}
+              </select>
 
-          {/* Filtre par événement (organisateur uniquement) */}
-          {user?.role === 'ORGANIZER' && (
-            <select
-              value={selectedEventId}
-              onChange={e => setSelectedEventId(e.target.value)}
-              style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
-            >
-              <option value="all">Tous les événements</option>
-              {organizerEvents.map(ev => (
-                <option key={ev.id} value={ev.id}>{ev.title}</option>
-              ))}
-            </select>
+              <select
+                value={selectedEventId}
+                onChange={e => setSelectedEventId(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
+              >
+                <option value="all">Tous les événements</option>
+                {organizerEvents.map(ev => (
+                  <option key={ev.id} value={ev.id}>{ev.title}</option>
+                ))}
+              </select>
+            </>
           )}
 
           {/* Tri */}
           <select
             value={sortKey}
             onChange={e => setSortKey(e.target.value as any)}
-            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220, marginLeft: user?.role === 'ORGANIZER' ? 'auto' : undefined }}
           >
             <option value="dateDesc">Trier: Date (plus récent)</option>
             <option value="dateAsc">Trier: Date (plus ancien)</option>
