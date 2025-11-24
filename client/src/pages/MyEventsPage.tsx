@@ -17,7 +17,7 @@ import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 const ITEMS_PER_PAGE = 5;
 const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
-type OrganizerTab = 'upcoming' | 'archived' | 'cancelled';
+type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
@@ -81,6 +81,7 @@ function MyEventsPage() {
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
   const [focusParticipantsSection, setFocusParticipantsSection] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -571,6 +572,10 @@ function MyEventsPage() {
     () => getFilteredUpcomingEvents(),
     [completionFilter, upcomingEventsForApply]
   );
+
+  const completedUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter(event => isEventComplete(event));
+  }, [upcomingEvents]);
   const eventsToDisplay = useMemo(() => {
     if (user?.role !== 'COMEDIAN') {
       return filteredUpcomingEvents;
@@ -599,9 +604,10 @@ function MyEventsPage() {
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
     upcoming: filteredUpcomingEvents.length,
+    completed: completedUpcomingEvents.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
-  }), [filteredUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents]);
 
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
@@ -613,6 +619,7 @@ function MyEventsPage() {
 
   const organizerTabTitles: Record<OrganizerTab, string> = {
     upcoming: 'Événements à venir',
+    completed: 'Événements complets',
     archived: 'Événements archivés',
     cancelled: 'Événements annulés',
   };
@@ -641,6 +648,7 @@ function MyEventsPage() {
     : eventsErrorMessage?.message;
 
   const showOrganizerUpcomingSection = !isComedianView && (!isOrganizerView || organizerTab === 'upcoming');
+  const showCompletedSection = !isComedianView && (!isOrganizerView || organizerTab === 'completed');
   const showArchivedSection = !isComedianView && (!isOrganizerView || organizerTab === 'archived');
   const showCancelledSection = !isComedianView && (!isOrganizerView || organizerTab === 'cancelled');
 
@@ -659,6 +667,22 @@ function MyEventsPage() {
       setUpcomingPage(totalUpcomingPages);
     }
   }, [upcomingPage, totalUpcomingPages]);
+
+  const totalCompletedPages = Math.max(1, Math.ceil(completedUpcomingEvents.length / ITEMS_PER_PAGE));
+  const paginatedCompletedEvents = completedUpcomingEvents.slice(
+    (completedPage - 1) * ITEMS_PER_PAGE,
+    completedPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCompletedPage(1);
+  }, [completedUpcomingEvents]);
+
+  useEffect(() => {
+    if (completedPage > totalCompletedPages) {
+      setCompletedPage(totalCompletedPages);
+    }
+  }, [completedPage, totalCompletedPages]);
 
   const handleCardClick = (event: IEvent, shouldFocusParticipants = false) => {
     setSelectedEvent(event);
@@ -1021,7 +1045,7 @@ function MyEventsPage() {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
-  const organizerTabs: OrganizerTab[] = ['upcoming', 'archived', 'cancelled'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
@@ -1788,6 +1812,109 @@ function MyEventsPage() {
                     style={paginationButtonStyle}
                     disabled={upcomingPage >= totalUpcomingPages}
                     onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showCompletedSection && (
+            <div style={sectionStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+                <h2 style={sectionTitleStyle}>Événements complets</h2>
+              </div>
+              {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
+              {!eventsLoading && !eventsError && completedUpcomingEvents.length === 0 && (
+                <p style={emptyStateStyle}>Aucun événement complet à venir.</p>
+              )}
+              {paginatedCompletedEvents.map((event) => {
+                const participantsRatio = getParticipantsRatio(event);
+                const statusLabel = translateEventStatus(event.status);
+
+                return (
+                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                    <div style={cardContentStyle}>
+                      <div style={cardHeaderRowStyle}>
+                        <div>
+                          <h3 style={eventTitleStyle}>{event.title}</h3>
+                        </div>
+                        <div style={cardHeaderActionsStyle}>
+                          <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div style={cardMetaGridStyle}>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Lieu</span>
+                          <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Horaires</span>
+                          <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Statut</span>
+                          <span style={cardMetaValueStyle}>{statusLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={cardStatusBlockStyle}>
+                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                      {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
+                      {user?.role === 'ORGANIZER' && (
+                        <div style={cardActionStackStyle}>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                              e.stopPropagation();
+                              handleCardClick(event, true);
+                            }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+                          >
+                            Gérer absences
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
+                            style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
+                            disabled={notifyingEventId === event._id}
+                          >
+                            {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+                          </button>
+                          <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
+                            style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {completedUpcomingEvents.length > ITEMS_PER_PAGE && (
+                <div style={paginationControlsStyle}>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={completedPage === 1}
+                    onClick={() => setCompletedPage(prev => Math.max(1, prev - 1))}
+                  >
+                    Précédent
+                  </button>
+                  <span style={paginationInfoStyle}>
+                    Page {Math.min(completedPage, totalCompletedPages)} / {Math.max(totalCompletedPages, 1)}
+                  </span>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={completedPage >= totalCompletedPages}
+                    onClick={() => setCompletedPage(prev => Math.min(totalCompletedPages, prev + 1))}
                   >
                     Suivant
                   </button>
