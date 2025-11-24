@@ -1763,15 +1763,6 @@ function MyEventsPage() {
                       {user?.role === 'ORGANIZER' && (
                         <div style={cardActionStackStyle}>
                           <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                              e.stopPropagation();
-                              handleCardClick(event, true);
-                            }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
-                          >
-                            Gérer absences
-                          </button>
-                          <button
                             onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
                             style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
                           >
@@ -1865,15 +1856,6 @@ function MyEventsPage() {
                       {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
                       {user?.role === 'ORGANIZER' && (
                         <div style={cardActionStackStyle}>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                              e.stopPropagation();
-                              handleCardClick(event, true);
-                            }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
-                          >
-                            Gérer absences
-                          </button>
                           <button
                             onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
                             style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
