@@ -359,12 +359,12 @@ function MyEventsPage() {
       const statusFilters = queryParams.getAll('status');
       const dateFilter = queryParams.get('date');
       const organizerFilter = queryParams.get('organizer');
-      const locationFilter = queryParams.get('location');
+      const keywordFilter = queryParams.get('search');
 
       console.log('🔄 RECALCUL DES FILTRES:', {
         totalEvents: eventsToFilter.length,
         organizerFilter,
-        locationFilter,
+        keywordFilter,
         userRole: user?.role
       });
 
@@ -403,13 +403,22 @@ function MyEventsPage() {
         console.log(`📊 Événements après filtrage organisateur: ${filteredEvents.length}`);
       }
 
-      // Filtre par lieu (pour super admin)
-      if (user?.role === 'SUPER_ADMIN' && locationFilter) {
-        filteredEvents = filteredEvents.filter((event: IEvent) => 
-          event.location.city.toLowerCase().includes(locationFilter.toLowerCase()) ||
-          event.location.address.toLowerCase().includes(locationFilter.toLowerCase()) ||
-          (event.location.venue && event.location.venue.toLowerCase().includes(locationFilter.toLowerCase()))
-        );
+      // Barre de recherche mots-clés (pour super admin)
+      if (user?.role === 'SUPER_ADMIN' && keywordFilter) {
+        const normalized = keywordFilter.toLowerCase();
+        filteredEvents = filteredEvents.filter((event: IEvent) => {
+          const locationData = event.location || { city: '', address: '', venue: '' };
+          const organizerName = getOrganizerName(event.organizer);
+          const fieldsToSearch = [
+            event.title,
+            event.description,
+            organizerName,
+            locationData.city,
+            locationData.address,
+            locationData.venue,
+          ];
+          return fieldsToSearch.some((field) => field?.toLowerCase().includes(normalized));
+        });
       }
 
       const now = new Date();
@@ -1594,21 +1603,21 @@ function MyEventsPage() {
               </div>
                 <div>
                   <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Filtrer par lieu:
+                    Recherche par mots-clés:
                   </label>
                   <input
                     type="text"
-                    placeholder="Ville, adresse ou salle..."
-                    value={new URLSearchParams(location.search).get('location') || ''}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const params = new URLSearchParams(location.search);
-                    if (e.target.value) {
-                      params.set('location', e.target.value);
-                    } else {
-                      params.delete('location');
-                    }
-                    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                  }}
+                    placeholder="Titre, organisateur, ville..."
+                    value={new URLSearchParams(location.search).get('search') || ''}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const params = new URLSearchParams(location.search);
+                      if (e.target.value) {
+                        params.set('search', e.target.value);
+                      } else {
+                        params.delete('search');
+                      }
+                      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                    }}
                     style={{
                       width: '100%',
                       padding: '10px',
@@ -1626,7 +1635,7 @@ function MyEventsPage() {
                                   onClick={() => {
                   const params = new URLSearchParams(location.search);
                   params.delete('organizer');
-                  params.delete('location');
+                  params.delete('search');
                   navigate(`${location.pathname}?${params.toString()}`, { replace: true });
                 }}
                   style={{
