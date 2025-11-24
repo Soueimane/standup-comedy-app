@@ -87,6 +87,7 @@ function MyEventsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
@@ -95,6 +96,15 @@ function MyEventsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+useEffect(() => {
+  if (user?.role === 'SUPER_ADMIN') {
+    const params = new URLSearchParams(location.search);
+    setSearchTerm(params.get('search') || '');
+  } else {
+    setSearchTerm('');
+  }
+}, [user?.role, location.search]);
 
   // Refs pour le scroll automatique
   const cancelledSectionRef = useRef<HTMLDivElement>(null);
@@ -904,6 +914,17 @@ function MyEventsPage() {
     queryClient.invalidateQueries({ queryKey: ['comedianApplications'] }); // Force refresh des candidatures humoriste
   };
 
+  const applyKeywordSearch = () => {
+    const params = new URLSearchParams(location.search);
+    const trimmed = searchTerm.trim();
+    if (trimmed) {
+      params.set('search', trimmed);
+    } else {
+      params.delete('search');
+    }
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  };
+
   
 
   const openCancelModal = async (event: IEvent) => {
@@ -1605,29 +1626,43 @@ function MyEventsPage() {
                   <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
                     Recherche par mots-clés:
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Titre, organisateur, ville..."
-                    value={new URLSearchParams(location.search).get('search') || ''}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      const params = new URLSearchParams(location.search);
-                      if (e.target.value) {
-                        params.set('search', e.target.value);
-                      } else {
-                        params.delete('search');
-                      }
-                      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      applyKeywordSearch();
                     }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      border: '1px solid #555',
-                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                      color: '#ffffff',
-                      fontSize: '14px'
-                    }}
-                  />
+                    style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Titre, organisateur, ville..."
+                      value={searchTerm}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: '5px',
+                        border: '1px solid #555',
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        color: '#ffffff',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#ff4b2b',
+                        color: '#fff',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Rechercher
+                    </button>
+                  </form>
                 </div>
               </div>
               <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
@@ -1637,6 +1672,7 @@ function MyEventsPage() {
                   params.delete('organizer');
                   params.delete('search');
                   navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                  setSearchTerm('');
                 }}
                   style={{
                     padding: '8px 15px',
