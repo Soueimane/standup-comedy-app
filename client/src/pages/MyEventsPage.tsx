@@ -652,6 +652,52 @@ function MyEventsPage() {
   const showArchivedSection = !isComedianView && (!isOrganizerView || organizerTab === 'archived');
   const showCancelledSection = !isComedianView && (!isOrganizerView || organizerTab === 'cancelled');
 
+  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'completed' | 'archived') => {
+    if (user?.role !== 'ORGANIZER') {
+      return null;
+    }
+
+    if (context === 'archived') {
+      return (
+        <div style={cardActionStackStyle}>
+          <button
+            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+              e.stopPropagation();
+              handleCardClick(event, true);
+            }}
+            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+          >
+            Gérer absences
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div style={cardActionStackStyle}>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
+          style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+        >
+          Modifier
+        </button>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+          style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
+          disabled={notifyingEventId === event._id}
+        >
+          {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+        </button>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
+          style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
+        >
+          Annuler
+        </button>
+      </div>
+    );
+  };
+
   const totalUpcomingPages = Math.max(1, Math.ceil(eventsToDisplay.length / ITEMS_PER_PAGE));
   const paginatedUpcomingEvents = eventsToDisplay.slice(
     (upcomingPage - 1) * ITEMS_PER_PAGE,
@@ -1760,29 +1806,7 @@ function MyEventsPage() {
                         isCompleteEvent ? '#28a745' : '#ffc107',
                         isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
                       )}
-                      {user?.role === 'ORGANIZER' && (
-                        <div style={cardActionStackStyle}>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                            style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
-                            disabled={notifyingEventId === event._id}
-                          >
-                            {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-                          </button>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      )}
+                      {renderOrganizerActions(event, 'upcoming')}
                     </div>
                   </div>
                 );
@@ -1854,29 +1878,7 @@ function MyEventsPage() {
                     <div style={cardStatusBlockStyle}>
                       {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
                       {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
-                      {user?.role === 'ORGANIZER' && (
-                        <div style={cardActionStackStyle}>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                            style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
-                            disabled={notifyingEventId === event._id}
-                          >
-                            {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-                          </button>
-                          <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                            style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      )}
+                      {renderOrganizerActions(event, 'completed')}
                     </div>
                   </div>
                 );
@@ -1944,19 +1946,7 @@ function MyEventsPage() {
                   {renderStatusChip(`Statut: ${statusLabel}`, '#4dd0e1', 'rgba(77, 208, 225, 0.18)')}
                   {renderStatusChip(`Participants: ${participantsRatio}`, '#9b8bff', 'rgba(155, 139, 255, 0.18)')}
                   {isFutureButArchived && renderStatusChip('Événement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
-                  {user?.role === 'ORGANIZER' && (
-                    <div style={cardActionStackStyle}>
-                      <button
-                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                          e.stopPropagation();
-                          handleCardClick(event, true);
-                        }}
-                        style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
-                      >
-                        Gérer absences
-                      </button>
-                    </div>
-                  )}
+                  {renderOrganizerActions(event, 'archived')}
                 </div>
               </div>
             );
