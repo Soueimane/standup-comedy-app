@@ -608,13 +608,19 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
 
       const cancelledEvents = allEvents.filter(event => event.status === 'cancelled').length;
 
+      const organizerCount = await UserModel.countDocuments({ role: 'ORGANIZER' });
+      const comedianCount = await UserModel.countDocuments({ role: 'COMEDIAN' });
+
       console.log('📊 Statistiques globales calculées:', {
         totalEvents,
         pendingApplications,
         acceptedApplications,
         rejectedApplications,
         upcomingIncompleteEvents,
-        completedEvents
+        completedEvents,
+        cancelledEvents,
+        organizerCount,
+        comedianCount
       });
 
       return res.status(200).json({
@@ -624,7 +630,9 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
         cancelledEvents,
         pendingApplications,
         acceptedApplications,
-        rejectedApplications
+        rejectedApplications,
+        organizerCount,
+        comedianCount
       });
     }
 
