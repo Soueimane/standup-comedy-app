@@ -64,6 +64,7 @@ export interface User {
     contentType?: string;
     uploadedAt?: Date;
   };
+  favoriteComedians?: Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
   lastLoginAt?: Date;
