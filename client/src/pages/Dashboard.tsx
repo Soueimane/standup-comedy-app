@@ -167,6 +167,34 @@ const Dashboard = () => {
     opacity: 0.7,
   };
 
+  const superAdminCardLayoutStyle: CSSProperties = {
+    textAlign: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px'
+  };
+
+  const superAdminCardTitleStyle: CSSProperties = {
+    fontSize: '1.3rem',
+    color: '#ffffff',
+    marginBottom: '6px',
+    fontWeight: 600,
+    letterSpacing: '0.5px'
+  };
+
+  const superAdminCardValueStyle: CSSProperties = {
+    fontSize: '3.2rem',
+    fontWeight: 700,
+    color: '#ffffff',
+    marginBottom: '4px'
+  };
+
+  const superAdminCardIconStyle: CSSProperties = {
+    fontSize: '3.5rem',
+    opacity: 0.85
+  };
+
   // Styles de cartes avec lueur/clignotement (vert/orange/rouge)
   const glowingCardGreenStyle: CSSProperties = {
     border: '1px solid rgba(34, 197, 94, 0.6)',
@@ -194,23 +222,27 @@ const Dashboard = () => {
     title: string,
     value: number,
     icon: string,
-    options?: { style?: CSSProperties; onClick?: () => void }
-  ) => (
-    <div
-      style={{
-        ...cardStyle,
-        ...(options?.style ?? {}),
-        cursor: options?.onClick ? 'pointer' : 'default'
-      }}
-      onClick={options?.onClick}
-    >
-      <div>
-        <p style={cardTitleStyle}>{title}</p>
-        <p style={cardValueStyle}>{value}</p>
+    options?: { style?: CSSProperties; onClick?: () => void; variant?: 'superAdmin' | 'default' }
+  ) => {
+    const isSuperAdminVariant = options?.variant === 'superAdmin';
+    return (
+      <div
+        style={{
+          ...cardStyle,
+          ...(isSuperAdminVariant ? superAdminCardLayoutStyle : {}),
+          ...(options?.style ?? {}),
+          cursor: options?.onClick ? 'pointer' : 'default'
+        }}
+        onClick={options?.onClick}
+      >
+        <div>
+          <p style={isSuperAdminVariant ? superAdminCardTitleStyle : cardTitleStyle}>{title}</p>
+          <p style={isSuperAdminVariant ? superAdminCardValueStyle : cardValueStyle}>{value}</p>
+        </div>
+        <span style={isSuperAdminVariant ? superAdminCardIconStyle : cardIconStyle}>{icon}</span>
       </div>
-      <span style={cardIconStyle}>{icon}</span>
-    </div>
-  );
+    );
+  };
 
   if (!user || loading) {
     return (
@@ -267,54 +299,71 @@ const Dashboard = () => {
             <>
               {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
                 style: glowingCardOrangeStyle,
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
-              {renderCard("Nombre d'organisateurs", eventStats?.organizerCount || 0, '🏢')}
-              {renderCard("Nombre d'humoristes", eventStats?.comedianCount || 0, '🎤')}
+              {renderCard("Nombre d'organisateurs", eventStats?.organizerCount || 0, '🏢', {
+                variant: 'superAdmin'
+              })}
+              {renderCard("Nombre d'humoristes", eventStats?.comedianCount || 0, '🎤', {
+                variant: 'superAdmin'
+              })}
             </>
           ) : (
             <>
               {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               {renderCard('Candidatures en attente', eventStats?.pendingApplications || 0, '⏳', {
                 style: glowingCardOrangeStyle,
+                variant: 'superAdmin',
                 onClick: () => navigate('/applications')
               })}
               {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               <div 
-                style={{ ...cardStyle, cursor: 'pointer' }} 
+                style={{ 
+                  ...cardStyle,
+                  ...superAdminCardLayoutStyle,
+                  cursor: 'pointer'
+                }} 
                 onClick={() => navigate('/applications')}
               >
                 <div>
-                  <p style={cardTitleStyle}>Humoristes postulants</p>
-                  <p style={cardValueStyle}>{totalHumoristApplicants}</p>
-                  <div style={{ fontSize: '0.9rem', color: '#B0B0B0', marginTop: '10px' }}>
+                  <p style={superAdminCardTitleStyle}>Humoristes postulants</p>
+                  <p style={superAdminCardValueStyle}>{totalHumoristApplicants}</p>
+                  <div style={{ fontSize: '1rem', color: '#B0B0B0', marginTop: '10px', textAlign: 'center' }}>
                     <div>✅ Acceptées: {eventStats?.acceptedApplications || 0} ({acceptedPercentage}%)</div>
                     <div>❌ Refusées: {eventStats?.rejectedApplications || 0} ({rejectedPercentage}%)</div>
                   </div>
                 </div>
-                <span style={cardIconStyle}>👥</span>
+                <span style={superAdminCardIconStyle}>👥</span>
               </div>
               {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
               {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
+                variant: 'superAdmin',
                 onClick: openExternalEvents
               })}
             </>
