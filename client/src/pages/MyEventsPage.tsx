@@ -1729,13 +1729,30 @@ useEffect(() => {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: isMobile ? '10px' : '16px',
+              marginBottom: '18px'
+            }}
+          >
             <h2 style={sectionTitleStyle}>{comedianTabTitles[comedianTab]}</h2>
             {isOpportunitiesTab && (
               <select
                 value={completionFilter}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-                style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+                style={{
+                  marginLeft: isMobile ? 0 : 'auto',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid #444',
+                  background: '#222',
+                  color: '#fff',
+                  minWidth: 160,
+                  width: isMobile ? '100%' : undefined
+                }}
               >
                 <option value="all">Tous</option>
                 <option value="complete">Complet</option>
@@ -1905,13 +1922,30 @@ useEffect(() => {
           )}
           {showOrganizerUpcomingSection && (
             <div style={sectionStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: isMobile ? 'flex-start' : 'center',
+                  gap: isMobile ? '10px' : '16px',
+                  marginBottom: '18px'
+                }}
+              >
                 <h2 style={sectionTitleStyle}>Événements à venir</h2>
                 {isOrganizerView && (
                   <select
                     value={completionFilter}
                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-                    style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+                    style={{
+                      marginLeft: isMobile ? 0 : 'auto',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: '1px solid #444',
+                      background: '#222',
+                      color: '#fff',
+                      minWidth: 160,
+                      width: isMobile ? '100%' : undefined
+                    }}
                   >
                     <option value="all">Tous</option>
                     <option value="complete">Complet</option>
