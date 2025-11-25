@@ -65,6 +65,7 @@ export interface User {
     uploadedAt?: Date;
   };
   favoriteComedians?: Types.ObjectId[];
+  favoriteEvents?: Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
   lastLoginAt?: Date;
