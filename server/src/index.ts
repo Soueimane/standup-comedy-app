@@ -10,6 +10,7 @@ import profileRoutes from './routes/profile';
 import emailRoutes from './routes/email';
 import absencesRoutes from './routes/absences';
 import favoritesRoutes from './routes/favorites';
+import eventFavoritesRoutes from './routes/eventFavorites';
 
 const app = express();
 
@@ -87,6 +88,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/absences', absencesRoutes);
 app.use('/api/favorites', favoritesRoutes);
+app.use('/api/event-favorites', eventFavoritesRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
