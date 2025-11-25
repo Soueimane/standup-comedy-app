@@ -1574,19 +1574,21 @@ useEffect(() => {
 
           {/* Filtres pour super admin */}
           {user?.role === 'SUPER_ADMIN' && (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.4)',
-              padding: '20px',
-              borderRadius: '8px',
-              margin: '20px 0',
-              border: '1px solid #444'
-            }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                padding: '20px',
+                borderRadius: '8px',
+                margin: '0 auto',
+                border: '1px solid #444',
+                width: '100%'
+              }}>
               <h3 style={{ color: '#ff4b2b', marginBottom: '15px', fontSize: '1.2em' }}>Filtres de recherche</h3>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 320px))',
                 gap: '15px',
-                justifyContent: isMobile ? 'stretch' : 'flex-start'
+                  justifyContent: isMobile ? 'stretch' : 'center'
               }}>
                 <div style={{ maxWidth: isMobile ? '100%' : 320 }}>
                 <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
@@ -1707,6 +1709,7 @@ useEffect(() => {
                   Réinitialiser les filtres
                 </button>
               </div>
+            </div>
             </div>
           )}
         </>
