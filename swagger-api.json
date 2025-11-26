@@ -11,7 +11,7 @@
   },
   "servers": [
     {
-      "url": "https://standup-comedy-app.onrender.com/api",
+      "url": "https://connectcomedyclub.com/api",
       "description": "Serveur de production"
     },
     {

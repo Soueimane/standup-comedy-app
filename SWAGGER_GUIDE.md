@@ -24,7 +24,7 @@ J'ai créé le fichier **`swagger-api.json`** qui contient la documentation comp
 ### 2. **Swagger UI (Pour partager avec d'autres devs)**
 
 1. Allez sur [https://petstore.swagger.io/](https://petstore.swagger.io/)
-2. Remplacez l'URL par : `https://standup-comedy-app.onrender.com/api` (votre serveur)
+2. Remplacez l'URL par : `https://connectcomedyclub.com/api` (votre serveur)
 3. Ou utilisez un service comme [SwaggerHub](https://swaggerhub.com/)
 
 ### 3. **Intégration dans votre projet**
