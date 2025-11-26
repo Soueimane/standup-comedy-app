@@ -232,6 +232,10 @@ const userSchema = new Schema<UserDocument>({
     type: Schema.Types.ObjectId,
     ref: 'User'
   }],
+  favoriteEvents: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Event'
+  }],
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {

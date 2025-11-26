@@ -120,13 +120,16 @@ function ComedianDashboardPage() {
 
   const cardStyle: CSSProperties = {
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: '8px',
-    padding: '25px',
+    borderRadius: '12px',
+    padding: '28px',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
-    minHeight: '150px',
+    justifyContent: 'center',
+    alignItems: 'center',
+    textAlign: 'center',
+    gap: '12px',
+    minHeight: '180px',
   };
 
   const blinkingCardStyle: CSSProperties = {
@@ -137,15 +140,17 @@ function ComedianDashboardPage() {
   };
 
   const cardTitleStyle: CSSProperties = {
-    fontSize: '1.2em',
+    fontSize: '1.4em',
     color: '#ffffff',
-    marginBottom: '10px',
+    fontWeight: 600,
+    letterSpacing: '0.5px'
   };
 
   const cardValueStyle: CSSProperties = {
-    fontSize: '2.5em',
+    fontSize: '3.2em',
     fontWeight: 'bold',
     color: '#ff4b2b',
+    lineHeight: 1.1
   };
 
   if (!user) {
@@ -208,7 +213,7 @@ function ComedianDashboardPage() {
               <p style={cardTitleStyle}>Événements à venir</p>
               <p style={cardValueStyle}>{upcomingCount}</p>
             </div>
-            <span style={{ fontSize: '2em', color: '#ff4b2b', alignSelf: 'flex-end' }}>✨</span>
+            <span style={{ fontSize: '2.6em', color: '#ff4b2b' }}>✨</span>
           </div>
 
           {/* Carte: Candidatures Acceptées */}
@@ -217,7 +222,7 @@ function ComedianDashboardPage() {
               <p style={cardTitleStyle}>Candidatures Acceptées</p>
               <p style={cardValueStyle}>{acceptedCount}</p>
             </div>
-            <span style={{ fontSize: '2em', color: '#28a745', alignSelf: 'flex-end' }}>✅</span>
+            <span style={{ fontSize: '2.6em', color: '#28a745' }}>✅</span>
           </div>
 
           {/* Carte: Mes Candidatures (SWAPPED) */}
@@ -226,7 +231,7 @@ function ComedianDashboardPage() {
               <p style={cardTitleStyle}>Mes Candidatures</p>
               <p style={cardValueStyle}>{sentCount}</p>
             </div>
-            <span style={{ fontSize: '2em', color: '#ff416c', alignSelf: 'flex-end' }}>📝</span>
+            <span style={{ fontSize: '2.6em', color: '#ff416c' }}>📝</span>
           </div>
         </div>
         {/* Ajout du camembert */}

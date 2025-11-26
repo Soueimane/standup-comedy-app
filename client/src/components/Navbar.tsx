@@ -222,43 +222,6 @@ function Navbar() {
             Standup Comedy
           </h2>
           
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            {user && (
-              <div style={{
-                padding: '4px 10px',
-                borderRadius: '15px',
-                background: roleStyles.badgeBg,
-                color: roleStyles.badgeColor,
-                fontSize: '0.75rem',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-              }}>
-                <span>{roleStyles.badgeIcon}</span>
-                <span>{roleStyles.badgeText}</span>
-              </div>
-            )}
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: roleStyles.avatarGradient,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
-              fontSize: '0.8rem',
-              fontWeight: 'bold',
-            }}>
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </div>
-          </div>
         </div>
 
         {/* Info utilisateur Desktop - Masqué sur mobile */}
@@ -360,21 +323,39 @@ function Navbar() {
               backgroundColor: '#f8f9fa',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: roleStyles.avatarGradient,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ffffff',
-                  fontSize: '1.2rem',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                }}>
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
-                </div>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: user?.avatarUrl ? 'transparent' : roleStyles.avatarGradient,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                overflow: 'hidden',
+              }}
+            >
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                <>
+                  {user?.firstName?.[0]}
+                  {user?.lastName?.[0]}
+                </>
+              )}
+            </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ 
                     margin: 0, 

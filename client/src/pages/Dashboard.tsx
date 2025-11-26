@@ -12,6 +12,8 @@ interface EventStats {
   pendingApplications: number;
   acceptedApplications: number;
   rejectedApplications: number;
+  organizerCount?: number;
+  comedianCount?: number;
 }
 
 const Dashboard = () => {
@@ -21,6 +23,7 @@ const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const navigate = useNavigate(); // Initialiser useNavigate
+  const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
   // Fonction pour récupérer les statistiques
   const fetchEventStats = async () => {
@@ -32,11 +35,12 @@ const Dashboard = () => {
         throw new Error("Vous devez être connecté pour voir les statistiques d'événements.");
       }
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/events/stats`, {
+       const res = await fetch(`https://connectcomedyclub.com/api/events/stats`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+;
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -160,6 +164,34 @@ const Dashboard = () => {
     opacity: 0.7,
   };
 
+  const superAdminCardLayoutStyle: CSSProperties = {
+    textAlign: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px'
+  };
+
+  const superAdminCardTitleStyle: CSSProperties = {
+    fontSize: '1.3rem',
+    color: '#ffffff',
+    marginBottom: '6px',
+    fontWeight: 600,
+    letterSpacing: '0.5px'
+  };
+
+  const superAdminCardValueStyle: CSSProperties = {
+    fontSize: '3.2rem',
+    fontWeight: 700,
+    color: '#ffffff',
+    marginBottom: '4px'
+  };
+
+  const superAdminCardIconStyle: CSSProperties = {
+    fontSize: '3.5rem',
+    opacity: 0.85
+  };
+
   // Styles de cartes avec lueur/clignotement (vert/orange/rouge)
   const glowingCardGreenStyle: CSSProperties = {
     border: '1px solid rgba(34, 197, 94, 0.6)',
@@ -180,7 +212,33 @@ const Dashboard = () => {
   };
 
   const openExternalEvents = () => {
-    window.location.href = 'https://standup-comedy-app.netlify.app/events';
+    window.location.href = 'standup-comedy-app.netlify.app/events';
+  };
+
+  const renderCard = (
+    title: string,
+    value: number,
+    icon: string,
+    options?: { style?: CSSProperties; onClick?: () => void; variant?: 'superAdmin' | 'default' }
+  ) => {
+    const isSuperAdminVariant = options?.variant === 'superAdmin';
+    return (
+      <div
+        style={{
+          ...cardStyle,
+          ...(isSuperAdminVariant ? superAdminCardLayoutStyle : {}),
+          ...(options?.style ?? {}),
+          cursor: options?.onClick ? 'pointer' : 'default'
+        }}
+        onClick={options?.onClick}
+      >
+        <div>
+          <p style={isSuperAdminVariant ? superAdminCardTitleStyle : cardTitleStyle}>{title}</p>
+          <p style={isSuperAdminVariant ? superAdminCardValueStyle : cardValueStyle}>{value}</p>
+        </div>
+        <span style={isSuperAdminVariant ? superAdminCardIconStyle : cardIconStyle}>{icon}</span>
+      </div>
+    );
   };
 
   if (!user || loading) {
@@ -227,109 +285,90 @@ const Dashboard = () => {
     : 'Tableau de bord de l\'organisateur';
 
   return (
-    <div style={mainContainerStyle}>
+    <>
+      <div style={mainContainerStyle}>
       <Navbar />
       <div style={{ marginTop: '80px' }}>
         <h1 style={dashboardHeaderStyle}>{dashboardTitle}</h1>
         
         <div style={cardsGridStyle}>
-          {/* 1 - Événements complets (carte clignotante verte) → lien externe */}
-          <div 
-            style={{ ...cardStyle, ...glowingCardGreenStyle, cursor: 'pointer' }} 
-            onClick={openExternalEvents}
-          >
-            <div>
-              <p style={cardTitleStyle}>Événements complets</p>
-              <p style={cardValueStyle}>{eventStats?.completedEvents || 0}</p>
-            </div>
-            <span style={cardIconStyle}>✅</span>
-          </div>
-
-          {/* 2 - Candidatures en attente (carte clignotante orange) */}
-          <div 
-            style={{ ...cardStyle, ...glowingCardOrangeStyle, cursor: 'pointer' }} 
-            onClick={() => {
-              // Pour SUPER_ADMIN, rediriger vers la page événements
-              if ((user as any)?.role === 'SUPER_ADMIN') {
-                navigate('/events');
-              } else {
-                navigate('/applications');
-              }
-            }}
-          >
-            <div>
-              <p style={cardTitleStyle}>Candidatures en attente</p>
-              <p style={cardValueStyle}>{eventStats?.pendingApplications || 0}</p>
-            </div>
-            <span style={cardIconStyle}>⏳</span>
-          </div>
-
-          {/* 3 - Prochains événements (non complets) (carte clignotante rouge) → lien externe */}
-          <div 
-            style={{ ...cardStyle, ...glowingCardRedStyle, cursor: 'pointer' }} 
-            onClick={openExternalEvents}
-          >
-            <div>
-              <p style={cardTitleStyle}>Prochains événements<br/>(non complets)</p>
-              <p style={cardValueStyle}>{eventStats?.upcomingIncompleteEvents || 0}</p>
-            </div>
-            <span style={cardIconStyle}>✨</span>
-          </div>
-
-          {/* 4 - Humoristes postulants */}
-          <div 
-            style={{ ...cardStyle, cursor: 'pointer' }} 
-            onClick={() => navigate('/applications')}
-          >
-            <div>
-              <p style={cardTitleStyle}>Humoristes postulants</p>
-              <p style={cardValueStyle}>{totalHumoristApplicants}</p>
-              <div style={{ fontSize: '0.9rem', color: '#B0B0B0', marginTop: '10px' }}>
-                <div>✅ Acceptées: {eventStats?.acceptedApplications || 0} ({acceptedPercentage}%)</div>
-                <div>❌ Refusées: {eventStats?.rejectedApplications || 0} ({rejectedPercentage}%)</div>
+          {isSuperAdmin ? (
+            <>
+              {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
+                style: glowingCardGreenStyle,
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
+                style: glowingCardRedStyle,
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
+                style: glowingCardOrangeStyle,
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard("Nombre d'organisateurs", eventStats?.organizerCount || 0, '🏢', {
+                variant: 'superAdmin'
+              })}
+              {renderCard("Nombre d'humoristes", eventStats?.comedianCount || 0, '🎤', {
+                variant: 'superAdmin'
+              })}
+            </>
+          ) : (
+            <>
+              {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
+                style: glowingCardGreenStyle,
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard('Candidatures en attente', eventStats?.pendingApplications || 0, '⏳', {
+                style: glowingCardOrangeStyle,
+                variant: 'superAdmin',
+                onClick: () => navigate('/applications')
+              })}
+              {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
+                style: glowingCardRedStyle,
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              <div 
+                style={{ 
+                  ...cardStyle,
+                  ...superAdminCardLayoutStyle,
+                  cursor: 'pointer'
+                }} 
+                onClick={() => navigate('/applications')}
+              >
+                <div>
+                  <p style={superAdminCardTitleStyle}>Humoristes postulants</p>
+                  <p style={superAdminCardValueStyle}>{totalHumoristApplicants}</p>
+                  <div style={{ fontSize: '1rem', color: '#B0B0B0', marginTop: '10px', textAlign: 'center' }}>
+                    <div>✅ Acceptées: {eventStats?.acceptedApplications || 0} ({acceptedPercentage}%)</div>
+                    <div>❌ Refusées: {eventStats?.rejectedApplications || 0} ({rejectedPercentage}%)</div>
+                  </div>
+                </div>
+                <span style={superAdminCardIconStyle}>👥</span>
               </div>
-            </div>
-            <span style={cardIconStyle}>👥</span>
-          </div>
+              {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+              {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
+                variant: 'superAdmin',
+                onClick: openExternalEvents
+              })}
+            </>
+          )}
+        </div>
 
-          {/* 5 - Événements créés → lien externe */}
-          <div 
-            style={{ ...cardStyle, cursor: 'pointer' }} 
-            onClick={openExternalEvents}
-          >
-            <div>
-              <p style={cardTitleStyle}>Événements créés</p>
-              <p style={cardValueStyle}>{eventStats?.totalEvents || 0}</p>
-            </div>
-            <span style={cardIconStyle}>🎪</span>
-          </div>
-
-          {/* 6 - Événements archivés → lien externe */}
-          <div 
-            style={{ ...cardStyle, cursor: 'pointer' }} 
-            onClick={openExternalEvents}
-          >
-            <div>
-              <p style={cardTitleStyle}>Événements archivés</p>
-              <p style={cardValueStyle}>{eventStats?.completedEvents || 0}</p>
-            </div>
-            <span style={cardIconStyle}>📦</span>
-          </div>
-
-          {/* 7 - Événements annulés → lien externe */}
-          <div 
-            style={{ ...cardStyle, cursor: 'pointer' }} 
-            onClick={openExternalEvents}
-          >
-            <div>
-              <p style={cardTitleStyle}>Événements annulés</p>
-              <p style={cardValueStyle}>{eventStats?.cancelledEvents || 0}</p>
-            </div>
-            <span style={cardIconStyle}>🛑</span>
-          </div>
-
-          {/* Carte de traitement automatique pour Super Admin uniquement */}
-          {(user as any)?.role === 'SUPER_ADMIN' && (
+        {/* Carte de traitement automatique pour Super Admin uniquement */}
+        {(user as any)?.role === 'SUPER_ADMIN' && (
             <div style={{
               ...cardStyle,
               background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(219, 39, 119, 0.2))',
@@ -422,7 +461,7 @@ const Dashboard = () => {
           }
         `}
       </style>
-    </div>
+    </>
   );
 };
 

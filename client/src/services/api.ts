@@ -3,9 +3,8 @@ import axios from 'axios';
 // Configuration automatique de l'URL de base selon l'environnement
 const baseURL =
   process.env.NODE_ENV === 'production'
-    ? process.env.REACT_APP_API_URL || 'https://standup-comedy-app.onrender.com/api'  // Production
-    : 'https://standup-comedy-app.onrender.com/api';            // Développement
-
+    ? process.env.REACT_APP_API_URL || 'https://connectcomedyclub.com/api'  // Production
+    : 'https://connectcomedyclub.com/api';            // Développement
 const api = axios.create({
   baseURL,
   headers: {

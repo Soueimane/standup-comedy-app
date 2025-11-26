@@ -14,9 +14,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 
+const ITEMS_PER_PAGE = 5;
+const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
+type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
+type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
+type SuperAdminTab = 'completed' | 'upcoming' | 'archived' | 'cancelled';
+
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const isComedianView = user?.role === 'COMEDIAN';
+  const isOrganizerView = user?.role === 'ORGANIZER';
+  const isSuperAdminView = user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -24,6 +33,39 @@ function MyEventsPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!isOrganizerView) {
+      setOrganizerTab('upcoming');
+    }
+  }, [isOrganizerView]);
+
+  useEffect(() => {
+    if (user?.role !== 'SUPER_ADMIN') {
+      setSuperAdminTab('completed');
+    }
+  }, [user?.role]);
+
+  const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
+
+  useEffect(() => {
+    if (!isComedianView) {
+      setFavoriteEventIds([]);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(getFavoritesStorageKey(user?._id));
+      if (stored) {
+        setFavoriteEventIds(JSON.parse(stored));
+      } else {
+        setFavoriteEventIds([]);
+      }
+    } catch (error) {
+      console.error('❌ [MyEventsPage] Erreur lors du chargement des favoris:', error);
+      setFavoriteEventIds([]);
+    }
+  }, [isComedianView, user?._id]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
@@ -37,17 +79,47 @@ function MyEventsPage() {
   const [selectedAbsenceParticipant, setSelectedAbsenceParticipant] = useState<any>(null);
   const [eventAbsences, setEventAbsences] = useState<any[]>([]);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
+  const [comedianTab, setComedianTab] = useState<ComedianTab>('opportunities');
+  const [organizerTab, setOrganizerTab] = useState<OrganizerTab>('upcoming');
+  const [superAdminTab, setSuperAdminTab] = useState<SuperAdminTab>('completed');
+  const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [cancelledPage, setCancelledPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [focusParticipantsSection, setFocusParticipantsSection] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+useEffect(() => {
+  if (user?.role === 'SUPER_ADMIN') {
+    const params = new URLSearchParams(location.search);
+    setSearchTerm(params.get('search') || '');
+  } else {
+    setSearchTerm('');
+  }
+}, [user?.role, location.search]);
+
   // Refs pour le scroll automatique
   const cancelledSectionRef = useRef<HTMLDivElement>(null);
   const archivedSectionRef = useRef<HTMLDivElement>(null);
+  const participantsSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isModalOpen && focusParticipantsSection && participantsSectionRef.current) {
+      const timeout = setTimeout(() => {
+        participantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setFocusParticipantsSection(false);
+      }, 200);
+      return () => clearTimeout(timeout);
+    }
+  }, [isModalOpen, focusParticipantsSection]);
 
   console.log("MyEventsPage: Initial token", token);
   console.log("MyEventsPage: Initial user", user);
@@ -110,7 +182,7 @@ function MyEventsPage() {
   });
 
   // New useQuery for comedian's applications
-  const { data: comedianApplications } = useQuery<IApplication[], Error>({
+  const { data: comedianApplications, isLoading: comedianApplicationsLoading, isError: comedianApplicationsError, error: comedianApplicationsErrorMessage } = useQuery<IApplication[], Error>({
     queryKey: ['comedianApplications', user?._id, token],
     queryFn: async () => {
       if (!token || !user?._id) {
@@ -163,6 +235,41 @@ function MyEventsPage() {
     return new Set<string>();
   }, [comedianApplications, user?.role]);
 
+  const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
+
+  const toggleFavoriteEvent = (eventId: string) => {
+    if (!isComedianView) return;
+    setFavoriteEventIds(prev => {
+      const updated = new Set(prev);
+      if (updated.has(eventId)) {
+        updated.delete(eventId);
+      } else {
+        updated.add(eventId);
+      }
+      const next = Array.from(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(getFavoritesStorageKey(user?._id), JSON.stringify(next));
+        } catch (error) {
+          console.error('❌ [MyEventsPage] Erreur lors de la sauvegarde des favoris:', error);
+        }
+      }
+      return next;
+    });
+  };
+
+  const comedianApplicationsMap = useMemo(() => {
+    const map = new Map<string, IApplication>();
+    if (comedianApplications) {
+      comedianApplications.forEach(app => {
+        if (app.event?._id) {
+          map.set(app.event._id, app);
+        }
+      });
+    }
+    return map;
+  }, [comedianApplications]);
+
   // Fonction utilitaire pour comparer les dates (ignorer l'heure)
   const isEventPast = (eventDateString: string, endTime?: string): boolean => {
     // Si endTime n'est pas fourni, on considère la fin de la journée
@@ -191,6 +298,38 @@ function MyEventsPage() {
     if (!organizer) return undefined;
     if (typeof organizer === 'string') return organizer;
     return organizer._id || organizer.id;
+  };
+
+  const formatEventLocation = (event: IEvent): string => {
+    const location = event.location;
+    if (location && typeof location === 'object') {
+      const venue = location.venue || '';
+      const address = location.address || '';
+      const city = location.city || '';
+      return [venue, address, city].filter(Boolean).join(', ') || 'Lieu non spécifié';
+    }
+    return 'Lieu non spécifié';
+  };
+
+  const formatEventTimeRange = (event: IEvent): string => {
+    const { startTime, endTime } = event;
+    if (startTime && endTime) return `${startTime} - ${endTime}`;
+    if (startTime) return startTime;
+    if (endTime) return endTime;
+    return 'Horaires non précisés';
+  };
+
+  const getParticipantsRatio = (event: IEvent): string => {
+    const current = event.participants?.length || 0;
+    const max = event.requirements?.maxPerformers || 0;
+    return `${current}/${max}`;
+  };
+
+  const isEventComplete = (event: IEvent): boolean => {
+    const current = event.participants?.length || 0;
+    const max = event.requirements?.maxPerformers || 0;
+    if (!max) return false;
+    return current >= max;
   };
 
   // Extraire la liste unique des organisateurs pour le dropdown
@@ -230,12 +369,12 @@ function MyEventsPage() {
       const statusFilters = queryParams.getAll('status');
       const dateFilter = queryParams.get('date');
       const organizerFilter = queryParams.get('organizer');
-      const locationFilter = queryParams.get('location');
+      const keywordFilter = queryParams.get('search');
 
       console.log('🔄 RECALCUL DES FILTRES:', {
         totalEvents: eventsToFilter.length,
         organizerFilter,
-        locationFilter,
+        keywordFilter,
         userRole: user?.role
       });
 
@@ -274,13 +413,22 @@ function MyEventsPage() {
         console.log(`📊 Événements après filtrage organisateur: ${filteredEvents.length}`);
       }
 
-      // Filtre par lieu (pour super admin)
-      if (user?.role === 'SUPER_ADMIN' && locationFilter) {
-        filteredEvents = filteredEvents.filter((event: IEvent) => 
-          event.location.city.toLowerCase().includes(locationFilter.toLowerCase()) ||
-          event.location.address.toLowerCase().includes(locationFilter.toLowerCase()) ||
-          (event.location.venue && event.location.venue.toLowerCase().includes(locationFilter.toLowerCase()))
-        );
+      // Barre de recherche mots-clés (pour super admin)
+      if (user?.role === 'SUPER_ADMIN' && keywordFilter) {
+        const normalized = keywordFilter.toLowerCase();
+        filteredEvents = filteredEvents.filter((event: IEvent) => {
+          const locationData = event.location || { city: '', address: '', venue: '' };
+          const organizerName = getOrganizerName(event.organizer);
+          const fieldsToSearch = [
+            event.title,
+            event.description,
+            organizerName,
+            locationData.city,
+            locationData.address,
+            locationData.venue,
+          ];
+          return fieldsToSearch.some((field) => field?.toLowerCase().includes(normalized));
+        });
       }
 
       const now = new Date();
@@ -340,6 +488,22 @@ function MyEventsPage() {
     return { upcomingEvents: upcoming, archivedEvents: archived, cancelledEvents: cancelled };
   }, [fetchedEvents, location.search]);
 
+  const totalCancelledPages = Math.max(1, Math.ceil(cancelledEvents.length / ITEMS_PER_PAGE));
+  const paginatedCancelledEvents = cancelledEvents.slice(
+    (cancelledPage - 1) * ITEMS_PER_PAGE,
+    cancelledPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCancelledPage(1);
+  }, [cancelledEvents]);
+
+  useEffect(() => {
+    if (cancelledPage > totalCancelledPages) {
+      setCancelledPage(totalCancelledPages);
+    }
+  }, [cancelledPage, totalCancelledPages]);
+
   // Filtrer les événements archivés côté HUMORISTE: afficher uniquement ceux auxquels il a postulé
   const archivedEventsToShow = useMemo(() => {
     if (user?.role === 'COMEDIAN') {
@@ -347,6 +511,22 @@ function MyEventsPage() {
     }
     return archivedEvents;
   }, [archivedEvents, appliedEventIds, user?.role]);
+
+  const totalArchivedPages = Math.max(1, Math.ceil(archivedEventsToShow.length / ITEMS_PER_PAGE));
+  const paginatedArchivedEvents = archivedEventsToShow.slice(
+    (archivedPage - 1) * ITEMS_PER_PAGE,
+    archivedPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setArchivedPage(1);
+  }, [archivedEventsToShow]);
+
+  useEffect(() => {
+    if (archivedPage > totalArchivedPages) {
+      setArchivedPage(totalArchivedPages);
+    }
+  }, [archivedPage, totalArchivedPages]);
 
   // Fonction de filtrage pour les événements à venir
   // Événements ACCEPTÉS (à venir) pour l'humoriste
@@ -369,6 +549,41 @@ function MyEventsPage() {
     return upcomingEvents;
   }, [user?.role, acceptedUpcomingEvents, upcomingEvents]);
 
+  const pendingApplicationEvents = useMemo(() => {
+    if (user?.role === 'COMEDIAN' && comedianApplications) {
+      return comedianApplications
+        .filter(app => app.status === 'PENDING' && app.event)
+        .map(app => app.event as unknown as IEvent);
+    }
+    return [] as IEvent[];
+  }, [comedianApplications, user?.role]);
+
+  const rejectedApplicationEvents = useMemo(() => {
+    if (user?.role === 'COMEDIAN' && comedianApplications) {
+      return comedianApplications
+        .filter(app => app.status === 'REJECTED' && app.event)
+        .map(app => app.event as unknown as IEvent);
+    }
+    return [] as IEvent[];
+  }, [comedianApplications, user?.role]);
+
+  const comedianVisibleEvents = useMemo(() => {
+    if (!isComedianView) return [] as IEvent[];
+    const map = new Map<string, IEvent>();
+    [...upcomingEventsForApply, ...acceptedUpcomingEvents, ...pendingApplicationEvents, ...rejectedApplicationEvents].forEach(event => {
+      if (event?._id) {
+        map.set(event._id, event);
+      }
+    });
+    return Array.from(map.values());
+  }, [isComedianView, upcomingEventsForApply, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents]);
+
+  const favoriteEvents = useMemo(() => {
+    if (!isComedianView || favoriteEventIds.length === 0) return [] as IEvent[];
+    const favoriteSet = favoriteIdsSet;
+    return comedianVisibleEvents.filter(event => favoriteSet.has(event._id));
+  }, [isComedianView, favoriteEventIds, favoriteIdsSet, comedianVisibleEvents]);
+
   const getFilteredUpcomingEvents = () => {
     const base = upcomingEventsForApply;
     if (completionFilter === 'all') return base;
@@ -381,9 +596,232 @@ function MyEventsPage() {
     return base;
   };
 
-  const handleCardClick = (event: IEvent) => {
+  const filteredUpcomingEvents = useMemo(
+    () => getFilteredUpcomingEvents(),
+    [completionFilter, upcomingEventsForApply]
+  );
+
+  const completedUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter(event => isEventComplete(event));
+  }, [upcomingEvents]);
+
+  const incompleteUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter(event => !isEventComplete(event));
+  }, [upcomingEvents]);
+  const eventsToDisplay = useMemo(() => {
+    if (isComedianView) {
+      switch (comedianTab) {
+        case 'accepted':
+          return acceptedUpcomingEvents;
+        case 'pending':
+          return pendingApplicationEvents;
+        case 'rejected':
+          return rejectedApplicationEvents;
+        case 'favorites':
+          return favoriteEvents;
+        default:
+          return filteredUpcomingEvents;
+      }
+    }
+
+    if (isSuperAdminView) {
+      switch (superAdminTab) {
+        case 'upcoming':
+          return incompleteUpcomingEvents;
+        case 'completed':
+          return completedUpcomingEvents;
+        case 'archived':
+          return archivedEventsToShow;
+        case 'cancelled':
+          return cancelledEvents;
+        default:
+          return incompleteUpcomingEvents;
+      }
+    }
+
+    return filteredUpcomingEvents;
+  }, [
+    isComedianView,
+    isSuperAdminView,
+    superAdminTab,
+    comedianTab,
+    filteredUpcomingEvents,
+    acceptedUpcomingEvents,
+    pendingApplicationEvents,
+    rejectedApplicationEvents,
+    favoriteEvents,
+    incompleteUpcomingEvents,
+    completedUpcomingEvents,
+    archivedEventsToShow,
+    cancelledEvents,
+  ]);
+
+  const comedianTabCounts: Record<ComedianTab, number> = useMemo(() => ({
+    opportunities: filteredUpcomingEvents.length,
+    accepted: acceptedUpcomingEvents.length,
+    pending: pendingApplicationEvents.length,
+    rejected: rejectedApplicationEvents.length,
+    favorites: favoriteEvents.length,
+  }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
+
+  const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
+    upcoming: filteredUpcomingEvents.length,
+    completed: completedUpcomingEvents.length,
+    archived: archivedEventsToShow.length,
+    cancelled: cancelledEvents.length,
+  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+
+  const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
+    completed: completedUpcomingEvents.length,
+    upcoming: incompleteUpcomingEvents.length,
+    archived: archivedEventsToShow.length,
+    cancelled: cancelledEvents.length,
+  }), [completedUpcomingEvents, incompleteUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+
+  const comedianTabTitles: Record<ComedianTab, string> = {
+    opportunities: 'Opportunités à venir (pour postuler)',
+    accepted: 'Événements acceptés',
+    pending: 'Candidatures en attente',
+    rejected: 'Candidatures refusées',
+    favorites: 'Mes favoris',
+  };
+
+  const organizerTabTitles: Record<OrganizerTab, string> = {
+    upcoming: 'Événements à venir',
+    completed: 'Événements complets',
+    archived: 'Événements archivés',
+    cancelled: 'Événements annulés',
+  };
+
+  const superAdminTabTitles: Record<SuperAdminTab, string> = {
+    completed: 'Événements complets',
+    upcoming: 'Événements à venir (non complets)',
+    archived: 'Événements archivés',
+    cancelled: 'Événements annulés',
+  };
+
+  const comedianEmptyStates: Record<ComedianTab, string> = {
+    opportunities: 'Aucune opportunité disponible pour le moment.',
+    accepted: 'Aucun événement accepté à venir.',
+    pending: 'Aucune candidature en attente.',
+    rejected: 'Aucune candidature refusée.',
+    favorites: 'Aucun événement en favori.',
+  };
+
+  const isOpportunitiesTab = comedianTab === 'opportunities';
+  const isFavoritesTab = comedianTab === 'favorites';
+
+  const listIsLoading = isComedianView
+    ? (isFavoritesTab ? eventsLoading : (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading))
+    : eventsLoading;
+
+  const listHasError = isComedianView
+    ? (isFavoritesTab ? eventsError : (isOpportunitiesTab ? eventsError : comedianApplicationsError))
+    : eventsError;
+
+  const listErrorMessage = isComedianView
+    ? (isFavoritesTab ? eventsErrorMessage?.message : (isOpportunitiesTab ? eventsErrorMessage?.message : comedianApplicationsErrorMessage?.message))
+    : eventsErrorMessage?.message;
+
+  const showOrganizerUpcomingSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'upcoming') ||
+    (isSuperAdminView && superAdminTab === 'upcoming')
+  );
+  const showCompletedSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'completed') ||
+    (isSuperAdminView && superAdminTab === 'completed')
+  );
+  const showArchivedSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'archived') ||
+    (isSuperAdminView && superAdminTab === 'archived')
+  );
+  const showCancelledSection = !isComedianView && (
+    (isOrganizerView && organizerTab === 'cancelled') ||
+    (isSuperAdminView && superAdminTab === 'cancelled')
+  );
+
+  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'completed' | 'archived') => {
+    if (user?.role !== 'ORGANIZER') {
+      return null;
+    }
+
+    if (context === 'archived') {
+      return (
+        <div style={cardActionStackStyle}>
+          <button
+            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+              e.stopPropagation();
+              handleCardClick(event, true);
+            }}
+            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
+          >
+            Gérer absences
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div style={cardActionStackStyle}>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
+          style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+        >
+          Modifier
+        </button>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
+          style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
+          disabled={notifyingEventId === event._id}
+        >
+          {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
+        </button>
+        <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
+          style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
+        >
+          Annuler
+        </button>
+      </div>
+    );
+  };
+
+  const totalUpcomingPages = Math.max(1, Math.ceil(eventsToDisplay.length / ITEMS_PER_PAGE));
+  const paginatedUpcomingEvents = eventsToDisplay.slice(
+    (upcomingPage - 1) * ITEMS_PER_PAGE,
+    upcomingPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setUpcomingPage(1);
+  }, [eventsToDisplay]);
+
+  useEffect(() => {
+    if (upcomingPage > totalUpcomingPages) {
+      setUpcomingPage(totalUpcomingPages);
+    }
+  }, [upcomingPage, totalUpcomingPages]);
+
+  const totalCompletedPages = Math.max(1, Math.ceil(completedUpcomingEvents.length / ITEMS_PER_PAGE));
+  const paginatedCompletedEvents = completedUpcomingEvents.slice(
+    (completedPage - 1) * ITEMS_PER_PAGE,
+    completedPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCompletedPage(1);
+  }, [completedUpcomingEvents]);
+
+  useEffect(() => {
+    if (completedPage > totalCompletedPages) {
+      setCompletedPage(totalCompletedPages);
+    }
+  }, [completedPage, totalCompletedPages]);
+
+  const handleCardClick = (event: IEvent, shouldFocusParticipants = false) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
+    setFocusParticipantsSection(shouldFocusParticipants);
     // Charger les absences si l'utilisateur est organisateur
     if (user?.role === 'ORGANIZER') {
       loadEventAbsences(event._id);
@@ -441,6 +879,7 @@ function MyEventsPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedEvent(null);
+    setFocusParticipantsSection(false);
   };
 
   const handleComedianClick = (comedian: any) => {
@@ -473,6 +912,17 @@ function MyEventsPage() {
     refetch(); // Refetch events to update counts/status if needed
     refreshUser();
     queryClient.invalidateQueries({ queryKey: ['comedianApplications'] }); // Force refresh des candidatures humoriste
+  };
+
+  const applyKeywordSearch = () => {
+    const params = new URLSearchParams(location.search);
+    const trimmed = searchTerm.trim();
+    if (trimmed) {
+      params.set('search', trimmed);
+    } else {
+      params.delete('search');
+    }
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
   
@@ -739,46 +1189,194 @@ function MyEventsPage() {
     fontSize: '1.1em',
   };
 
-  const eventCardStyle: CSSProperties = {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: '8px',
-    padding: '20px',
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
-    border: '1px solid #444',
-    marginBottom: '15px',
-    cursor: 'pointer',
+  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
+  const superAdminTabs: SuperAdminTab[] = ['completed', 'upcoming', 'archived', 'cancelled'];
+
+  const comedianTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '20px',
   };
 
-  const eventTitleStyle: CSSProperties = {
-    fontSize: '1.5em',
+  const comedianTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    flex: isMobile ? '1 1 45%' : '0 0 auto',
+    minWidth: '140px',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: isActive ? 'rgba(255, 75, 43, 0.25)' : 'rgba(0, 0, 0, 0.35)',
+    color: isActive ? '#ffffff' : '#ddd',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: isActive ? '0 4px 12px rgba(255, 75, 43, 0.25)' : 'none',
+  });
+
+  const comedianTabTitleStyle: CSSProperties = {
+    fontSize: '0.95em',
+    fontWeight: 600,
+  };
+
+  const comedianTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    color: '#ffb3c1',
+  };
+
+  const organizerTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '20px',
+    justifyContent: isMobile ? 'center' : 'flex-start',
+  };
+
+  const organizerTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 18px',
+    borderRadius: '999px',
+    border: isActive ? '1px solid #ff4b2b' : '1px solid rgba(255, 255, 255, 0.25)',
+    backgroundColor: isActive ? 'rgba(255, 75, 43, 0.25)' : 'rgba(0, 0, 0, 0.25)',
+    color: isActive ? '#ffffff' : '#ddd',
+    fontWeight: isActive ? 700 : 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  });
+
+  const organizerTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '999px',
+  };
+
+  const eventCardStyle: CSSProperties = {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: '12px',
+    padding: isMobile ? '16px' : '20px',
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    marginBottom: '15px',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    gap: isMobile ? '16px' : '24px',
+    alignItems: isMobile ? 'flex-start' : 'stretch',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+  };
+
+  const cardContentStyle: CSSProperties = {
+    flex: '1 1 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  };
+
+  const cardHeaderRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    justifyContent: 'space-between',
+    gap: isMobile ? '8px' : '16px',
+  };
+
+  const cardDateBadgeStyle: CSSProperties = {
+    padding: '6px 16px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    fontSize: '0.85em',
+    fontWeight: 600,
     color: '#ffffff',
-    marginBottom: '5px',
+  };
+
+  const cardHeaderActionsStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  };
+
+  const favoriteStarButtonStyle = (isFavorite: boolean): CSSProperties => ({
+    border: 'none',
+    background: 'transparent',
+    color: isFavorite ? '#ffd700' : '#888888',
+    fontSize: '1.4em',
+    cursor: 'pointer',
+    transition: 'color 0.2s ease, transform 0.2s ease',
+    padding: 0,
+    lineHeight: 1,
+  });
+
+  const cardMetaGridStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+    gap: '12px 18px',
+  };
+
+  const cardMetaItemStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  };
+
+  const cardMetaLabelStyle: CSSProperties = {
+    fontSize: '0.72em',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  };
+
+  const cardMetaValueStyle: CSSProperties = {
+    fontSize: '0.95em',
+    color: '#ffffff',
+    fontWeight: 600,
+  };
+
+  const cardStatusBlockStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: isMobile ? 'flex-start' : 'flex-end',
+    justifyContent: 'space-between',
+    gap: '10px',
+    minWidth: isMobile ? 'auto' : '240px',
+  };
+
+  const cardActionStackStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    justifyContent: isMobile ? 'flex-start' : 'flex-end',
+  };
+
+  const statusBadgeStyle: CSSProperties = {
+    padding: '6px 14px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.18)',
+    fontSize: '0.85em',
+    fontWeight: 600,
+    color: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  };
+
+  const renderStatusChip = (label: string, color: string, backgroundColor: string) => (
+    <span style={{ ...statusBadgeStyle, color, backgroundColor }}>{label}</span>
+  );
+
+  const eventTitleStyle: CSSProperties = {
+    fontSize: isMobile ? '1.2em' : '1.45em',
+    color: '#ffffff',
+    margin: 0,
   };
 
   const eventDetailStyle: CSSProperties = {
     fontSize: '0.9em',
     color: '#bbb',
     marginBottom: '3px',
-  };
-
-  const eventStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#ff416c',
-    fontWeight: 'bold',
-  };
-
-  const completionStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#28a745',
-    fontWeight: 'bold',
-    marginTop: '5px',
-  };
-
-  const incompleteStatusStyle: CSSProperties = {
-    fontSize: '0.9em',
-    color: '#ffc107',
-    fontWeight: 'bold',
-    marginTop: '5px',
   };
 
   const modalDetailStyle: CSSProperties = {
@@ -805,13 +1403,6 @@ function MyEventsPage() {
   //   color: '#ffffff',
   //   marginBottom: '3px',
   // };
-
-  const actionButtonContainerStyle: CSSProperties = {
-    marginTop: '15px',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '10px',
-  };
 
   const actionButtonStyleSmall: CSSProperties = {
     padding: '8px 15px',
@@ -844,15 +1435,49 @@ function MyEventsPage() {
     cursor: 'not-allowed',
   };
 
+  const paginationControlsStyle: CSSProperties = {
+    marginTop: '18px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+  };
+
+  const paginationButtonStyle: CSSProperties = {
+    ...actionButtonStyleSmall,
+    backgroundColor: '#2d2d44',
+    padding: '8px 14px',
+    minWidth: '90px',
+  };
+
+  const paginationInfoStyle: CSSProperties = {
+    color: '#aaa',
+    fontWeight: 'bold',
+    fontSize: '0.95em',
+  };
+
+  const organizerMobileButtonAdjustments: CSSProperties = isMobile
+    ? {
+        padding: '6px 10px',
+        fontSize: '0.85em',
+        minWidth: 'auto',
+      }
+    : {};
+
   const translateEventStatus = (status: IEvent['status']) => {
     switch (status) {
       case 'DRAFT':
+      case 'draft':
         return 'Brouillon';
       case 'PUBLISHED':
+      case 'published':
         return 'Publié';
       case 'CANCELLED':
+      case 'cancelled':
         return 'Annulé';
       case 'COMPLETED':
+      case 'completed':
         return 'Terminé';
       default:
         return status;
@@ -949,16 +1574,23 @@ function MyEventsPage() {
 
           {/* Filtres pour super admin */}
           {user?.role === 'SUPER_ADMIN' && (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.4)',
-              padding: '20px',
-              borderRadius: '8px',
-              margin: '20px 0',
-              border: '1px solid #444'
-            }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                padding: '20px',
+                borderRadius: '8px',
+                margin: '0 auto',
+                border: '1px solid #444',
+                width: '100%'
+              }}>
               <h3 style={{ color: '#ff4b2b', marginBottom: '15px', fontSize: '1.2em' }}>Filtres de recherche</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                              <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 320px))',
+                gap: '15px',
+                  justifyContent: isMobile ? 'stretch' : 'center'
+              }}>
+                <div style={{ maxWidth: isMobile ? '100%' : 320 }}>
                 <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
                   Filtrer par organisateur:
                 </label>
@@ -997,43 +1629,71 @@ function MyEventsPage() {
                   ))}
                 </select>
               </div>
-                <div>
+                <div style={{ maxWidth: isMobile ? '100%' : 320 }}>
                   <label style={{ display: 'block', color: '#ffffff', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Filtrer par lieu:
+                    Recherche par mots-clés:
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ville, adresse ou salle..."
-                    value={new URLSearchParams(location.search).get('location') || ''}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const params = new URLSearchParams(location.search);
-                    if (e.target.value) {
-                      params.set('location', e.target.value);
-                    } else {
-                      params.delete('location');
-                    }
-                    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                  }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      border: '1px solid #555',
-                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                      color: '#ffffff',
-                      fontSize: '14px'
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      applyKeywordSearch();
                     }}
-                  />
+                    style={{
+                      display: 'flex',
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: '10px',
+                      alignItems: isMobile ? 'stretch' : 'center'
+                    }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Titre, organisateur, ville..."
+                      value={searchTerm}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                      style={{
+                        flex: isMobile ? undefined : 1,
+                        width: isMobile ? '100%' : undefined,
+                        padding: '10px',
+                        borderRadius: '5px',
+                        border: '1px solid #555',
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        color: '#ffffff',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#ff4b2b',
+                        color: '#fff',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        width: isMobile ? '100%' : 'auto'
+                      }}
+                    >
+                      Rechercher
+                    </button>
+                  </form>
                 </div>
               </div>
-              <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+              <div style={{
+                marginTop: '15px',
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: '10px',
+                alignItems: 'center'
+              }}>
                 <button
-                                  onClick={() => {
-                  const params = new URLSearchParams(location.search);
-                  params.delete('organizer');
-                  params.delete('location');
-                  navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                }}
+                  onClick={() => {
+                    const params = new URLSearchParams(location.search);
+                    params.delete('organizer');
+                    params.delete('search');
+                    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                    setSearchTerm('');
+                  }}
                   style={{
                     padding: '8px 15px',
                     borderRadius: '5px',
@@ -1041,159 +1701,407 @@ function MyEventsPage() {
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
                     color: '#ffffff',
                     cursor: 'pointer',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    width: isMobile ? '100%' : 'auto',
+                    maxWidth: isMobile ? '100%' : 220
                   }}
                 >
                   Réinitialiser les filtres
                 </button>
               </div>
             </div>
+            </div>
           )}
         </>
       )}
 
-      {/* Section Événements acceptés (humoriste) */}
-      {user?.role === 'COMEDIAN' && (
+      {isComedianView ? (
         <div style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>Événements acceptés</h2>
-          {acceptedUpcomingEvents.length === 0 && (
-            <p style={emptyStateStyle}>Aucun événement accepté à venir.</p>
-          )}
-          {acceptedUpcomingEvents.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <h3 style={eventTitleStyle}>{event.title}</h3>
-              <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-              <p style={eventDetailStyle}>Lieu: {(() => {
-                const location = event.location;
-                if (typeof location === 'object' && location !== null) {
-                  const address = location.address || '';
-                  const city = location.city || '';
-                  return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-                }
-                return 'Lieu non spécifié';
-              })()}</p>
-              <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-              <p style={{ ...eventStatusStyle, color: '#28a745' }}>Statut: Accepté</p>
-              <div style={actionButtonContainerStyle}>
-                <button
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
-                  style={deleteButtonStyle}
-                >
-                  Me désinscrire
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
-          <h2 style={sectionTitleStyle}>Événements à venir {user?.role === 'COMEDIAN' ? '(pour postuler)' : ''}</h2>
-          <select
-            value={completionFilter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
-            style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 160 }}
+          <div style={comedianTabsContainerStyle}>
+            {comedianTabs.map((tabId) => (
+              <button
+                key={tabId}
+                style={comedianTabButtonStyle(comedianTab === tabId)}
+                onClick={() => setComedianTab(tabId)}
+              >
+                <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} événement(s)</span>
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: isMobile ? '10px' : '16px',
+              marginBottom: '18px'
+            }}
           >
-            <option value="all">Tous</option>
-            <option value="complete">Complet</option>
-            <option value="incomplete">Non complet</option>
-          </select>
-        </div>
-        {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
-        {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
-        {getFilteredUpcomingEvents().length === 0 && !eventsLoading && !eventsError && (
-          <p style={emptyStateStyle}>Aucun événement à venir pour ce filtre.</p>
-        )}
-        {getFilteredUpcomingEvents().map((event) => (
-          <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-            <h3 style={eventTitleStyle}>{event.title}</h3>
-            <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-            <p style={eventDetailStyle}>Lieu: {(() => {
-              const location = event.location;
-              if (typeof location === 'object' && location !== null) {
-                const address = location.address || '';
-                const city = location.city || '';
-                return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-              }
-              return 'Lieu non spécifié';
-            })()}</p>
-            <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-            <p style={eventStatusStyle}>Statut: {translateEventStatus(event.status)} <span style={{fontSize: '0.8em', color: '#aaa'}}>({event.status})</span></p>
-            {(event.participants?.length || 0) < event.requirements.maxPerformers ? (
-              <p style={incompleteStatusStyle}>Non complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            ) : (
-              <p style={completionStatusStyle}>Complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            )}
-            {user?.role === 'COMEDIAN' && (
-              <div style={actionButtonContainerStyle}>
-                {!appliedEventIds.has(event._id) ? (
-                  <button 
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
-                    style={
-                      (event.participants?.length || 0) >= event.requirements.maxPerformers
-                        ? disabledApplyButtonStyle 
-                        : applyButtonStyle
-                    }
-                    disabled={(event.participants?.length || 0) >= event.requirements.maxPerformers}
-                  >
-                    {(event.participants?.length || 0) >= event.requirements.maxPerformers
-                      ? 'Événement complet'
-                      : 'Postuler'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
-                    style={deleteButtonStyle}
-                  >
-                    Me désinscrire
-                  </button>
-                )}
-                {comedianApplications &&
-                  (() => {
-                    const app = comedianApplications.find(app => app.event && app.event._id === event._id);
-                    if (app) {
-                      let color = '#ffc107';
-                      let label = 'En cours';
-                      if (app.status === 'ACCEPTED') { color = '#28a745'; label = 'Acceptée'; }
-                      if (app.status === 'REJECTED') { color = '#dc3545'; label = 'Refusée'; }
-                      return (
-                        <span style={{ marginLeft: 12, fontWeight: 'bold', color }}>{label}</span>
-                      );
-                    }
-                    return null;
-                  })()
-                }
-              </div>
-            )}
-            {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                  style={editButtonStyle}
-                >
-                  Modifier
-                </button>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8' }}
-                  disabled={notifyingEventId === event._id}
-                >
-                  {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-                </button>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-                  style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d' }}
-                >
-                  Annuler
-                </button>
-              </div>
+            <h2 style={sectionTitleStyle}>{comedianTabTitles[comedianTab]}</h2>
+            {isOpportunitiesTab && (
+              <select
+                value={completionFilter}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+                style={{
+                  marginLeft: isMobile ? 0 : 'auto',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid #444',
+                  background: '#222',
+                  color: '#fff',
+                  minWidth: 160,
+                  width: isMobile ? '100%' : undefined
+                }}
+              >
+                <option value="all">Tous</option>
+                <option value="complete">Complet</option>
+                <option value="incomplete">Non complet</option>
+              </select>
             )}
           </div>
-        ))}
-      </div>
+          {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+          {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+          {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+            <p style={emptyStateStyle}>{comedianEmptyStates[comedianTab]}</p>
+          )}
+          {paginatedUpcomingEvents.map((event) => {
+            const isCompleteEvent = isEventComplete(event);
+            const participantsRatio = getParticipantsRatio(event);
+            const statusLabel = translateEventStatus(event.status);
 
-      {user?.role !== 'COMEDIAN' && (
+            let comedianApplicationChip: React.ReactNode = null;
+            let relatedApplication: IApplication | undefined;
+            if (comedianApplicationsMap.size > 0) {
+              relatedApplication = comedianApplicationsMap.get(event._id);
+              if (relatedApplication) {
+                let color = '#ffc107';
+                let bg = 'rgba(255, 193, 7, 0.18)';
+                let label = 'Candidature: En attente';
+                if (relatedApplication.status === 'ACCEPTED') {
+                  color = '#28a745';
+                  bg = 'rgba(40, 167, 69, 0.18)';
+                  label = 'Candidature: Acceptée';
+                } else if (relatedApplication.status === 'REJECTED') {
+                  color = '#dc3545';
+                  bg = 'rgba(220, 53, 69, 0.2)';
+                  label = 'Candidature: Refusée';
+                }
+                comedianApplicationChip = renderStatusChip(label, color, bg);
+              }
+            }
+
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                    </div>
+                    <div style={cardHeaderActionsStyle}>
+                      <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                      <button
+                        type="button"
+                        aria-label={favoriteIdsSet.has(event._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                        style={favoriteStarButtonStyle(favoriteIdsSet.has(event._id))}
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          e.stopPropagation();
+                          toggleFavoriteEvent(event._id);
+                        }}
+                      >
+                        {favoriteIdsSet.has(event._id) ? '★' : '☆'}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Statut</span>
+                      <span style={cardMetaValueStyle}>{statusLabel}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                  {renderStatusChip(
+                    isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                    isCompleteEvent ? '#28a745' : '#ffc107',
+                    isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                  )}
+                  {comedianApplicationChip}
+                  <div style={cardActionStackStyle}>
+                    {!appliedEventIds.has(event._id) ? (
+                      <button
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
+                        style={
+                          (event.participants?.length || 0) >= event.requirements.maxPerformers
+                            ? disabledApplyButtonStyle
+                            : applyButtonStyle
+                        }
+                        disabled={(event.participants?.length || 0) >= event.requirements.maxPerformers}
+                      >
+                        {(event.participants?.length || 0) >= event.requirements.maxPerformers
+                          ? 'Événement complet'
+                          : 'Postuler'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
+                        style={deleteButtonStyle}
+                      >
+                        Me désinscrire
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={upcomingPage === 1}
+                onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={upcomingPage >= totalUpcomingPages}
+                onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+              >
+                Suivant
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {isOrganizerView && (
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={organizerTabsContainerStyle}>
+                {organizerTabs.map(tabId => (
+                  <button
+                    key={tabId}
+                    style={organizerTabButtonStyle(organizerTab === tabId)}
+                    onClick={() => setOrganizerTab(tabId)}
+                  >
+                    <span>{organizerTabTitles[tabId]}</span>
+                    <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {isSuperAdminView && (
+            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+              <div style={organizerTabsContainerStyle}>
+                {superAdminTabs.map(tabId => (
+                  <button
+                    key={tabId}
+                    style={organizerTabButtonStyle(superAdminTab === tabId)}
+                    onClick={() => setSuperAdminTab(tabId)}
+                  >
+                    <span>{superAdminTabTitles[tabId]}</span>
+                    <span style={organizerTabCountStyle}>{superAdminTabCounts[tabId]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {showOrganizerUpcomingSection && (
+            <div style={sectionStyle}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: isMobile ? 'flex-start' : 'center',
+                  gap: isMobile ? '10px' : '16px',
+                  marginBottom: '18px'
+                }}
+              >
+                <h2 style={sectionTitleStyle}>Événements à venir</h2>
+                {isOrganizerView && (
+                  <select
+                    value={completionFilter}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCompletionFilter(e.target.value as 'all' | 'complete' | 'incomplete')}
+                    style={{
+                      marginLeft: isMobile ? 0 : 'auto',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: '1px solid #444',
+                      background: '#222',
+                      color: '#fff',
+                      minWidth: 160,
+                      width: isMobile ? '100%' : undefined
+                    }}
+                  >
+                    <option value="all">Tous</option>
+                    <option value="complete">Complet</option>
+                    <option value="incomplete">Non complet</option>
+                  </select>
+                )}
+              </div>
+              {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+              {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+                <p style={emptyStateStyle}>
+                  {isOrganizerView ? 'Aucun événement à venir pour ce filtre.' : 'Aucun événement à venir (non complet).'}
+                </p>
+              )}
+              {paginatedUpcomingEvents.map((event) => {
+                const isCompleteEvent = isEventComplete(event);
+                const participantsRatio = getParticipantsRatio(event);
+                const statusLabel = translateEventStatus(event.status);
+
+                return (
+                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                    <div style={cardContentStyle}>
+                      <div style={cardHeaderRowStyle}>
+                        <div>
+                          <h3 style={eventTitleStyle}>{event.title}</h3>
+                        </div>
+                        <div style={cardHeaderActionsStyle}>
+                          <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div style={cardMetaGridStyle}>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Lieu</span>
+                          <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Horaires</span>
+                          <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Statut</span>
+                          <span style={cardMetaValueStyle}>{statusLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={cardStatusBlockStyle}>
+                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                      {renderStatusChip(
+                        isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                        isCompleteEvent ? '#28a745' : '#ffc107',
+                        isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                      )}
+                      {renderOrganizerActions(event, 'upcoming')}
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+                <div style={paginationControlsStyle}>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={upcomingPage === 1}
+                    onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+                  >
+                    Précédent
+                  </button>
+                  <span style={paginationInfoStyle}>
+                    Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+                  </span>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={upcomingPage >= totalUpcomingPages}
+                    onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showCompletedSection && (
+            <div style={sectionStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
+                <h2 style={sectionTitleStyle}>Événements complets</h2>
+              </div>
+              {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
+              {!eventsLoading && !eventsError && completedUpcomingEvents.length === 0 && (
+                <p style={emptyStateStyle}>Aucun événement complet à venir.</p>
+              )}
+              {paginatedCompletedEvents.map((event) => {
+                const participantsRatio = getParticipantsRatio(event);
+                const statusLabel = translateEventStatus(event.status);
+
+                return (
+                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                    <div style={cardContentStyle}>
+                      <div style={cardHeaderRowStyle}>
+                        <div>
+                          <h3 style={eventTitleStyle}>{event.title}</h3>
+                        </div>
+                        <div style={cardHeaderActionsStyle}>
+                          <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div style={cardMetaGridStyle}>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Lieu</span>
+                          <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Horaires</span>
+                          <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                        </div>
+                        <div style={cardMetaItemStyle}>
+                          <span style={cardMetaLabelStyle}>Statut</span>
+                          <span style={cardMetaValueStyle}>{statusLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={cardStatusBlockStyle}>
+                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                      {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
+                      {renderOrganizerActions(event, 'completed')}
+                    </div>
+                  </div>
+                );
+              })}
+              {completedUpcomingEvents.length > ITEMS_PER_PAGE && (
+                <div style={paginationControlsStyle}>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={completedPage === 1}
+                    onClick={() => setCompletedPage(prev => Math.max(1, prev - 1))}
+                  >
+                    Précédent
+                  </button>
+                  <span style={paginationInfoStyle}>
+                    Page {Math.min(completedPage, totalCompletedPages)} / {Math.max(totalCompletedPages, 1)}
+                  </span>
+                  <button
+                    style={paginationButtonStyle}
+                    disabled={completedPage >= totalCompletedPages}
+                    onClick={() => setCompletedPage(prev => Math.min(totalCompletedPages, prev + 1))}
+                  >
+                    Suivant
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {showArchivedSection && (
         <div ref={archivedSectionRef} style={sectionStyle}>
           <h2 style={sectionTitleStyle}>Événements archivés</h2>
           {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
@@ -1201,89 +2109,61 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && archivedEventsToShow.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement archivé.</p>
           )}
-          {archivedEventsToShow.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-            <h3 style={eventTitleStyle}>{event.title}</h3>
-            <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-            <p style={eventDetailStyle}>Lieu: {(() => {
-              const location = event.location;
-              if (typeof location === 'object' && location !== null) {
-                const address = location.address || '';
-                const city = location.city || '';
-                return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-              }
-              return 'Lieu non spécifié';
-            })()}</p>
-            <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-            <p style={eventStatusStyle}>Statut: {translateEventStatus(event.status)} <span style={{fontSize: '0.8em', color: '#aaa'}}>({event.status})</span></p>
-            {new Date(event.date) >= new Date() && (
-              <p style={{...eventDetailStyle, color: '#ffc107', fontWeight: 'bold'}}>⚠️ Événement futur (classé en archive)</p>
-            )}
-            {(event.participants?.length || 0) < event.requirements.maxPerformers ? (
-              <p style={incompleteStatusStyle}>Non complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            ) : (
-              <p style={completionStatusStyle}>Complet ({event.participants?.length || 0}/{event.requirements.maxPerformers})</p>
-            )}
-            {user?.role === 'COMEDIAN' && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
-                  style={{
-                    ...applyButtonStyle,
-                    ...(appliedEventIds.has(event._id) || 
-                        new Date(event.date) < new Date() || 
-                        (event.participants?.length || 0) >= event.requirements.maxPerformers 
-                        ? disabledApplyButtonStyle : {})
-                  }}
-                  disabled={
-                    appliedEventIds.has(event._id) || 
-                    new Date(event.date) < new Date() ||
-                    (event.participants?.length || 0) >= event.requirements.maxPerformers
-                  }
-                >
-                  {appliedEventIds.has(event._id)
-                    ? 'Déjà postulé'
-                    : new Date(event.date) < new Date()
-                      ? 'Candidature fermée'
-                      : (event.participants?.length || 0) >= event.requirements.maxPerformers
-                      ? 'Événement complet'
-                      : 'Postuler'}
-                </button>
-                {comedianApplications &&
-                  (() => {
-                    const app = comedianApplications.find(app => app.event && app.event._id === event._id);
-                    if (app) {
-                      let color = '#ffc107';
-                      let label = 'En cours';
-                      if (app.status === 'ACCEPTED') { color = '#28a745'; label = 'Acceptée'; }
-                      if (app.status === 'REJECTED') { color = '#dc3545'; label = 'Refusée'; }
-                      return (
-                        <span style={{ marginLeft: 12, fontWeight: 'bold', color }}>{label}</span>
-                      );
-                    }
-                    return null;
-                  })()
-                }
-                {new Date(event.date) < new Date() && (
-                  <span style={{ marginLeft: 12, color: '#aaa', fontStyle: 'italic' }}>
-                    Impossible de postuler à un événement passé.
-                  </span>
-                )}
+          {paginatedArchivedEvents.map((event) => {
+            const participantsRatio = getParticipantsRatio(event);
+            const statusLabel = translateEventStatus(event.status);
+            const isFutureButArchived = new Date(event.date) >= new Date();
+
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                    </div>
+                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#4dd0e1', 'rgba(77, 208, 225, 0.18)')}
+                  {renderStatusChip(`Participants: ${participantsRatio}`, '#9b8bff', 'rgba(155, 139, 255, 0.18)')}
+                  {isFutureButArchived && renderStatusChip('Événement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
+                  {renderOrganizerActions(event, 'archived')}
+                </div>
               </div>
-            )}
-            {user?.role === 'ORGANIZER' && upcomingEvents.includes(event) && (
-              <div style={actionButtonContainerStyle}>
-                <button 
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-                  style={editButtonStyle}
-                >
-                  Modifier
-                </button>
-                
-              </div>
-            )}
+            );
+          })}
+          {archivedEventsToShow.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={archivedPage === 1}
+                onClick={() => setArchivedPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(archivedPage, totalArchivedPages)} / {Math.max(totalArchivedPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={archivedPage >= totalArchivedPages}
+                onClick={() => setArchivedPage(prev => Math.min(totalArchivedPages, prev + 1))}
+              >
+                Suivant
+              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -1322,7 +2202,7 @@ function MyEventsPage() {
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements.duration} min</span></p>
 
             {user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN' ? (
-              <>
+              <div ref={participantsSectionRef}>
                 <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                   Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements.maxPerformers})
                 </h3>
@@ -1433,7 +2313,7 @@ function MyEventsPage() {
                 ) : (
                   <p style={modalValueStyle}>Aucun participant pour l'instant.</p>
                 )}
-              </>
+              </div>
             ) : (
               <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                 Participants attendus ({selectedEvent.requirements.maxPerformers})
@@ -1462,8 +2342,8 @@ function MyEventsPage() {
         )}
       </Modal>
 
-      {/* Section Événements annulés (organisateur et super admin) */}
-      {user?.role !== 'COMEDIAN' && (
+      {/* Section Événements annulés */}
+      {showCancelledSection && (
         <div ref={cancelledSectionRef} style={sectionStyle}>
           <h2 style={sectionTitleStyle}>Événements annulés</h2>
           {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
@@ -1471,28 +2351,62 @@ function MyEventsPage() {
           {!eventsLoading && !eventsError && cancelledEvents.length === 0 && (
             <p style={emptyStateStyle}>Aucun événement annulé.</p>
           )}
-          {cancelledEvents.map((event) => (
-            <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-              <h3 style={eventTitleStyle}>{event.title}</h3>
-              <p style={eventDetailStyle}>Date: {new Date(event.date).toLocaleDateString()}</p>
-              <p style={eventDetailStyle}>Lieu: {(() => {
-                const location = event.location;
-                if (typeof location === 'object' && location !== null) {
-                  const address = location.address || '';
-                  const city = location.city || '';
-                  return `${address}${address && city ? ', ' : ''}${city}`.trim() || 'Lieu non spécifié';
-                }
-                return 'Lieu non spécifié';
-              })()}</p>
-              <p style={eventDetailStyle}>Organisateur: {getOrganizerName(event.organizer)}</p>
-              <p style={{ ...eventStatusStyle, color: '#dc3545' }}>Statut: Annulé</p>
-              {event.cancellationReason && (
-                <p style={{ ...eventDetailStyle, marginTop: 6 }}>
-                  <span style={{ fontWeight: 'bold', color: '#ff4b2b' }}>Raison:</span> {event.cancellationReason}
-                </p>
-              )}
+          {paginatedCancelledEvents.map((event) => {
+            const statusLabel = translateEventStatus(event.status);
+            const reason = event.cancellationReason;
+
+            return (
+              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                <div style={cardContentStyle}>
+                  <div style={cardHeaderRowStyle}>
+                    <div>
+                      <h3 style={eventTitleStyle}>{event.title}</h3>
+                    </div>
+                    <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                  <div style={cardMetaGridStyle}>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Lieu</span>
+                      <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                    </div>
+                    <div style={cardMetaItemStyle}>
+                      <span style={cardMetaLabelStyle}>Horaires</span>
+                      <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                    </div>
+                  </div>
+                  {reason && (
+                    <p style={{ ...eventDetailStyle, marginTop: 8, color: '#ffb199' }}>
+                      <span style={{ fontWeight: 'bold', color: '#ff4b2b' }}>Raison:</span> {reason}
+                    </p>
+                  )}
+                </div>
+                <div style={cardStatusBlockStyle}>
+                  {renderStatusChip(`Statut: ${statusLabel}`, '#dc3545', 'rgba(220, 53, 69, 0.18)')}
+                </div>
+              </div>
+            );
+          })}
+          {cancelledEvents.length > ITEMS_PER_PAGE && (
+            <div style={paginationControlsStyle}>
+              <button
+                style={paginationButtonStyle}
+                disabled={cancelledPage === 1}
+                onClick={() => setCancelledPage(prev => Math.max(1, prev - 1))}
+              >
+                Précédent
+              </button>
+              <span style={paginationInfoStyle}>
+                Page {Math.min(cancelledPage, totalCancelledPages)} / {Math.max(totalCancelledPages, 1)}
+              </span>
+              <button
+                style={paginationButtonStyle}
+                disabled={cancelledPage >= totalCancelledPages}
+                onClick={() => setCancelledPage(prev => Math.min(totalCancelledPages, prev + 1))}
+              >
+                Suivant
+              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
 

@@ -10,12 +10,33 @@ interface EditOrganizerProfileFormProps {
   onSaveSuccess: () => void;
 }
 
+type OrganizerFormData = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+  organizerProfile: {
+    companyName: string;
+    description: string;
+    website: string;
+    venueTypes: string;
+    eventFrequency: string;
+    phone: string;
+    location: {
+      city: string;
+      postalCode: string;
+      address: string;
+    };
+  };
+};
+
 function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditOrganizerProfileFormProps) {
   const { token, isLoading } = useAuth();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<OrganizerFormData>({
     firstName: currentUser.firstName || '',
     lastName: currentUser.lastName || '',
     email: currentUser.email || '',
+    avatarUrl: currentUser.avatarUrl || null,
     organizerProfile: {
       companyName: currentUser.organizerProfile?.companyName || '',
       description: currentUser.organizerProfile?.description || '',
@@ -30,6 +51,8 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       },
     },
   });
+  const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -37,6 +60,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         firstName: currentUser.firstName || '',
         lastName: currentUser.lastName || '',
         email: currentUser.email || '',
+        avatarUrl: currentUser.avatarUrl || null,
         organizerProfile: {
           companyName: currentUser.organizerProfile?.companyName || '',
           description: currentUser.organizerProfile?.description || '',
@@ -51,8 +75,37 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
           },
         },
       });
+      setPreviewImage(currentUser.avatarUrl || null);
+      setAvatarRemoved(false);
     }
   }, [currentUser]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("L'image est trop grande (max 5MB).");
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      alert('Merci de sélectionner un fichier image.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setPreviewImage(base64String);
+      setFormData(prev => ({ ...prev, avatarUrl: base64String }));
+      setAvatarRemoved(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setPreviewImage(null);
+    setFormData(prev => ({ ...prev, avatarUrl: null }));
+    setAvatarRemoved(true);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
@@ -101,6 +154,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
+        avatarUrl: avatarRemoved ? null : formData.avatarUrl,
         organizerProfile: {
           companyName: formData.organizerProfile.companyName,
           description: formData.organizerProfile.description,
@@ -260,6 +314,58 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         <button onClick={onClose} style={closeButtonStyle}>&times;</button>
         <h2 style={titleStyle}>Modifier le Profil Organisateur</h2>
         <form onSubmit={handleSubmit}>
+          <h3 style={{ color: '#ff4b2b', marginBottom: '15px' }}>Photo de profil</h3>
+          {previewImage && (
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              <img
+                src={previewImage}
+                alt="Aperçu"
+                style={{
+                  width: '110px',
+                  height: '110px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid #ff416c',
+                }}
+              />
+            </div>
+          )}
+          {(previewImage || (!previewImage && !avatarRemoved && currentUser?.avatarUrl)) && (
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              style={{
+                marginBottom: '15px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                color: '#ffb3b3',
+                cursor: 'pointer',
+              }}
+            >
+              Supprimer la photo
+            </button>
+          )}
+          <div style={{ marginBottom: '20px' }}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '5px',
+                border: '1px solid #444',
+                backgroundColor: '#333',
+                color: '#fff',
+                cursor: 'pointer',
+              }}
+            />
+            <p style={{ fontSize: '0.85em', color: '#aaa', marginTop: '5px' }}>
+              Formats acceptés: JPG, PNG, GIF (max 5MB)
+            </p>
+          </div>
           {/* Informations personnelles */}
           <h3 style={{ color: '#ff4b2b', marginBottom: '15px' }}>Informations personnelles</h3>
           <div style={twoColumnLayout}>

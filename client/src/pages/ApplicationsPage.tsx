@@ -1,4 +1,4 @@
-import { type CSSProperties, useState, useEffect, useRef } from 'react';
+import { type CSSProperties, useState, useEffect, useRef, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -11,6 +11,7 @@ export interface IUser {
   lastName: string;
   email: string;
   phone?: string;
+  avatarUrl?: string | null;
   profile?: { bio?: string; experience?: number; speciality?: string; }; // Ajoutez d'autres champs si nécessaires
 }
 
@@ -40,6 +41,11 @@ export interface IApplication {
   createdAt: string;
 }
 
+type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
+type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
+
+const ORGANIZER_FAVORITES_STORAGE_PREFIX = 'organizerFavoriteApplications';
+
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
   const [applications, setApplications] = useState<IApplication[]>([]);
@@ -49,7 +55,8 @@ function ApplicationsPage() {
   const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] = useState<IApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED'>('all');
+  const [selectedTab, setSelectedTab] = useState<OrganizerApplicationTab>('all');
+  const [comedianTab, setComedianTab] = useState<ComedianApplicationTab>('accepted');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusToSet, setStatusToSet] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
   const [statusAppId, setStatusAppId] = useState<string | null>(null);
@@ -65,6 +72,39 @@ function ApplicationsPage() {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 768;
   });
+  const [favoriteApplicationIds, setFavoriteApplicationIds] = useState<string[]>([]);
+  const favoriteApplicationIdsSet = useMemo(
+    () => new Set(favoriteApplicationIds),
+    [favoriteApplicationIds]
+  );
+  const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
+
+  const toggleFavoriteApplication = (appId: string) => {
+    if (!isOrganizerView) return;
+    setFavoriteApplicationIds(prev => {
+      const updated = new Set(prev);
+      if (updated.has(appId)) {
+        updated.delete(appId);
+      } else {
+        updated.add(appId);
+      }
+      const next = Array.from(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            getOrganizerFavoriteStorageKey(user?._id),
+            JSON.stringify(next)
+          );
+        } catch (err) {
+          console.error('Erreur lors de la sauvegarde des favoris organisateur:', err);
+        }
+      }
+      return next;
+    });
+  };
+  const isOrganizerView = user?.role === 'ORGANIZER';
+  const getOrganizerFavoriteStorageKey = (userId?: string) =>
+    `${ORGANIZER_FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
 
   useEffect(() => {
     const handleResize = () => {
@@ -76,17 +116,41 @@ function ApplicationsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOrganizerView) {
+      setFavoriteApplicationIds([]);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(getOrganizerFavoriteStorageKey(user?._id));
+      setFavoriteApplicationIds(stored ? JSON.parse(stored) : []);
+    } catch (err) {
+      console.error('Erreur lors du chargement des favoris organisateur:', err);
+      setFavoriteApplicationIds([]);
+    }
+  }, [isOrganizerView, user?._id]);
+
   const getStatusFromUrlOrTab = () => {
     const queryParams = new URLSearchParams(location.search);
     const statusParam = queryParams.get('status');
+    if (statusParam === 'favorites') {
+      return 'favorites';
+    }
     if (statusParam && ['PENDING', 'ACCEPTED', 'REJECTED'].includes(statusParam)) {
-      return statusParam as 'PENDING' | 'ACCEPTED' | 'REJECTED';
+      return statusParam as OrganizerApplicationTab;
     }
     return 'all';
   };
 
   useEffect(() => {
     setSelectedTab(getStatusFromUrlOrTab());
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const appIdParam = params.get('applicationId');
+    setApplicationIdFromUrl(appIdParam);
   }, [location.search]);
 
   // Affichage message après action email (?update=kept|withdrawn)
@@ -133,6 +197,15 @@ function ApplicationsPage() {
     fetchApplications();
   }, [token, selectedTab, selectedEventId]);
 
+  useEffect(() => {
+    if (!applicationIdFromUrl) return;
+    const found = applications.find(app => app._id === applicationIdFromUrl);
+    if (found) {
+      setSelectedApplication(found);
+      setIsModalOpen(true);
+    }
+  }, [applicationIdFromUrl, applications]);
+
   // Charger les événements de l'organisateur pour le sélecteur
   useEffect(() => {
     const loadOrganizerEvents = async () => {
@@ -170,6 +243,20 @@ function ApplicationsPage() {
     currentPage * ITEMS_PER_PAGE
   );
 
+  const clearApplicationParam = () => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('applicationId')) return;
+    params.delete('applicationId');
+    const newSearch = params.toString();
+    navigate(newSearch ? `${location.pathname}?${newSearch}` : location.pathname, { replace: true });
+  };
+
+  const closeApplicationModal = () => {
+    setIsModalOpen(false);
+    setSelectedApplication(null);
+    clearApplicationParam();
+  };
+
   const openStatusModal = (appId: string, status: 'ACCEPTED' | 'REJECTED') => {
     setStatusAppId(appId);
     setStatusToSet(status);
@@ -204,10 +291,12 @@ function ApplicationsPage() {
     }
   };
 
-  const handleTabChange = (status: 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED') => {
+  const handleTabChange = (status: OrganizerApplicationTab) => {
     setSelectedTab(status);
     if (status === 'all') {
       navigate('/applications');
+    } else if (status === 'favorites') {
+      navigate('/applications?status=favorites');
     } else {
       navigate(`/applications?status=${status}`);
     }
@@ -224,7 +313,7 @@ function ApplicationsPage() {
   // Fonction de filtrage combinée
   function getFilteredApplications(): IApplication[] {
     let filtered = applications;
-    if (selectedTab !== 'all') {
+    if (selectedTab !== 'all' && selectedTab !== 'favorites') {
       filtered = filtered.filter(app => app.status === selectedTab);
     }
     // Filtre par humoriste: seulement utile côté ORGANIZER
@@ -255,13 +344,156 @@ function ApplicationsPage() {
       }
       return 0;
     });
-    return sorted;
+    const withFavoritesFilter = selectedTab === 'favorites'
+      ? sorted.filter(app => favoriteApplicationIdsSet.has(app._id))
+      : sorted;
+
+    return withFavoritesFilter;
   }
+
+  // Fonctions de filtrage pour les onglets humoriste
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const isEventUpcoming = (eventDate: string): boolean => {
+    if (!eventDate) return false;
+    const eventDateObj = new Date(eventDate);
+    eventDateObj.setHours(0, 0, 0, 0);
+    return eventDateObj >= todayMidnight;
+  };
+
+  const isEventPast = (eventDate: string): boolean => {
+    if (!eventDate) return false;
+    const eventDateObj = new Date(eventDate);
+    eventDateObj.setHours(0, 0, 0, 0);
+    return eventDateObj < todayMidnight;
+  };
+
+  const getComedianFilteredApplications = (): IApplication[] => {
+    const base = applications.filter(app => app.event);
+    
+    switch (comedianTab) {
+      case 'accepted':
+        // Événements à venir + statut ACCEPTED
+        return base.filter(app => 
+          app.status === 'ACCEPTED' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'pending':
+        // Événements à venir + statut PENDING
+        return base.filter(app => 
+          app.status === 'PENDING' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'rejected':
+        // Événements à venir + statut REJECTED
+        return base.filter(app => 
+          app.status === 'REJECTED' && 
+          app.event?.date && 
+          isEventUpcoming(app.event.date)
+        );
+      
+      case 'archived':
+        // Événements dans le passé + tous les statuts (sauf PENDING)
+        return base.filter(app => 
+          app.event?.date && 
+          isEventPast(app.event.date) &&
+          app.status !== 'PENDING'
+        );
+      
+      case 'cancelled':
+        // Statut événement CANCELLED
+        return base.filter(app => 
+          app.event?.status === 'CANCELLED'
+        );
+      
+      default:
+        return [];
+    }
+  };
+
+  const comedianFilteredApplications = user?.role === 'COMEDIAN' 
+    ? getComedianFilteredApplications() 
+    : [];
+
+  const comedianTabCounts = {
+    accepted: applications.filter(app => 
+      app.status === 'ACCEPTED' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    pending: applications.filter(app => 
+      app.status === 'PENDING' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    rejected: applications.filter(app => 
+      app.status === 'REJECTED' && 
+      app.event?.date && 
+      isEventUpcoming(app.event.date)
+    ).length,
+    archived: applications.filter(app => 
+      app.event?.date && 
+      isEventPast(app.event.date) &&
+      app.status !== 'PENDING'
+    ).length,
+    cancelled: applications.filter(app => 
+      app.event?.status === 'CANCELLED'
+    ).length,
+  };
+
+  const comedianTabTitles: Record<ComedianApplicationTab, string> = {
+    accepted: 'Acceptées',
+    pending: 'En attente',
+    rejected: 'Refusées',
+    archived: 'Archivées',
+    cancelled: 'Annulées',
+  };
+
+  const comedianEmptyStates: Record<ComedianApplicationTab, string> = {
+    accepted: 'Aucune candidature acceptée à venir.',
+    pending: 'Aucune candidature en attente.',
+    rejected: 'Aucune candidature refusée à venir.',
+    archived: 'Aucune candidature archivée.',
+    cancelled: 'Aucun événement annulé.',
+  };
+
+  // Pagination pour les candidatures humoriste
+  const totalComedianPages = Math.max(1, Math.ceil(comedianFilteredApplications.length / ITEMS_PER_PAGE));
+  const [comedianPage, setComedianPage] = useState(1);
+
+  useEffect(() => {
+    setComedianPage(1);
+  }, [comedianTab]);
+
+  useEffect(() => {
+    if (comedianPage > totalComedianPages) {
+      setComedianPage(totalComedianPages);
+    }
+  }, [comedianPage, totalComedianPages]);
+
+  const paginatedComedianApplications = comedianFilteredApplications.slice(
+    (comedianPage - 1) * ITEMS_PER_PAGE,
+    comedianPage * ITEMS_PER_PAGE
+  );
 
   const allApplicationsCount = applications.length;
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
   const acceptedApplicationsCount = applications.filter(app => app.status === 'ACCEPTED').length;
   const rejectedApplicationsCount = applications.filter(app => app.status === 'REJECTED').length;
+  const favoriteApplicationsCount = applications.filter(app => favoriteApplicationIdsSet.has(app._id)).length;
+
+  const organizerTabsConfig: Array<{ id: OrganizerApplicationTab; label: string; count: number }> = [
+    { id: 'all', label: 'Toutes', count: allApplicationsCount },
+    { id: 'PENDING', label: 'En attente', count: pendingApplicationsCount },
+    { id: 'ACCEPTED', label: 'Acceptées', count: acceptedApplicationsCount },
+    { id: 'REJECTED', label: 'Refusées', count: rejectedApplicationsCount },
+    { id: 'favorites', label: 'Favoris', count: favoriteApplicationsCount },
+  ];
 
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
@@ -367,6 +599,7 @@ function ApplicationsPage() {
     fontSize: '1.2em',
     textTransform: 'uppercase',
     flexShrink: 0,
+    overflow: 'hidden'
   };
 
   const comedianNameTextStyle: CSSProperties = {
@@ -442,6 +675,48 @@ function ApplicationsPage() {
     justifyContent: isMobile ? 'space-between' : 'flex-end',
   };
 
+  const comedianApplicationRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    gap: isMobile ? '12px' : '20px',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    width: '100%',
+  };
+
+  const comedianApplicationInfoStyle: CSSProperties = {
+    flex: '1 1 auto',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  };
+
+  const comedianApplicationTitleRowStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'flex-start' : 'center',
+    gap: '8px',
+  };
+
+  const comedianApplicationDateBadgeStyle: CSSProperties = {
+    padding: '4px 12px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    color: '#fff',
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    whiteSpace: 'nowrap',
+  };
+
+  const comedianApplicationStatusStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    flexShrink: 0,
+    alignItems: isMobile ? 'stretch' : 'flex-end',
+    width: isMobile ? '100%' : 'auto',
+  };
+
   const statusBadgeStyle = (status: IApplication['status']): CSSProperties => {
     let backgroundColor = '';
     let color = '#ffffff';
@@ -455,7 +730,8 @@ function ApplicationsPage() {
         color = '#28a745'; // texte vert
         break;
       case 'REJECTED':
-        backgroundColor = '#dc3545'; // red
+        backgroundColor = 'transparent'; // pas de fond rouge
+        color = '#dc3545'; // texte rouge
         break;
       default:
         backgroundColor = '#6c757d'; // gray
@@ -464,8 +740,8 @@ function ApplicationsPage() {
       display: 'inline-block',
       padding: '6px 12px',
       borderRadius: '6px',
-      backgroundColor: status === 'ACCEPTED' ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED
-      color: status === 'ACCEPTED' ? '#28a745' : color, // Force vert pour ACCEPTED
+      backgroundColor: (status === 'ACCEPTED' || status === 'REJECTED') ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED et REJECTED
+      color: status === 'ACCEPTED' ? '#28a745' : (status === 'REJECTED' ? '#dc3545' : color), // Force vert pour ACCEPTED, rouge pour REJECTED
       fontWeight: 'bold',
       fontSize: '0.9em',
       border: status === 'ACCEPTED' ? 'none' : undefined, // Pas de bordure pour ACCEPTED
@@ -515,29 +791,56 @@ function ApplicationsPage() {
     flex: isMobile ? 1 : undefined,
   };
 
-  const handleViewComedianProfile = (e: React.MouseEvent<HTMLButtonElement>, comedianId: string) => {
+  const handleViewComedianProfile = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    comedianId: string,
+    applicationId?: string
+  ) => {
     e.stopPropagation();
-    // Naviguer vers la page de profil de l'humoriste
-    navigate(`/profile/comedian/${comedianId}`);
+    const params = new URLSearchParams();
+    params.set('from', 'applications');
+    if (applicationId) {
+      params.set('applicationId', applicationId);
+    }
+    navigate(`/profile/comedian/${comedianId}?${params.toString()}`);
   };
 
-  const tabButtonStyle: CSSProperties = {
-    padding: '10px 15px',
-    borderRadius: '20px',
-    border: 'none',
-    background: '#331f41',
-    color: '#ffffff',
-    fontSize: '1em',
+  const organizerTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    paddingBottom: '12px',
+  };
+
+  const organizerTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 18px',
+    borderRadius: '999px',
+    border: isActive ? '1px solid #ff4b2b' : '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: isActive ? 'rgba(255, 65, 108, 0.15)' : 'rgba(0, 0, 0, 0.25)',
+    color: isActive ? '#ff4b2b' : '#ddd',
+    fontWeight: isActive ? 700 : 500,
     cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'background-color 0.3s ease',
-    minWidth: '120px',
-    textAlign: 'center',
+    transition: 'all 0.2s ease',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  });
+
+  const organizerTabCountStyle: CSSProperties = {
+    fontSize: '0.85em',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '999px',
   };
 
-  const activeTabButtonStyle: CSSProperties = {
-    ...tabButtonStyle,
-    background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+  const filtersRowStyle: CSSProperties = {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   };
 
   const paginationContainerStyle: CSSProperties = {
@@ -567,6 +870,52 @@ function ApplicationsPage() {
     fontWeight: 600,
   };
 
+  const favoriteStarButtonStyle = (isActive: boolean): CSSProperties => ({
+    background: 'none',
+    border: 'none',
+    color: isActive ? '#ffd700' : '#bbb',
+    fontSize: '1.4em',
+    cursor: 'pointer',
+    padding: 0,
+    lineHeight: 1,
+    transition: 'color 0.2s ease, transform 0.2s ease',
+  });
+
+  // Styles pour les onglets humoriste
+  const comedianTabsContainerStyle: CSSProperties = {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
+    paddingBottom: '10px',
+  };
+
+  const comedianTabButtonStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 16px',
+    borderRadius: '8px 8px 0 0',
+    border: 'none',
+    backgroundColor: isActive ? 'rgba(255, 65, 108, 0.2)' : 'transparent',
+    color: isActive ? '#ff416c' : '#aaa',
+    fontWeight: isActive ? 'bold' : 'normal',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    borderBottom: isActive ? '2px solid #ff416c' : '2px solid transparent',
+    fontSize: '0.95em',
+  });
+
+  const comedianTabTitleStyle: CSSProperties = {
+    display: 'block',
+    fontSize: '1em',
+  };
+
+  const comedianTabCountStyle: CSSProperties = {
+    display: 'block',
+    fontSize: '0.85em',
+    opacity: 0.8,
+    marginTop: '2px',
+  };
+
   // Détermine si l'événement a été modifié par l'organisateur
   const wasEventUpdatedAfterApplication = (app: IApplication): boolean => {
     // Utiliser le champ modifiedByOrganizer qui est défini uniquement lors de vraies modifications
@@ -588,65 +937,71 @@ function ApplicationsPage() {
       </div>
 
       <div style={contentContainerStyle}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-          {/* Onglets de statut */}
-          <button 
-            style={selectedTab === 'all' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('all')}
-          >
-            Toutes ({allApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'PENDING' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('PENDING')}
-          >
-            En attente ({pendingApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'ACCEPTED' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('ACCEPTED')}
-          >
-            Acceptées ({acceptedApplicationsCount})
-          </button>
-          <button 
-            style={selectedTab === 'REJECTED' ? activeTabButtonStyle : tabButtonStyle}
-            onClick={() => handleTabChange('REJECTED')}
-          >
-            Refusées ({rejectedApplicationsCount})
-          </button>
+        {/* Onglets pour humoriste */}
+        {user?.role === 'COMEDIAN' && (
+          <div style={comedianTabsContainerStyle}>
+            {(['accepted', 'pending', 'rejected', 'archived', 'cancelled'] as ComedianApplicationTab[]).map((tabId) => (
+              <button
+                key={tabId}
+                style={comedianTabButtonStyle(comedianTab === tabId)}
+                onClick={() => setComedianTab(tabId)}
+              >
+                <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} candidature(s)</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Onglets pour organisateur */}
+        {user?.role === 'ORGANIZER' && (
+          <div style={organizerTabsContainerStyle}>
+            {organizerTabsConfig.map(tab => (
+              <button
+                key={tab.id}
+                style={organizerTabButtonStyle(selectedTab === tab.id)}
+                onClick={() => handleTabChange(tab.id)}
+              >
+                <span>{tab.label}</span>
+                <span style={organizerTabCountStyle}>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={filtersRowStyle}>
           {/* Menu déroulant de filtrage par humoriste (ORGANIZER uniquement) */}
           {user?.role === 'ORGANIZER' && (
-            <select
-              value={comedianFilter}
-              onChange={e => setComedianFilter(e.target.value)}
-              style={{ marginLeft: 'auto', padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 180 }}
-            >
-              <option value="all">Tous les humoristes</option>
-              {uniqueComedians.map(comedian => (
-                <option key={comedian.id} value={comedian.id}>{comedian.name}</option>
-              ))}
-            </select>
-          )}
+            <>
+              <select
+                value={comedianFilter}
+                onChange={e => setComedianFilter(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 180 }}
+              >
+                <option value="all">Tous les humoristes</option>
+                {uniqueComedians.map(comedian => (
+                  <option key={comedian.id} value={comedian.id}>{comedian.name}</option>
+                ))}
+              </select>
 
-          {/* Filtre par événement (organisateur uniquement) */}
-          {user?.role === 'ORGANIZER' && (
-            <select
-              value={selectedEventId}
-              onChange={e => setSelectedEventId(e.target.value)}
-              style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
-            >
-              <option value="all">Tous les événements</option>
-              {organizerEvents.map(ev => (
-                <option key={ev.id} value={ev.id}>{ev.title}</option>
-              ))}
-            </select>
+              <select
+                value={selectedEventId}
+                onChange={e => setSelectedEventId(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
+              >
+                <option value="all">Tous les événements</option>
+                {organizerEvents.map(ev => (
+                  <option key={ev.id} value={ev.id}>{ev.title}</option>
+                ))}
+              </select>
+            </>
           )}
 
           {/* Tri */}
           <select
             value={sortKey}
             onChange={e => setSortKey(e.target.value as any)}
-            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220, marginLeft: user?.role === 'ORGANIZER' ? 'auto' : undefined }}
           >
             <option value="dateDesc">Trier: Date (plus récent)</option>
             <option value="dateAsc">Trier: Date (plus ancien)</option>
@@ -657,131 +1012,136 @@ function ApplicationsPage() {
 
         {loading && <p style={{ textAlign: 'center', color: '#ccc' }}>Chargement des candidatures...</p>}
         {error && <p style={{ textAlign: 'center', color: '#dc3545' }}>Erreur: {error}</p>}
-        {!loading && !error && getFilteredApplications().length === 0 && (
-          <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
-            Aucune candidature trouvée pour ce filtre.
-          </p>
-        )}
-
-        {!loading && !error && getFilteredApplications().length > 0 && (
+        
+        {user?.role === 'COMEDIAN' ? (
           <>
-            {user?.role === 'COMEDIAN' ? (
+            {!loading && !error && comedianFilteredApplications.length === 0 && (
+              <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
+                {comedianEmptyStates[comedianTab]}
+              </p>
+            )}
+            {!loading && !error && comedianFilteredApplications.length > 0 && (
               <>
-                {/* Séparation à venir / archivées côté humoriste */}
-                {(() => {
-                  const today = new Date();
-                  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                  const list = getFilteredApplications().filter(app => app.event);
-                  const upcoming = list.filter(app => app.event?.date && new Date(app.event.date) >= todayMidnight);
-                  const archived = list.filter(app => app.event?.date && new Date(app.event.date) < todayMidnight);
-                  const Section = ({ title, items }: { title: string; items: IApplication[] }) => (
-                    <div style={{ marginBottom: 30 }}>
-                      <h2 style={{ color: '#ff416c', margin: '10px 0' }}>{title}</h2>
-                      {items.length === 0 ? (
-                        <p style={{ color: '#ccc' }}>Aucune candidature.</p>
-                      ) : (
-                        <div style={applicationsListStyle}>
-                          {items.map(app => (
-                            <div 
-                              key={app._id} 
-                              style={applicationCardStyle}
-                              onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
-                            >
-                              <div>
-                                <h3 style={cardTitleStyle}>{app.event.title}</h3>
-                                {wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
-                                  <div style={{ display: 'inline-block', marginBottom: 8, padding: '4px 8px', borderRadius: 6, background: '#fff3cd', color: '#664d03', fontSize: 12, fontWeight: 600 }}>
-                                    Modification apportée par l'organisateur à cet événement
-                                  </div>
-                                )}
-                                <p style={cardDetailStyle}>Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}</p>
-                                <p style={cardDetailStyle}>Date de l'événement: {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}</p>
-                                {app.performanceDetails && (
-                                  <>
-                                    <p style={cardDetailStyle}>Durée proposée: {app.performanceDetails.duration} min</p>
-                                    <p style={cardDetailStyle}>Description: {app.performanceDetails.description}</p>
-                                    {app.performanceDetails.videoLink && <p style={cardDetailStyle}>Lien vidéo: <a href={app.performanceDetails.videoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#ff4b2b' }}>Voir la vidéo</a></p>}
-                                  </>
-                                )}
-                                {app.message && <p style={cardDetailStyle}>Message: {app.message}</p>}
-                                <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                                {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && (new Date(app.event.date) >= todayMidnight) && (
-                                  <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                                    <button
-                                      onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
-                                        e.stopPropagation(); 
-                                        console.log('🎪 DEBUT clic bouton confirmation');
-                                        console.log('🎪 Application complète:', app);
-                                        console.log('🎪 Application._id:', app._id);
-                                        console.log('🎪 Event:', app.event);
-                                        console.log('🎪 User role:', user?.role);
-                                        console.log('🎪 User ID:', user?._id);
-                                        
-                                        try {
-                                          // Vérifier d'abord si l'application existe
-                                          console.log('🔍 Vérification existence application...');
-                                          const checkResponse = await api.get(`/applications/${app._id}`, {
-                                            headers: { Authorization: `Bearer ${token}` }
-                                          });
-                                          console.log('✅ Application existe:', checkResponse.data);
-                                          
-                                          // Puis confirmer la participation
-                                          console.log('🎪 Appel PATCH /confirm...');
-                                          const response = await api.patch(`/applications/${app._id}/confirm`, {}, {
-                                            headers: { Authorization: `Bearer ${token}` }
-                                          });
-                                          console.log('🎪 Réponse API:', response.data);
-                                          
-                                          if (response.status === 200) {
-                                            alert('Confirmation enregistrée ! Les boutons vont disparaître.');
-                                            fetchApplications(); // Recharger pour cacher les boutons
-                                          }
-                                        } catch (error) {
-                                          console.error('🎪 Erreur complète:', error);
-                                          alert('Erreur lors de la confirmation. Vérifiez la console.');
-                                        }
-                                      }}
-                                      style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
-                                    >
-                                      Je reste inscrit
-                                    </button>
-                                    <button
-                                      onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
-                                        e.stopPropagation();
-                                        if (!token) return;
-                                        if (!confirm('Confirmer la désinscription ?')) return;
-                                        try {
-                                          const config = { headers: { Authorization: `Bearer ${token}` } };
-                                          await api.delete(`/applications/${app._id}`, config);
-                                          alert('Candidature retirée.');
-                                          fetchApplications();
-                                          refreshUser();
-                                        } catch (err: any) {
-                                          alert('Échec de la désinscription.');
-                                        }
-                                      }}
-                                      style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
-                                    >
-                                      Me désinscrire
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                <div style={applicationsListStyle}>
+                  {paginatedComedianApplications.map(app => (
+                    <div 
+                      key={app._id} 
+                      style={applicationCardStyle}
+                      onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
+                    >
+                      <div style={comedianApplicationRowStyle}>
+                        <div style={comedianApplicationInfoStyle}>
+                          <div style={comedianApplicationTitleRowStyle}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                              <h3 style={cardTitleStyle}>{app.event.title}</h3>
+                              <span style={comedianApplicationDateBadgeStyle}>
+                                {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                              </span>
+                              <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap', color: '#9ad7ff' }}>
+                                · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
+                              </p>
+                              {app.message && (
+                                <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap' }}>
+                                  · Message: {app.message}
+                                </p>
+                              )}
                             </div>
-                          ))}
+                            {app.performanceDetails && (
+                              <p style={{ ...cardDetailStyle, color: '#9ad7ff', marginTop: 6 }}>
+                                Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <div style={comedianApplicationStatusStyle}>
+                          <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                          {/* Afficher le statut sur les cartes archivées */}
+                          {comedianTab === 'archived' && (
+                            <span style={{
+                              ...statusBadgeStyle(app.status),
+                              marginTop: '8px',
+                              display: 'block',
+                            }}>
+                              {app.status === 'ACCEPTED' ? '✓ Acceptée' : app.status === 'REJECTED' ? '✕ Refusée' : ''}
+                            </span>
+                          )}
+                          {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
+                                  e.stopPropagation(); 
+                                  try {
+                                    await api.patch(`/applications/${app._id}/confirm`, {}, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    alert('Confirmation enregistrée !');
+                                    fetchApplications();
+                                  } catch (error) {
+                                    alert('Erreur lors de la confirmation.');
+                                  }
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
+                              >
+                                Je reste inscrit
+                              </button>
+                              <button
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.stopPropagation();
+                                  if (!token) return;
+                                  if (!confirm('Confirmer la désinscription ?')) return;
+                                  try {
+                                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                                    await api.delete(`/applications/${app._id}`, config);
+                                    alert('Candidature retirée.');
+                                    fetchApplications();
+                                    refreshUser();
+                                  } catch (err: any) {
+                                    alert('Échec de la désinscription.');
+                                  }
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
+                              >
+                                Me désinscrire
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  );
-                  return (
-                    <>
-                      <Section title="Candidatures à venir" items={upcoming} />
-                      <Section title="Candidatures archivées" items={archived} />
-                    </>
-                  );
-                })()}
+                  ))}
+                </div>
+                {comedianFilteredApplications.length > ITEMS_PER_PAGE && (
+                  <div style={paginationContainerStyle}>
+                    <button
+                      style={paginationButtonStyle}
+                      disabled={comedianPage === 1}
+                      onClick={() => setComedianPage(prev => Math.max(1, prev - 1))}
+                    >
+                      Précédent
+                    </button>
+                    <span style={paginationInfoStyle}>
+                      Page {Math.min(comedianPage, totalComedianPages)} / {Math.max(totalComedianPages, 1)}
+                    </span>
+                    <button
+                      style={paginationButtonStyle}
+                      disabled={comedianPage >= totalComedianPages}
+                      onClick={() => setComedianPage(prev => Math.min(totalComedianPages, prev + 1))}
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                )}
               </>
-            ) : (
+            )}
+          </>
+        ) : (
+          <>
+            {!loading && !error && getFilteredApplications().length === 0 && (
+              <p style={{ textAlign: 'center', fontSize: '1.2em', color: '#ccc' }}>
+                Aucune candidature trouvée pour ce filtre.
+              </p>
+            )}
+            {!loading && !error && getFilteredApplications().length > 0 && (
               // Affichage organisateur - Liste horizontale
               <>
                 <div style={applicationsListStyle}>
@@ -806,7 +1166,15 @@ function ApplicationsPage() {
                     {user?.role === 'ORGANIZER' && (
                       <div style={comedianInfoStyle}>
                         <div style={comedianInitialBubbleStyle}>
-                          {`${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'}
+                          {app.comedian?.avatarUrl ? (
+                            <img
+                              src={app.comedian.avatarUrl}
+                              alt={`${app.comedian.firstName} ${app.comedian.lastName}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                            />
+                          ) : (
+                            `${app.comedian?.firstName?.[0] ?? ''}${app.comedian?.lastName?.[0] ?? ''}`.trim() || '🎤'
+                          )}
                         </div>
                         <div style={comedianDetailsStyle}>
                           <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
@@ -816,7 +1184,7 @@ function ApplicationsPage() {
                           style={viewProfileInlineButtonStyle}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
-                            handleViewComedianProfile(e, app.comedian._id);
+                            handleViewComedianProfile(e, app.comedian._id, app._id);
                           }}
                         >
                           👤 Voir le profil
@@ -834,6 +1202,19 @@ function ApplicationsPage() {
 
                     {/* Section droite - Statut et actions */}
                     <div style={cardRightSectionStyle}>
+                      {isOrganizerView && (
+                        <button
+                          type="button"
+                          aria-label={favoriteApplicationIdsSet.has(app._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                          style={{ ...favoriteStarButtonStyle(favoriteApplicationIdsSet.has(app._id)), alignSelf: 'flex-end' }}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            toggleFavoriteApplication(app._id);
+                          }}
+                        >
+                          {favoriteApplicationIdsSet.has(app._id) ? '★' : '☆'}
+                        </button>
+                      )}
                       <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
                       {app.status === 'PENDING' && (
                         <div style={actionsContainerStyle}>
@@ -898,7 +1279,7 @@ function ApplicationsPage() {
       {selectedApplication && (
         <ApplicationDetailsModal 
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={closeApplicationModal}
           application={selectedApplication}
         />
       )}

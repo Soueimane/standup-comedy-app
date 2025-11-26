@@ -50,7 +50,7 @@ function OrganizerProfilePage() {
     maxWidth: '1200px',
     margin: '0 auto',
     display: 'grid',
-    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr',
+    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '340px 1fr',
     gap: '20px',
     alignItems: 'flex-start',
   };
@@ -149,8 +149,24 @@ function OrganizerProfilePage() {
         />
       ) : (
         <div style={sectionContainerStyle}>
+          {/* Profil principal (avatar et rôle) */}
+          <div style={profileCardStyle}>
+            <div style={avatarStyle}>
+              {user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA'}
+            </div>
+            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Dahmane Aissa'}</h3>
+            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Organisateur'}</p>
+
+            {/* Stats rapides */}
+            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Événements créés</span>
+              <span style={statsValueStyle}>{user?.stats?.totalEvents || 0}</span>
+            </div>
+          </div>
+
           {/* Informations personnelles */}
-          <div style={cardStyle}>
+          <div style={{ ...cardStyle, minHeight: '100%' }}>
             <h2 style={cardTitleStyle}>
               <i className="fas fa-user-circle" style={{ marginRight: '10px' }}></i> Informations personnelles
             </h2>
@@ -177,22 +193,6 @@ function OrganizerProfilePage() {
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Téléphone</span>
               <span style={infoValueStyle}>{user?.organizerProfile?.phone || 'Non défini'}</span>
-            </div>
-          </div>
-
-          {/* Profil principal (avatar et rôle) */}
-          <div style={profileCardStyle}>
-            <div style={avatarStyle}>
-              {user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA'}
-            </div>
-            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Dahmane Aissa'}</h3>
-            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Organisateur'}</p>
-
-            {/* Stats rapides */}
-            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Événements créés</span>
-              <span style={statsValueStyle}>{user?.stats?.totalEvents || 0}</span>
             </div>
           </div>
 
@@ -223,7 +223,6 @@ function OrganizerProfilePage() {
               <span style={infoLabelStyle}>Fréquence des événements:</span>
               <span style={infoValueStyle}>{user?.organizerProfile?.eventFrequency || 'monthly'}</span>
             </div>
-            <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>MODIFIER</button>
           </div>
         </div>
       )}

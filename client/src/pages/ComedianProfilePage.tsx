@@ -1,5 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
@@ -8,11 +8,16 @@ import api from '../services/api';
 
 function ComedianProfilePage() {
   const { id } = useParams<{ id?: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user: authUser, token, refreshUser } = useAuth();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
+  const searchParams = new URLSearchParams(location.search);
+  const fromApplications = searchParams.get('from') === 'applications';
+  const applicationIdFromQuery = searchParams.get('applicationId');
 
   useEffect(() => {
     if (id && id !== authUser?._id) {
@@ -50,6 +55,14 @@ function ComedianProfilePage() {
     setIsEditing(false);
   };
 
+  const handleBackToApplication = () => {
+    if (applicationIdFromQuery) {
+      navigate(`/applications?applicationId=${applicationIdFromQuery}`);
+    } else {
+      navigate('/applications');
+    }
+  };
+
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#ffffff',
@@ -78,11 +91,24 @@ function ComedianProfilePage() {
     marginBottom: '20px',
   };
 
+  const backButtonStyle: CSSProperties = {
+    padding: '10px 18px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    background: 'rgba(0, 0, 0, 0.35)',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  };
+
   const sectionContainerStyle: CSSProperties = {
     maxWidth: '1200px',
     margin: '0 auto',
     display: 'grid',
-    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '2fr 1fr',
+    gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '340px 1fr',
     gap: '20px',
     alignItems: 'flex-start',
   };
@@ -173,9 +199,16 @@ function ComedianProfilePage() {
               : 'Gère tes informations et préférences en tant qu\'humoriste'}
           </p>
         </div>
-        {!isViewingOtherProfile && (
-          <button style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
-        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {fromApplications && (
+            <button type="button" style={backButtonStyle} onClick={handleBackToApplication}>
+              ← Retour à la candidature
+            </button>
+          )}
+          {!isViewingOtherProfile && (
+            <button type="button" style={editButtonStyle} onClick={() => setIsEditing(true)}>Modifier</button>
+          )}
+        </div>
       </div>
 
       {isEditing && user ? (
@@ -187,8 +220,34 @@ function ComedianProfilePage() {
         />
       ) : (
         <div style={sectionContainerStyle}>
+          {/* Profil principal (avatar et rôle) */}
+          <div style={profileCardStyle}>
+            <div style={{
+              ...avatarStyle,
+              backgroundImage: user?.avatarUrl ? `url(${user.avatarUrl})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundColor: user?.avatarUrl ? 'transparent' : '#ff416c',
+            }}>
+              {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
+            </div>
+            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Nom Humoriste'}</h3>
+            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Humoriste'}</p>
+
+            {/* Stats rapides */}
+            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Candidatures acceptées</span>
+              <span style={statsValueStyle}>{user?.stats?.applicationsAccepted || 0}</span>
+            </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Net Promoter Score</span>
+              <span style={statsValueStyle}>{user?.stats?.netPromoterScore || 0}</span>
+            </div>
+          </div>
+
           {/* Informations personnelles */}
-          <div style={cardStyle}>
+          <div style={{ ...cardStyle, minHeight: '100%' }}>
             <h2 style={cardTitleStyle}>
               <i className="fas fa-user-circle" style={{ marginRight: '10px' }}></i> Informations personnelles
             </h2>
@@ -219,32 +278,6 @@ function ComedianProfilePage() {
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Adresse</span>
               <span style={infoValueStyle}>{user?.address || 'Non définie'}</span>
-            </div>
-          </div>
-
-          {/* Profil principal (avatar et rôle) */}
-          <div style={profileCardStyle}>
-            <div style={{
-              ...avatarStyle,
-              backgroundImage: user?.avatarUrl ? `url(${user.avatarUrl})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundColor: user?.avatarUrl ? 'transparent' : '#ff416c',
-            }}>
-              {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
-            </div>
-            <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Nom Humoriste'}</h3>
-            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Humoriste'}</p>
-
-            {/* Stats rapides */}
-            <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Candidatures acceptées</span>
-              <span style={statsValueStyle}>{user?.stats?.applicationsAccepted || 0}</span>
-            </div>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Net Promoter Score</span>
-              <span style={statsValueStyle}>{user?.stats?.netPromoterScore || 0}</span>
             </div>
           </div>
 
@@ -288,7 +321,7 @@ function ComedianProfilePage() {
               </span>
             </div>
             <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Langues du spectacle:</span>
+              <span style={infoLabelStyle}>Langues:</span>
               <span style={infoValueStyle}>
                 {user?.profile?.performanceLanguages && user.profile.performanceLanguages.length > 0
                   ? user.profile.performanceLanguages.map(lang => {
@@ -358,9 +391,6 @@ function ComedianProfilePage() {
                   )}
                 </div>
               </div>
-            )}
-            {!isViewingOtherProfile && (
-              <button style={{ ...editButtonStyle, marginTop: '20px' }} onClick={() => setIsEditing(true)}>MODIFIER</button>
             )}
           </div>
         </div>
