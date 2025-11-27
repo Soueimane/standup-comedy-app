@@ -20,8 +20,8 @@ export const config = {
   email: {
     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
     smtpPort: parseInt(process.env.SMTP_PORT || '465', 10),
-    smtpUser: process.env.SMTP_USER || 'contact.standupconnect@gmail.com',
-    smtpPass: process.env.SMTP_PASS || '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',
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
   },
 
   cron: {
