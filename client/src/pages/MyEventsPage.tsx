@@ -15,7 +15,6 @@ import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
 
 const ITEMS_PER_PAGE = 5;
-const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
 type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
 type SuperAdminTab = 'completed' | 'upcoming' | 'archived' | 'cancelled';
@@ -46,26 +45,32 @@ function MyEventsPage() {
     }
   }, [user?.role]);
 
-  const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
-
   useEffect(() => {
-    if (!isComedianView) {
-      setFavoriteEventIds([]);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem(getFavoritesStorageKey(user?._id));
-      if (stored) {
-        setFavoriteEventIds(JSON.parse(stored));
-      } else {
+    let isMounted = true;
+    const fetchFavoriteEvents = async () => {
+      if (!isComedianView || !token) {
         setFavoriteEventIds([]);
+        return;
       }
-    } catch (error) {
-      console.error('❌ [MyEventsPage] Erreur lors du chargement des favoris:', error);
-      setFavoriteEventIds([]);
-    }
-  }, [isComedianView, user?._id]);
+      try {
+        const response = await api.get<{ favorites: Array<{ _id: string }> }>('/event-favorites');
+        if (!isMounted) return;
+        const ids = (response.data?.favorites || [])
+          .map(event => event?._id)
+          .filter((id): id is string => Boolean(id));
+        setFavoriteEventIds(ids);
+      } catch (error) {
+        console.error('❌ [MyEventsPage] Erreur lors du chargement des favoris depuis l’API:', error);
+        if (isMounted) {
+          setFavoriteEventIds([]);
+        }
+      }
+    };
+    fetchFavoriteEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, [isComedianView, token, user?._id]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
@@ -237,25 +242,19 @@ useEffect(() => {
 
   const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
 
-  const toggleFavoriteEvent = (eventId: string) => {
-    if (!isComedianView) return;
-    setFavoriteEventIds(prev => {
-      const updated = new Set(prev);
-      if (updated.has(eventId)) {
-        updated.delete(eventId);
+  const toggleFavoriteEvent = async (eventId: string) => {
+    if (!isComedianView || !eventId) return;
+    try {
+      if (favoriteIdsSet.has(eventId)) {
+        await api.delete(`/event-favorites/${eventId}`);
+        setFavoriteEventIds(prev => prev.filter(id => id !== eventId));
       } else {
-        updated.add(eventId);
+        await api.post('/event-favorites', { eventId });
+        setFavoriteEventIds(prev => [...prev, eventId]);
       }
-      const next = Array.from(updated);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(getFavoritesStorageKey(user?._id), JSON.stringify(next));
-        } catch (error) {
-          console.error('❌ [MyEventsPage] Erreur lors de la sauvegarde des favoris:', error);
-        }
-      }
-      return next;
-    });
+    } catch (error) {
+      console.error('❌ [MyEventsPage] Erreur lors de la mise à jour du favori:', error);
+    }
   };
 
   const comedianApplicationsMap = useMemo(() => {
