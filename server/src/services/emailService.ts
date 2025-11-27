@@ -660,35 +660,35 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
             <p>Bonjour,</p>
             <p>Une nouvelle opportunité vient d'être publiée sur <strong>Standup Comedy Connect</strong> !</p>
             
-            <div class="organizer-card">
-                <div class="organizer-header">
-                    <div class="organizer-avatar">
+            <div class="organizer-card" style="background:#f8f9ff;border-radius:20px;padding:25px;margin-bottom:25px;box-shadow:0 12px 30px rgba(26,26,46,0.08);">
+                <div class="organizer-header" style="display:flex;align-items:center;gap:15px;">
+                    <div class="organizer-avatar" style="width:60px;height:60px;border-radius:50%;background:linear-gradient(145deg,#ff416c,#ff4b2b);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:22px;">
                         ${organizerData.firstName.charAt(0)}${organizerData.lastName.charAt(0)}
                     </div>
-                    <div class="organizer-info">
-                        <h3>👤 ${organizerData.firstName} ${organizerData.lastName}</h3>
-                        <p>Organisateur de l'événement</p>
+                    <div class="organizer-info" style="color:#1a1a2e;">
+                        <h3 style="margin:0;font-size:20px;">👤 ${organizerData.firstName} ${organizerData.lastName}</h3>
+                        <p style="margin:4px 0 0;color:#6c757d;">Organisateur de l'événement</p>
                     </div>
                 </div>
-                <div class="contact-info">
+                <div class="contact-info" style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:15px;margin-top:18px;text-align:center;">
                     💬 Contact direct : <a href="mailto:${organizerData.email}">${organizerData.email}</a>
                 </div>
             </div>
             
-            <div class="event-card">
-                <div class="event-title">${eventData.title}</div>
+            <div class="event-card" style="background:#ffffff;border-radius:18px;padding:25px;margin-bottom:25px;box-shadow:0 15px 35px rgba(255,65,108,0.15);">
+                <div class="event-title" style="font-size:24px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">${eventData.title}</div>
                 <div class="event-details">
-                    <div class="detail-item">
-                        <span class="detail-icon">📍</span>
+                    <div class="detail-item" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;color:#4a4a4a;font-size:16px;">
+                        <span class="detail-icon" style="font-size:18px;">📍</span>
                         <span>${eventData.location.address}, ${eventData.location.city}</span>
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-icon">📆</span>
+                    <div class="detail-item" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;color:#4a4a4a;font-size:16px;">
+                        <span class="detail-icon" style="font-size:18px;">📆</span>
                         <span>${new Date(eventData.date).toLocaleDateString('fr-FR')}</span>
                     </div>
                     ${eventData.startTime ? `
-                    <div class="detail-item">
-                        <span class="detail-icon">⏰</span>
+                    <div class="detail-item" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;color:#4a4a4a;font-size:16px;">
+                        <span class="detail-icon" style="font-size:18px;">⏰</span>
                         <span>${eventData.startTime}</span>
                     </div>
                     ` : ''}
@@ -696,24 +696,24 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
             </div>
             
             ${eventData.description ? `
-            <div class="description">
+            <div class="description" style="background:#fff3cd;border-left:4px solid #ffcd39;padding:18px;border-radius:10px;margin-bottom:20px;color:#856404;">
                 <strong>📝 Description :</strong><br>
                 ${eventData.description}
             </div>
             ` : ''}
             
             ${eventData.requirements ? `
-            <div class="requirements">
-                <h3>📋 Exigences de l'événement</h3>
-                <ul class="requirement-list">
-                    <li>Durée de performance : <strong>${eventData.requirements.duration} minutes</strong></li>
-                    <li>Nombre maximum de performeurs : <strong>${eventData.requirements.maxPerformers}</strong></li>
-                    <li>Expérience minimale : <strong>${eventData.requirements.minExperience} ans</strong></li>
+            <div class="requirements" style="background:#eef2ff;border-radius:14px;padding:20px;margin-bottom:25px;">
+                <h3 style="margin-top:0;color:#1a1a2e;">📋 Exigences de l'événement</h3>
+                <ul class="requirement-list" style="padding-left:20px;margin:15px 0;color:#4a4a4a;">
+                    <li style="margin-bottom:8px;">Durée de performance : <strong>${eventData.requirements.duration} minutes</strong></li>
+                    <li style="margin-bottom:8px;">Nombre maximum de performeurs : <strong>${eventData.requirements.maxPerformers}</strong></li>
+                    <li style="margin-bottom:8px;">Expérience minimale : <strong>${eventData.requirements.minExperience} ans</strong></li>
                 </ul>
             </div>
             ` : ''}
             
-            <a href="https://standup-comedy-app.netlify.app/events" class="cta-button">
+            <a href="https://standup-comedy-app.netlify.app/events" class="cta-button" style="display:block;background:#ff416c;color:#ffffff;text-decoration:none;padding:15px 30px;border-radius:25px;text-align:center;font-weight:bold;font-size:16px;margin:30px auto 20px auto;max-width:260px;">
                 🚀 Postuler Maintenant
             </a>
             
