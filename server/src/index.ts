@@ -1,3 +1,7 @@
+// Charger les variables d'environnement AVANT tout le reste
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config/env';
@@ -16,21 +20,22 @@ const app = express();
 
 // Middleware CORS configuré + gestion explicite du preflight OPTIONS
 const corsOptions = {
-  origin: function (origin, callback) {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Autoriser toutes les origines en développement, ou une liste spécifique en production
     const allowedOrigins = [
-      'https://standup-comedy-app.netlify.app',
+      config.frontend.url,
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5174',
+      ...config.cors.additionalOrigins,
     ];
-    
+
     // En développement ou si pas d'origine (requêtes depuis Postman, etc.), autoriser
-    if (!origin || process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+    if (!origin || config.nodeEnv === 'development' || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       // En production, vérifier si l'origine est autorisée
-      callback(null, true); // Pour l'instant, on autorise toutes les origines
+      callback(null, false);
     }
   },
   credentials: true,

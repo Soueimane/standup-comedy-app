@@ -72,6 +72,11 @@ export interface User {
   phone?: string;
   address?: string;
   gender?: 'femme' | 'homme';
+  emailSubscriptions?: {
+    globalSubscribed: boolean;
+    unsubscribedAt?: Date;
+    unsubscribeToken?: string;
+  };
 }
 
 // Interface for a user document after being populated

@@ -2,6 +2,14 @@ import express from 'express';
 import nodemailer from 'nodemailer';
 import { config } from '../config/env';
 import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron } from '../controllers/email';
+import {
+  handleOneClickUnsubscribe,
+  handleUnsubscribeConfirmation,
+  handleResubscribe,
+  getSubscriptionStatus
+} from '../controllers/unsubscribe';
+import { unsubscribeRateLimiter } from '../middleware/rateLimiter';
+import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -60,5 +68,36 @@ router.post('/jobs/reminders', sendRemindersCron);
  * Header: X-CRON-KEY (authentification)
  */
 router.post('/jobs/organizer-reminders', sendOrganizerRemindersCron);
+
+// ============================================================================
+// RFC 8058 - ONE-CLICK UNSUBSCRIBE ROUTES
+// ============================================================================
+
+/**
+ * POST /unsubscribe
+ * RFC 8058 One-Click Unsubscribe (pas d'authentification JWT)
+ * Query: token, userId, email
+ * Body: List-Unsubscribe=One-Click
+ */
+router.post('/unsubscribe', unsubscribeRateLimiter, handleOneClickUnsubscribe);
+
+/**
+ * GET /unsubscribe
+ * Page de confirmation HTML (pas d'authentification JWT)
+ * Query: token, userId, email
+ */
+router.get('/unsubscribe', unsubscribeRateLimiter, handleUnsubscribeConfirmation);
+
+/**
+ * POST /resubscribe
+ * Réabonnement (authentification JWT requise)
+ */
+router.post('/resubscribe', authMiddleware, handleResubscribe);
+
+/**
+ * GET /subscription-status
+ * Statut d'abonnement (authentification JWT requise)
+ */
+router.get('/subscription-status', authMiddleware, getSubscriptionStatus);
 
 export default router;
