@@ -454,280 +454,191 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
     // Sujet optimisé pour éviter les filtres spam (emoji en fin, pas au début)
     const subject = `Nouvel événement - ${eventData.title} 🎤`;
     
+    const requirementItems: string[] = [];
+
+    if (eventData.requirements?.duration) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Durée : <strong style="color:#000000;font-weight:bold;">${eventData.requirements.duration} minutes</strong></li>`
+      );
+    }
+
+    if (eventData.requirements?.maxPerformers) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Performeurs max : <strong style="color:#000000;font-weight:bold;">${eventData.requirements.maxPerformers}</strong></li>`
+      );
+    }
+
+    if (eventData.requirements?.minExperience) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Expérience min : <strong style="color:#000000;font-weight:bold;">${eventData.requirements.minExperience} ans</strong></li>`
+      );
+    }
+
+    const requirementsSection = requirementItems.length
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'événement</strong>
+                <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
+                  ${requirementItems.join('')}
+                </ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const descriptionSection = eventData.description
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#eef5ff;background:#eef5ff;border-left:4px solid #0066cc;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:8px;color:#000000;font-size:16px;font-weight:bold;">📝 Description</strong>
+                <span style="color:#000000;display:block;margin-top:6px;">${eventData.description}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nouvel événement disponible</title>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        .header .subtitle {
-            margin-top: 10px;
-            font-size: 16px;
-            opacity: 0.9;
-        }
-        .content {
-            padding: 30px;
-        }
-        .event-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 15px;
-            margin: 20px 0;
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-        }
-        .event-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .event-details {
-            display: grid;
-            gap: 10px;
-        }
-        .detail-item {
-            display: flex;
-            align-items: center;
-            background: rgba(255,255,255,0.1);
-            padding: 10px 15px;
-            border-radius: 10px;
-            backdrop-filter: blur(10px);
-        }
-        .detail-icon {
-            font-size: 18px;
-            margin-right: 10px;
-            width: 25px;
-        }
-        .organizer-card {
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .organizer-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .organizer-avatar {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 18px;
-            margin-right: 15px;
-        }
-        .organizer-info h3 {
-            margin: 0;
-            color: #333;
-            font-size: 18px;
-        }
-        .organizer-info p {
-            margin: 5px 0 0 0;
-            color: #666;
-            font-size: 14px;
-        }
-        .requirements {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .requirements h3 {
-            margin: 0 0 15px 0;
-            color: #856404;
-            font-size: 16px;
-        }
-        .requirement-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .requirement-list li {
-            padding: 5px 0;
-            color: #856404;
-            font-size: 14px;
-        }
-        .requirement-list li:before {
-            content: "✓ ";
-            color: #28a745;
-            font-weight: bold;
-            margin-right: 8px;
-        }
-        .description {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 0 8px 8px 0;
-        }
-        .cta-button {
-            display: block;
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-            color: white;
-            text-decoration: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 16px;
-            margin: 30px auto 20px auto;
-            max-width: 250px;
-            box-shadow: 0 5px 15px rgba(255, 65, 108, 0.4);
-            transition: transform 0.2s;
-        }
-        .cta-button:hover {
-            transform: translateY(-2px);
-        }
-        .footer {
-            background: #f8f9fa;
-            padding: 20px;
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }
-        .contact-info {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: center;
-        }
-        .contact-info a {
-            color: #155724;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        @media (max-width: 600px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-            .header, .content {
-                padding: 20px;
-            }
-            .event-card {
-                padding: 20px;
-            }
-        }
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: #f2f2f2;
+      }
+      table {
+        border-spacing: 0;
+        border-collapse: collapse;
+      }
+      img {
+        border: 0;
+        line-height: 100%;
+        text-decoration: none;
+      }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎤 Nouvel Événement Disponible !</h1>
-            <div class="subtitle">Une nouvelle opportunité vous attend</div>
-        </div>
-        
-        <div class="content">
-            <p>Bonjour,</p>
-            <p>Une nouvelle opportunité vient d'être publiée sur <strong>Standup Comedy Connect</strong> !</p>
-            
-            <div class="organizer-card">
-                <div class="organizer-header">
-                    <div class="organizer-avatar">
-                        ${organizerData.firstName.charAt(0)}${organizerData.lastName.charAt(0)}
-                    </div>
-                    <div class="organizer-info">
-                        <h3>👤 ${organizerData.firstName} ${organizerData.lastName}</h3>
-                        <p>Organisateur de l'événement</p>
-                    </div>
-                </div>
-                <div class="contact-info">
-                    💬 Contact direct : <a href="mailto:${organizerData.email}">${organizerData.email}</a>
-                </div>
-            </div>
-            
-            <div class="event-card">
-                <div class="event-title">${eventData.title}</div>
-                <div class="event-details">
-                    <div class="detail-item">
-                        <span class="detail-icon">📍</span>
-                        <span>${eventData.location.address}, ${eventData.location.city}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-icon">📆</span>
-                        <span>${new Date(eventData.date).toLocaleDateString('fr-FR')}</span>
-                    </div>
-                    ${eventData.startTime ? `
-                    <div class="detail-item">
-                        <span class="detail-icon">⏰</span>
-                        <span>${eventData.startTime}</span>
-                    </div>
-                    ` : ''}
-                </div>
-            </div>
-            
-            ${eventData.description ? `
-            <div class="description">
-                <strong>📝 Description :</strong><br>
-                ${eventData.description}
-            </div>
-            ` : ''}
-            
-            ${eventData.requirements ? `
-            <div class="requirements">
-                <h3>📋 Exigences de l'événement</h3>
-                <ul class="requirement-list">
-                    <li>Durée de performance : <strong>${eventData.requirements.duration} minutes</strong></li>
-                    <li>Nombre maximum de performeurs : <strong>${eventData.requirements.maxPerformers}</strong></li>
-                    <li>Expérience minimale : <strong>${eventData.requirements.minExperience} ans</strong></li>
-                </ul>
-            </div>
-            ` : ''}
-            
-            <a href="https://standup-comedy-app.netlify.app/events" class="cta-button">
-                🚀 Postuler Maintenant
-            </a>
-            
-            <p style="text-align: center; color: #666; font-size: 14px;">
-                Ne ratez pas cette opportunité ! Connectez-vous à votre compte pour postuler dès maintenant.
+  </head>
+  <body style="margin:0;padding:0;background:#f2f2f2;">
+    <center style="width:100%;background:#f2f2f2;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
+        <tr>
+          <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">Nouvel événement disponible</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">Une nouvelle opportunité est ouverte sur Standup Comedy Connect.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <table role="presentation" width="100%">
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
+                  Bonjour,<br/><br/>
+                  ${organizerData.firstName} ${organizerData.lastName} vient de publier un événement auquel vous pouvez postuler.
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Événement</span>
+                        <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${eventData.title}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#ffffff;">
+                        <table role="presentation" width="100%">
+                          <tr>
+                            <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;font-weight:normal;">
+                              <strong style="color:#000000;font-weight:bold;">📍 Adresse :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${eventData.location.address}, ${eventData.location.city}</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📅 Date :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${new Date(eventData.date).toLocaleDateString('fr-FR')}</span>
+                            </td>
+                          </tr>
+                          ${
+                            eventData.startTime
+                              ? `
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">⏰ Heure :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${eventData.startTime}</span>
+                            </td>
+                          </tr>
+                          `
+                              : ''
+                          }
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td>
+                  <table role="presentation" width="100%" style="border:2px solid #dbe8ff;border-radius:8px;background-color:#f0f5ff;">
+                    <tr>
+                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;background-color:#f0f5ff;">
+                        <strong style="display:block;font-size:16px;color:#000000;font-weight:bold;margin-bottom:8px;">👤 Organisateur</strong>
+                        <span style="display:block;margin-top:6px;color:#000000;font-size:15px;">${organizerData.firstName} ${organizerData.lastName}</span>
+                        <a href="mailto:${organizerData.email}" style="display:inline-block;margin-top:10px;color:#0066cc;text-decoration:underline;font-weight:bold;font-size:14px;">📧 Contacter ${organizerData.firstName}</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ${descriptionSection}
+              ${requirementsSection}
+              <tr>
+                <td align="center" style="padding:20px 0;">
+                  <a href="https://standup-comedy-app.netlify.app/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Je postule maintenant</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:20px;font-size:20px;line-height:20px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
+                  Connectez-vous à votre espace Standup Comedy Connect pour candidater rapidement.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
+              Standup Comedy Connect · Restez inspiré et à l'écoute des nouvelles scènes.
             </p>
-        </div>
-        
-        <div class="footer">
-            <p><strong>L'équipe Standup Comedy Connect</strong></p>
-            <p>Votre plateforme pour connecter humoristes et organisateurs</p>
-        </div>
-    </div>
-</body>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
 </html>
     `;
 
