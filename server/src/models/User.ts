@@ -166,6 +166,12 @@ const AvatarSchema = new Schema({
   uploadedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
+const EmailSubscriptionsSchema = new Schema({
+  globalSubscribed: { type: Boolean, default: true },
+  unsubscribedAt: { type: Date },
+  unsubscribeToken: { type: String }
+}, { _id: false });
+
 const userSchema = new Schema<UserDocument>({
   email: {
     type: String,
@@ -236,6 +242,10 @@ const userSchema = new Schema<UserDocument>({
     type: Schema.Types.ObjectId,
     ref: 'Event'
   }],
+  emailSubscriptions: {
+    type: EmailSubscriptionsSchema,
+    default: () => ({ globalSubscribed: true })
+  },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {

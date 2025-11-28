@@ -2,11 +2,68 @@ import sgMail from '@sendgrid/mail';
 import jwt from 'jsonwebtoken';
 import { UserModel } from '../models/User';
 import { config } from '../config/env';
+import { generateUnsubscribeToken } from '../utils/unsubscribeToken';
 
 // Configuration SendGrid
 sgMail.setApiKey(config.email.smtpPass); // Utilise SMTP_PASS comme API Key SendGrid
 
 // SendGrid remplace Nodemailer - plus besoin de transporter
+
+/**
+ * Vérifie si l'utilisateur est abonné aux emails
+ *
+ * @param userId - ID MongoDB de l'utilisateur
+ * @returns true si l'utilisateur peut recevoir des emails
+ */
+async function checkUserEmailSubscription(userId: string): Promise<boolean> {
+  try {
+    const user = await UserModel.findById(userId).select('emailSubscriptions email');
+
+    if (!user) {
+      console.log(`⚠️ User ${userId} not found - skipping email`);
+      return false;
+    }
+
+    // Si emailSubscriptions n'existe pas, considérer comme abonné (backward compatibility)
+    if (!user.emailSubscriptions) {
+      return true;
+    }
+
+    const isSubscribed = user.emailSubscriptions.globalSubscribed !== false;
+
+    if (!isSubscribed) {
+      console.log(`📧 User ${user.email} (${userId}) is unsubscribed - skipping email`);
+    }
+
+    return isSubscribed;
+  } catch (error) {
+    console.error(`❌ Error checking subscription for user ${userId}:`, error);
+    // En cas d'erreur, considérer comme abonné pour ne pas bloquer les emails
+    return true;
+  }
+}
+
+/**
+ * Génère l'URL de désabonnement complète pour un utilisateur
+ *
+ * @param userId - ID de l'utilisateur
+ * @param email - Email de l'utilisateur
+ * @returns URL complète avec token HMAC (pour header List-Unsubscribe)
+ */
+function generateUnsubscribeUrl(userId: string, email: string): string {
+  try {
+    const token = generateUnsubscribeToken(userId, email);
+
+    // Utiliser l'URL de l'API backend
+    const apiBaseUrl = process.env.API_URL || 'http://localhost:3001';
+
+    return `${apiBaseUrl}/api/email/unsubscribe?token=${token}&userId=${userId}&email=${encodeURIComponent(email)}`;
+  } catch (error) {
+    console.error(`❌ Error generating unsubscribe URL for ${email}:`, error);
+    // Fallback URL générique
+    return 'https://standup-comedy-app.netlify.app/unsubscribe';
+  }
+}
 
 export const sendApplicationNotificationToOrganizer = async (eventData: any, humoristData: any, organizerData: any, applicationData: any) => {
   try {
@@ -16,13 +73,21 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
       SMTP_PASS: config.email.smtpPass ? 'Configuré' : 'MANQUANT'
     });
 
+    // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+    const organizerId = organizerData._id || organizerData.id;
+    if (organizerId && !(await checkUserEmailSubscription(organizerId))) {
+      console.log(`⏭️ Organisateur ${organizerData.email} est désabonné - email non envoyé`);
+      return;
+    }
+    // =========================================
+
     // Mode économie mémoire - désactiver temporairement les emails
     if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
       console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire (plan gratuit)');
       console.log('🔧 Pour réactiver les emails, définissez DISABLE_EMAILS=false sur Render');
       return;
     }
-    
+
     // Vérifier la configuration email
     if (!config.email.smtpUser || !config.email.smtpPass) {
       console.error('❌ Configuration email manquante:', {
@@ -31,12 +96,17 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
       });
       return;
     }
-    
+
     console.log('✅ Configuration SendGrid OK - Prêt à envoyer !');
 
     // Préparer le contenu de l'email pour l'organisateur
     const subject = `🎭 Nouvelle candidature de ${humoristData.firstName} ${humoristData.lastName} pour "${eventData.title}"`;
-    
+
+    // Générer l'URL de désabonnement AVANT le template HTML
+    const unsubscribeUrl = organizerId
+      ? generateUnsubscribeUrl(organizerId.toString(), organizerData.email)
+      : 'https://standup-comedy-app.netlify.app/unsubscribe';
+
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="fr">
@@ -341,10 +411,20 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
                 Connectez-vous à votre tableau de bord pour examiner cette candidature en détail.
             </p>
         </div>
-        
+
         <div class="footer">
             <p><strong>L'équipe Standup Comedy Connect</strong></p>
             <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <!-- Footer de désabonnement -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
         </div>
     </div>
 </body>
@@ -397,7 +477,7 @@ L'équipe Standup Comedy Connect
         }
       },
       headers: {
-        'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'X-Entity-Ref-ID': `candidature-${Date.now()}` // ID unique pour le tracking
       },
@@ -441,12 +521,23 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
     
     console.log('✅ Configuration SendGrid OK - Prêt à envoyer !');
     
-    // Récupérer tous les humoristes de la plateforme
-    const humorists = await UserModel.find({ role: 'COMEDIAN' }).select('email firstName lastName');
+    // Récupérer tous les humoristes AVEC emailSubscriptions
+    const humorists = await UserModel.find({ role: 'COMEDIAN' })
+      .select('_id email firstName lastName emailSubscriptions');
     console.log(`🎭 ${humorists.length} humoristes trouvés dans la base`);
-    
-    if (humorists.length === 0) {
-      console.log('❌ Aucun humoriste trouvé pour l\'envoi de notifications');
+
+    // ===== FILTRER LES HUMORISTES ABONNÉS =====
+    const subscribedHumorists = humorists.filter(h =>
+      h.emailSubscriptions?.globalSubscribed !== false
+    );
+    console.log(
+      `📧 ${subscribedHumorists.length} humoristes abonnés ` +
+      `(${humorists.length - subscribedHumorists.length} désabonnés ignorés)`
+    );
+    // ==========================================
+
+    if (subscribedHumorists.length === 0) {
+      console.log('❌ Aucun humoriste abonné pour l\'envoi de notifications');
       return;
     }
 
@@ -721,10 +812,20 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
                 Ne ratez pas cette opportunité ! Connectez-vous à votre compte pour postuler dès maintenant.
             </p>
         </div>
-        
+
         <div class="footer">
             <p><strong>L'équipe Standup Comedy Connect</strong></p>
             <p>Votre plateforme pour connecter humoristes et organisateurs</p>
+        </div>
+
+        <!-- Footer de désabonnement -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>
+                <a href="\${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
         </div>
     </div>
 </body>
@@ -732,7 +833,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
     `;
 
     // Envoyer l'email à tous les humoristes avec SendGrid
-    console.log(`🚀 Début de l'envoi des emails à ${humorists.length} humoristes...`);
+    console.log(`🚀 Début de l'envoi des emails à ${subscribedHumorists.length} humoristes...`);
     console.log(`📧 Configuration SendGrid:`, {
       fromEmail: config.email.smtpUser,
       fromName: `${organizerData.firstName} ${organizerData.lastName}`,
@@ -773,15 +874,24 @@ Postulez maintenant: https://standup-comedy-app.netlify.app/events
 L'équipe Standup Comedy Connect
     `.trim();
 
-    const emailPromises = humorists.map(async (humorist, index) => {
+    const emailPromises = subscribedHumorists.map(async (humorist, index) => {
       try {
         // Ajouter un délai entre les envois pour éviter les envois en masse simultanés
         // Cela améliore la délivrabilité en évitant de déclencher les filtres anti-spam
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, 500)); // 500ms entre chaque email
         }
-        
-        console.log(`📧 [${index + 1}/${humorists.length}] Envoi à ${humorist.email}...`);
+
+        console.log(`📧 [${index + 1}/${subscribedHumorists.length}] Envoi à ${humorist.email}...`);
+
+        const unsubscribeUrl = generateUnsubscribeUrl(
+          humorist._id.toString(),
+          humorist.email
+        );
+
+        // Générer le htmlContent pour cet humoriste spécifique avec son unsubscribeUrl
+        const htmlContentForHumorist = htmlContent.replace(/\$\{unsubscribeUrl\}/g, unsubscribeUrl);
+
         const result = await sgMail.send({
           from: {
             email: config.email.smtpUser,
@@ -790,7 +900,7 @@ L'équipe Standup Comedy Connect
           replyTo: organizerData.email, // Les réponses iront directement à l'organisateur
           to: humorist.email,
           subject: subject,
-          html: htmlContent,
+          html: htmlContentForHumorist,
           text: textContent, // Version texte pour améliorer la délivrabilité
           mailSettings: {
             sandboxMode: {
@@ -798,7 +908,7 @@ L'équipe Standup Comedy Connect
             }
           },
           headers: {
-            'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+            'List-Unsubscribe': `<${unsubscribeUrl}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
             'X-Entity-Ref-ID': `evenement-${eventData._id || Date.now()}-${index}`, // ID unique pour le tracking
             'Precedence': 'bulk' // Indiquer que c'est un email en masse
@@ -810,11 +920,11 @@ L'équipe Standup Comedy Connect
             type: 'new_event_notification'
           }
         });
-        console.log(`✅ [${index + 1}/${humorists.length}] Email envoyé avec succès à ${humorist.email}`, result[0]?.statusCode);
+        console.log(`✅ [${index + 1}/${subscribedHumorists.length}] Email envoyé avec succès à ${humorist.email}`, result[0]?.statusCode);
         successCount++;
       } catch (emailError: any) {
         errorCount++;
-        console.error(`❌ [${index + 1}/${humorists.length}] Erreur lors de l'envoi à ${humorist.email}:`, {
+        console.error(`❌ [${index + 1}/${subscribedHumorists.length}] Erreur lors de l'envoi à ${humorist.email}:`, {
           message: emailError?.message,
           response: emailError?.response?.body,
           code: emailError?.code
@@ -824,8 +934,11 @@ L'équipe Standup Comedy Connect
     });
 
     await Promise.all(emailPromises);
-    
-    console.log(`📊 Résumé de l'envoi: ${successCount} succès, ${errorCount} erreurs sur ${humorists.length} humoristes`);
+
+    console.log(
+      `📊 Résumé de l'envoi: ${successCount} succès, ${errorCount} erreurs ` +
+      `sur ${subscribedHumorists.length} humoristes abonnés`
+    );
     console.log(`✅ Notifications envoyées à ${successCount} humoristes pour l'événement "${eventData.title}" par ${organizerData.firstName} ${organizerData.lastName}`);
     
   } catch (error) {
@@ -842,9 +955,22 @@ export const sendApplicationStatusToComedian = async (
   status: 'ACCEPTED' | 'REJECTED',
   organizerMessage: string
 ) => {
+  // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+  const comedianId = comedian._id || comedian.id;
+  if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+    console.log(`⏭️ Comédien ${comedian.email} est désabonné - email non envoyé`);
+    return;
+  }
+  // =========================================
+
   const subject = status === 'ACCEPTED'
     ? `🎉 Votre candidature a été ACCEPTÉE pour l'événement "${event.title}" !`
     : `😔 Votre candidature a été REFUSÉE pour l'événement "${event.title}"`;
+
+  // Générer l'URL de désabonnement AVANT le template HTML
+  const unsubscribeUrl = comedianId
+    ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
+    : 'https://standup-comedy-app.netlify.app/unsubscribe';
 
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 30px;">
@@ -871,6 +997,16 @@ export const sendApplicationStatusToComedian = async (
         <a href="https://standup-comedy-app.netlify.app/applications" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #667eea, #764ba2); color: white; border-radius: 24px; text-decoration: none; font-weight: bold; font-size: 1.1em;">Voir mes candidatures</a>
       </div>
       <p style="text-align: center; color: #888; margin-top: 32px; font-size: 0.95em;">L'équipe Standup Comedy Connect</p>
+
+      <!-- Footer de désabonnement -->
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+        <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+        <p>
+          <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+            Se désabonner de tous les emails
+          </a>
+        </p>
+      </div>
     </div>
   </div>
   `;
@@ -911,7 +1047,7 @@ L'équipe Standup Comedy Connect
       }
     },
     headers: {
-      'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+      'List-Unsubscribe': `<${unsubscribeUrl}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       'X-Entity-Ref-ID': `status-${status}-${Date.now()}`
     },
@@ -930,9 +1066,18 @@ export const sendEventUpdatedNotificationToApplicants = async (
   const subject = `✏️ Mise à jour de l'événement "${event.title}"`;
   const frontendBase = 'https://standup-comedy-app.netlify.app';
 
-  const sendAll = applications.map((app: any) => {
+  const sendAll = applications.map(async (app: any) => {
     const comedian = app.comedian;
     if (!comedian?.email) return Promise.resolve();
+
+    // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+    const comedianId = comedian._id || comedian.id;
+    if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+      console.log(`⏭️ Comédien ${comedian.email} est désabonné - email non envoyé`);
+      return Promise.resolve();
+    }
+    // =========================================
+
     const loginUrl = `${frontendBase}/login?redirect=/applications`;
 
     const html = `
@@ -952,6 +1097,16 @@ export const sendEventUpdatedNotificationToApplicants = async (
           <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#667eea;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Se connecter</a>
         </div>
         <p style="color:#888; margin-top:24px;">Cet email est automatique. Merci de ne pas y répondre.</p>
+
+        <!-- Footer de désabonnement -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+          <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+          <p>
+            <a href="\${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+              Se désabonner de tous les emails
+            </a>
+          </p>
+        </div>
       </div>
     </div>`;
 
@@ -974,6 +1129,13 @@ https://standup-comedy-app.netlify.app/login?redirect=/applications
 L'équipe Standup Comedy Connect
     `.trim();
 
+    const unsubscribeUrl = comedianId
+      ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
+      : 'https://standup-comedy-app.netlify.app/unsubscribe';
+
+    // Générer le html pour ce comédien spécifique avec son unsubscribeUrl
+    const htmlForComedian = html.replace(/\$\{unsubscribeUrl\}/g, unsubscribeUrl);
+
     return sgMail.send({
       from: {
         email: config.email.smtpUser,
@@ -982,7 +1144,7 @@ L'équipe Standup Comedy Connect
       replyTo: organizer.email,
       to: comedian.email,
       subject,
-      html,
+      html: htmlForComedian,
       text: textContent,
       mailSettings: {
         sandboxMode: {
@@ -990,7 +1152,7 @@ L'équipe Standup Comedy Connect
         }
       },
       headers: {
-        'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'X-Entity-Ref-ID': `update-${event._id || Date.now()}`
       },
@@ -1006,11 +1168,24 @@ export const sendEventReminder = async (
   event: { title: string; date: Date; location?: any; startTime?: string },
   type: 'J-3' | 'J-1' | '-2H'
 ) => {
+  // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+  const comedianId = (comedian as any)._id || (comedian as any).id;
+  if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+    console.log(`⏭️ Comédien ${comedian.email} est désabonné - rappel non envoyé`);
+    return;
+  }
+  // =========================================
+
   const subjectMap = {
     'J-3': `⏳ Rappel J-3: "${event.title}" approche !`,
     'J-1': `📅 Rappel veille: "${event.title}" c'est demain`,
     '-2H': `⏰ Rappel: "${event.title}" commence dans 2 heures`,
   } as const;
+
+  // Générer l'URL de désabonnement AVANT le template HTML
+  const unsubscribeUrl = comedianId
+    ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
+    : 'https://standup-comedy-app.netlify.app/unsubscribe';
 
   const html = `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 24px;">
@@ -1028,6 +1203,16 @@ export const sendEventReminder = async (
         <a href="https://standup-comedy-app.netlify.app/applications" style="display:inline-block;padding:12px 24px;background:#667eea;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Voir mes candidatures</a>
       </div>
       <p style="color:#888; margin-top:16px;">Cet email est automatique. Merci de ne pas y répondre.</p>
+
+      <!-- Footer de désabonnement -->
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+        <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+        <p>
+          <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+            Se désabonner de tous les emails
+          </a>
+        </p>
+      </div>
     </div>
   </div>`;
 
@@ -1065,7 +1250,7 @@ L'équipe Standup Comedy Connect
       }
     },
     headers: {
-      'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+      'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       'X-Entity-Ref-ID': `rappel-${type}-${Date.now()}`
     },
@@ -1086,7 +1271,15 @@ export const sendEventCancellationToParticipants = async (
 
   const sends = participants
     .filter(p => !!p.email)
-    .map(p => {
+    .map(async (p) => {
+      // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+      const participantId = (p as any)._id || (p as any).id;
+      if (participantId && !(await checkUserEmailSubscription(participantId))) {
+        console.log(`⏭️ Participant ${p.email} est désabonné - email non envoyé`);
+        return Promise.resolve();
+      }
+      // =========================================
+
       const html = `
       <div style="font-family: Arial, sans-serif; background:#f8f9fa; padding:24px;">
         <div style="max-width: 600px; margin:auto; background:white; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.06); padding:24px;">
@@ -1097,6 +1290,16 @@ export const sendEventCancellationToParticipants = async (
           ${cancellationReason ? `<div style="margin:16px 0; padding:12px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:8px;"><b>Raison fournie:</b><br/><i>${cancellationReason}</i></div>` : ''}
           <p>Nous vous remercions pour votre compréhension.</p>
           <p style="color:#888; margin-top:16px; font-size:0.95em;">Cet email est automatique. Merci de ne pas y répondre.</p>
+
+          <!-- Footer de désabonnement -->
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>
+              <a href="\${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                Se désabonner de tous les emails
+              </a>
+            </p>
+          </div>
         </div>
       </div>`;
 
@@ -1116,6 +1319,13 @@ Nous vous remercions pour votre compréhension.
 L'équipe Standup Comedy Connect
       `.trim();
 
+      const unsubscribeUrl = participantId
+        ? generateUnsubscribeUrl(participantId.toString(), p.email)
+        : 'https://standup-comedy-app.netlify.app/unsubscribe';
+
+      // Générer le html pour ce participant spécifique avec son unsubscribeUrl
+      const htmlForParticipant = html.replace(/\$\{unsubscribeUrl\}/g, unsubscribeUrl);
+
       return sgMail.send({
         from: {
           email: config.email.smtpUser,
@@ -1124,7 +1334,7 @@ L'équipe Standup Comedy Connect
         replyTo: organizer.email,
         to: p.email,
         subject,
-        html,
+        html: htmlForParticipant,
         text: textContent,
         mailSettings: {
           sandboxMode: {
@@ -1132,7 +1342,7 @@ L'équipe Standup Comedy Connect
           }
         },
         headers: {
-          'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+          'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           'X-Entity-Ref-ID': `annulation-${Date.now()}`
         },
@@ -1173,6 +1383,14 @@ export const sendOrganizerEventReminder = async (
 ) => {
   try {
     console.log(`📬 Envoi relance organisateur: ${organizer.email} pour événement "${event.title}" (J-${daysRemaining})`);
+
+    // ===== VÉRIFICATION ABONNEMENT EMAIL =====
+    const organizerId = (organizer as any)._id || (organizer as any).id;
+    if (organizerId && !(await checkUserEmailSubscription(organizerId))) {
+      console.log(`⏭️ Organisateur ${organizer.email} est désabonné - relance non envoyée`);
+      return;
+    }
+    // =========================================
 
     // Mode économie mémoire - désactiver temporairement les emails
     if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
@@ -1223,6 +1441,11 @@ export const sendOrganizerEventReminder = async (
     }
 
     const subject = `⏰ J-${daysRemaining}: Action requise pour "${event.title}" (${currentCount}/${targetCount} humoristes)`;
+
+    // Générer l'URL de désabonnement AVANT le template HTML
+    const unsubscribeUrl = organizerId
+      ? generateUnsubscribeUrl(organizerId.toString(), organizer.email)
+      : 'https://standup-comedy-app.netlify.app/unsubscribe';
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -1486,6 +1709,16 @@ export const sendOrganizerEventReminder = async (
             <p><strong>L'équipe Standup Comedy Connect</strong></p>
             <p>Système de relance automatique - Ne pas répondre à cet email</p>
         </div>
+
+        <!-- Footer de désabonnement -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
+        </div>
     </div>
 </body>
 </html>
@@ -1536,7 +1769,7 @@ Système de relance automatique - Ne pas répondre à cet email
         }
       },
       headers: {
-        'List-Unsubscribe': '<https://standup-comedy-app.netlify.app/unsubscribe>',
+        'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'X-Entity-Ref-ID': `organizer-reminder-${eventId}-j${daysRemaining}-${Date.now()}`,
         'Precedence': 'bulk'

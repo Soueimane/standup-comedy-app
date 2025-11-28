@@ -3,25 +3,27 @@ export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
-  
+
   cors: {
     origin: process.env.CORS_ORIGIN || '*',
+    additionalOrigins: process.env.ADDITIONAL_CORS_ORIGINS?.split(',').filter(Boolean) || [],
   },
-  
+
   jwt: {
-    secret: process.env.JWT_SECRET || 'bfba58bfd62edf8a3c2df7ba1786e10ec7585a9cb5fbb108bcb83b3c13a4ba0da4dfc0c489a67c6d4ab09b754a9c10f22ce06a8628cf9d2ab8c2ee480cc85805',
+    secret: process.env.JWT_SECRET || '', // Pas de fallback - sera validé
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   },
-  
+
   database: {
-    url: process.env.DATABASE_URL || 'mongodb+srv://dahmaneaissa:gCG4gWYxrHnQRKJl@cluster0.l4wzsuv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
+    url: process.env.DATABASE_URL || '', // Pas de fallback - sera validé
   },
-  
+
   email: {
     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
     smtpPort: parseInt(process.env.SMTP_PORT || '465', 10),
-    smtpUser: process.env.SMTP_USER || 'contact.standupconnect@gmail.com',
-    smtpPass: process.env.SMTP_PASS || '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',
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    unsubscribeSecret: process.env.UNSUBSCRIBE_SECRET || '',
   },
 
   cron: {
@@ -30,6 +32,10 @@ export const config = {
     comedianReminderSchedule: process.env.CRON_COMEDIAN_SCHEDULE || '0 * * * *', // Toutes les heures
     organizerReminderSchedule: process.env.CRON_ORGANIZER_SCHEDULE || '0 */6 * * *', // Toutes les 6 heures
   },
+
+  frontend: {
+    url: process.env.FRONTEND_URL || 'http://localhost:3000',
+  }
 };
 
 // Validation de la configuration
@@ -44,7 +50,15 @@ export const validateConfig = (): void => {
   if (!config.jwt.secret) {
     errors.push('JWT_SECRET is required');
   }
-  
+
+  if (!config.email.unsubscribeSecret) {
+    errors.push('UNSUBSCRIBE_SECRET is required');
+  }
+
+  if (config.email.unsubscribeSecret && config.email.unsubscribeSecret.length < 32) {
+    errors.push('UNSUBSCRIBE_SECRET must be at least 32 characters long');
+  }
+
   if (errors.length > 0) {
     console.error('❌ Configuration errors:');
     errors.forEach(error => console.error(`  - ${error}`));

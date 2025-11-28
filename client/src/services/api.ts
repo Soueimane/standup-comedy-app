@@ -4,7 +4,7 @@ import axios from 'axios';
 const baseURL =
   process.env.NODE_ENV === 'production'
     ? process.env.REACT_APP_API_URL || 'https://connectcomedyclub.com/api'  // Production
-    : 'https://connectcomedyclub.com/api';            // Développement
+    : 'http://localhost:3001/api';            // Développement
 const api = axios.create({
   baseURL,
   headers: {
