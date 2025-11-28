@@ -2,7 +2,7 @@ import { type CSSProperties, useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth'; // Import useAuth
 import { useNavigate } from 'react-router-dom'; // Importer useNavigate
-import axios from 'axios';
+import api from '../services/api';
 
 interface EventStats {
   totalEvents: number;
@@ -35,19 +35,8 @@ const Dashboard = () => {
         throw new Error("Vous devez être connecté pour voir les statistiques d'événements.");
       }
 
-       const res = await fetch(`https://connectcomedyclub.com/api/events/stats`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-;
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(`Erreur API: ${errorData.message || res.statusText}`);
-      }
-
-      const data = await res.json();
+      const response = await api.get('/events/stats');
+      const data = response.data;
       console.log('📊 Statistiques reçues du serveur:', data);
       console.log('👤 Rôle utilisateur:', (user as any)?.role);
       setEventStats(data);
@@ -73,16 +62,7 @@ const Dashboard = () => {
         throw new Error('Token d\'authentification manquant');
       }
 
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/events/process-completed-events`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await api.post('/events/process-completed-events', {});
 
       const result = response.data;
       alert(`✅ Traitement terminé !\n${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} événements traités.`);
