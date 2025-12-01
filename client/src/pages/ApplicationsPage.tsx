@@ -44,8 +44,6 @@ export interface IApplication {
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
 type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
 
-const ORGANIZER_FAVORITES_STORAGE_PREFIX = 'organizerFavoriteApplications';
-
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
   const [applications, setApplications] = useState<IApplication[]>([]);
@@ -79,32 +77,27 @@ function ApplicationsPage() {
   );
   const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
 
-  const toggleFavoriteApplication = (appId: string) => {
-    if (!isOrganizerView) return;
-    setFavoriteApplicationIds(prev => {
-      const updated = new Set(prev);
-      if (updated.has(appId)) {
-        updated.delete(appId);
+  const toggleFavoriteApplication = async (appId: string) => {
+    if (!isOrganizerView || !token) return;
+    
+    const isCurrentlyFavorite = favoriteApplicationIdsSet.has(appId);
+    
+    try {
+      if (isCurrentlyFavorite) {
+        // Retirer des favoris
+        await api.delete(`/application-favorites/${appId}`);
+        setFavoriteApplicationIds(prev => prev.filter(id => id !== appId));
       } else {
-        updated.add(appId);
+        // Ajouter aux favoris
+        await api.post('/application-favorites', { applicationId: appId });
+        setFavoriteApplicationIds(prev => [...prev, appId]);
       }
-      const next = Array.from(updated);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(
-            getOrganizerFavoriteStorageKey(user?._id),
-            JSON.stringify(next)
-          );
-        } catch (err) {
-          console.error('Erreur lors de la sauvegarde des favoris organisateur:', err);
-        }
-      }
-      return next;
-    });
+    } catch (error: any) {
+      console.error('Erreur lors de la modification des favoris:', error);
+      // Optionnel: afficher un message d'erreur à l'utilisateur
+    }
   };
   const isOrganizerView = user?.role === 'ORGANIZER';
-  const getOrganizerFavoriteStorageKey = (userId?: string) =>
-    `${ORGANIZER_FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
 
   useEffect(() => {
     const handleResize = () => {
@@ -116,20 +109,28 @@ function ApplicationsPage() {
     };
   }, []);
 
+  // Charger les favoris depuis le backend
   useEffect(() => {
-    if (!isOrganizerView) {
-      setFavoriteApplicationIds([]);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem(getOrganizerFavoriteStorageKey(user?._id));
-      setFavoriteApplicationIds(stored ? JSON.parse(stored) : []);
-    } catch (err) {
-      console.error('Erreur lors du chargement des favoris organisateur:', err);
-      setFavoriteApplicationIds([]);
-    }
-  }, [isOrganizerView, user?._id]);
+    const loadFavorites = async () => {
+      if (!isOrganizerView || !token) {
+        setFavoriteApplicationIds([]);
+        return;
+      }
+      
+      try {
+        const response = await api.get('/application-favorites');
+        const favorites = response.data.favorites || [];
+        // Extraire les IDs des candidatures favorites
+        const favoriteIds = favorites.map((fav: any) => fav._id || fav.id);
+        setFavoriteApplicationIds(favoriteIds);
+      } catch (error: any) {
+        console.error('Erreur lors du chargement des favoris:', error);
+        setFavoriteApplicationIds([]);
+      }
+    };
+    
+    loadFavorites();
+  }, [isOrganizerView, token, user?._id]);
 
   const getStatusFromUrlOrTab = () => {
     const queryParams = new URLSearchParams(location.search);

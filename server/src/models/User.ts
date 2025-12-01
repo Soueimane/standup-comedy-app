@@ -242,6 +242,10 @@ const userSchema = new Schema<UserDocument>({
     type: Schema.Types.ObjectId,
     ref: 'Event'
   }],
+  favoriteApplications: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Application'
+  }],
   emailSubscriptions: {
     type: EmailSubscriptionsSchema,
     default: () => ({ globalSubscribed: true })
