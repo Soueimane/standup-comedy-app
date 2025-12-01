@@ -381,7 +381,7 @@ useEffect(() => {
       let filteredEvents = eventsToFilter;
 
       if (statusFilters.length > 0) {
-        filteredEvents = filteredEvents.filter((event: IEvent) => statusFilters.includes(event.status));
+        filteredEvents = filteredEvents.filter((event: IEvent) => event.status && statusFilters.includes(event.status));
       }
 
       // Sécurité supplémentaire côté client : un organisateur ne peut voir que ses propres événements
@@ -2195,7 +2195,7 @@ useEffect(() => {
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Organisateur:</span> <span style={modalValueStyle}>{getOrganizerName(selectedEvent.organizer)}</span></p>
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Email:</span> <span style={modalValueStyle}>{selectedEvent.organizer?.email || 'Non disponible'}</span></p>
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Statut:</span> <span style={modalValueStyle}>{translateEventStatus(selectedEvent.status)}</span></p>
-            {selectedEvent.status.toLowerCase() === 'cancelled' && selectedEvent.cancellationReason && (
+            {selectedEvent.status?.toLowerCase() === 'cancelled' && selectedEvent.cancellationReason && (
               <p style={modalDetailStyle}>
                 <span style={modalLabelStyle}>Raison de l'annulation:</span> 
                 <span style={modalValueStyle}>{selectedEvent.cancellationReason}</span>
@@ -2203,14 +2203,14 @@ useEffect(() => {
             )}
             
             <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>Exigences:</h3>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Expérience Minimale:</span> <span style={modalValueStyle}>{selectedEvent.requirements.minExperience} ans</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Nombre Max. Performers:</span> <span style={modalValueStyle}>{selectedEvent.requirements.maxPerformers}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements.duration} min</span></p>
+            <p style={modalDetailStyle}><span style={modalLabelStyle}>Expérience Minimale:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.minExperience ?? 'Non spécifié'} ans</span></p>
+            <p style={modalDetailStyle}><span style={modalLabelStyle}>Nombre Max. Performers:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.maxPerformers ?? 'Non spécifié'}</span></p>
+            <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.duration ?? 'Non spécifié'} min</span></p>
 
             {user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN' ? (
               <div ref={participantsSectionRef}>
                 <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
-                  Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements.maxPerformers})
+                  Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
                 </h3>
                 {selectedEvent.participants && selectedEvent.participants.length > 0 ? (
                   <div>
@@ -2322,7 +2322,7 @@ useEffect(() => {
               </div>
             ) : (
               <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
-                Participants attendus ({selectedEvent.requirements.maxPerformers})
+                Participants attendus ({selectedEvent.requirements?.maxPerformers ?? 0})
               </h3>
             )}
           </div>
