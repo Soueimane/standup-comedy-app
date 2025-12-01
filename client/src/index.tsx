@@ -13,6 +13,9 @@ import ApplicationsPage from './pages/ApplicationsPage'
 import ComedianProfilePage from './pages/ComedianProfilePage'
 import ComedianDashboardPage from './pages/ComedianDashboardPage'
 import DirectoryPage from './pages/DirectoryPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import PasswordResetManagementPage from './pages/PasswordResetManagementPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 // import type { IUserData } from './types/user.ts'
 import LandingPage from './pages/LandingPage'
@@ -31,8 +34,10 @@ const AppRouter: React.FC = () => {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-        <Route path="/organisateur" element={<Organisateur />} />
+      <Route path="/organisateur" element={<Organisateur />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/dashboard" element={<DashboardRouter />} />
       <Route path="/events" element={<MyEventsPage />} />
       <Route path="/profile/organizer" element={<OrganizerProfilePage />} />
@@ -40,6 +45,7 @@ const AppRouter: React.FC = () => {
       <Route path="/profile/comedian/:id" element={<ComedianProfilePage />} />
       <Route path="/profile/comedian" element={<ComedianProfilePage />} />
       <Route path="/directory" element={<DirectoryPage />} />
+      <Route path="/admin/password-resets" element={<PasswordResetManagementPage />} />
     </Routes>
   );
 };

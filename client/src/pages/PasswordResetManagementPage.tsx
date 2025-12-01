@@ -1,0 +1,254 @@
+import { useState, useEffect, type CSSProperties } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
+import api from '../services/api';
+
+interface PasswordResetRequest {
+  id: string;
+  userId: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  };
+  email: string;
+  requestedAt: string;
+  expiresAt: string;
+  requestedBy?: {
+    firstName: string;
+    lastName: string;
+  };
+  status: string;
+}
+
+function PasswordResetManagementPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (user?.role !== 'SUPER_ADMIN') {
+      navigate('/dashboard');
+      return;
+    }
+    fetchRequests();
+    // Rafraîchir toutes les 30 secondes
+    const interval = setInterval(fetchRequests, 30000);
+    return () => clearInterval(interval);
+  }, [user, navigate]);
+
+  const fetchRequests = async () => {
+    try {
+      const response = await api.get('/auth/admin/password-reset-requests');
+      setRequests(response.data.requests || []);
+      setError('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors du chargement des demandes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!newPassword || newPassword.length < 8) {
+      setError('Le mot de passe doit contenir au moins 8 caractères');
+      return;
+    }
+
+    setResetting(true);
+    setError('');
+
+    try {
+      await api.post('/auth/admin/reset-password', {
+        userId,
+        newPassword
+      });
+      setSuccessMessage('Mot de passe réinitialisé avec succès !');
+      setSelectedUserId(null);
+      setNewPassword('');
+      fetchRequests();
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors de la réinitialisation');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const mainContainerStyle: CSSProperties = {
+    minHeight: '100vh',
+    color: '#ffffff',
+    padding: '20px',
+    background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
+  };
+
+  const cardStyle: CSSProperties = {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    padding: '20px',
+    borderRadius: '15px',
+    marginBottom: '20px',
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+  };
+
+  const buttonStyle: CSSProperties = {
+    padding: '10px 20px',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+    color: 'white',
+    fontSize: '1em',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    margin: '5px',
+  };
+
+  const inputStyle: CSSProperties = {
+    padding: '10px',
+    borderRadius: '8px',
+    border: '1px solid #444',
+    backgroundColor: '#2c2c4d',
+    color: '#ffffff',
+    fontSize: '1em',
+    width: '100%',
+    marginBottom: '10px',
+  };
+
+  if (user?.role !== 'SUPER_ADMIN') {
+    return null;
+  }
+
+  return (
+    <div style={mainContainerStyle}>
+      <Navbar />
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <h1 style={{ fontSize: '2.5em', marginBottom: '30px', textAlign: 'center' }}>
+          🔐 Gestion des Réinitialisations de Mot de Passe
+        </h1>
+
+        {successMessage && (
+          <div style={{
+            ...cardStyle,
+            backgroundColor: 'rgba(40, 167, 69, 0.2)',
+            border: '1px solid rgba(40, 167, 69, 0.4)',
+            color: '#28a745',
+            marginBottom: '20px',
+          }}>
+            ✅ {successMessage}
+          </div>
+        )}
+
+        {error && (
+          <div style={{
+            ...cardStyle,
+            backgroundColor: 'rgba(220, 53, 69, 0.2)',
+            border: '1px solid rgba(220, 53, 69, 0.4)',
+            color: '#dc3545',
+            marginBottom: '20px',
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={cardStyle}>
+            <p>Chargement des demandes...</p>
+          </div>
+        ) : requests.length === 0 ? (
+          <div style={cardStyle}>
+            <p style={{ textAlign: 'center', fontSize: '1.2em' }}>
+              Aucune demande de réinitialisation en attente
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={cardStyle}>
+              <h2 style={{ marginBottom: '15px' }}>
+                📋 Demandes en attente ({requests.length})
+              </h2>
+              {requests.map((request) => (
+                <div
+                  key={request.id}
+                  style={{
+                    ...cardStyle,
+                    marginBottom: '15px',
+                    border: '2px solid #ff416c',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div>
+                      <p style={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }}>
+                        👤 {request.userId?.firstName} {request.userId?.lastName}
+                      </p>
+                      <p style={{ color: '#aaa', marginBottom: '5px' }}>
+                        📧 {request.email}
+                      </p>
+                      <p style={{ color: '#aaa', marginBottom: '5px' }}>
+                        🎭 Rôle: {request.userId?.role}
+                      </p>
+                      <p style={{ color: '#aaa', marginBottom: '5px' }}>
+                        📅 Demandé le: {new Date(request.requestedAt).toLocaleString('fr-FR')}
+                      </p>
+                      <p style={{ color: '#aaa' }}>
+                        ⏰ Expire le: {new Date(request.expiresAt).toLocaleString('fr-FR')}
+                      </p>
+                    </div>
+                    <div style={{ minWidth: '250px' }}>
+                      {selectedUserId === request.userId.id ? (
+                        <div>
+                          <input
+                            type="password"
+                            placeholder="Nouveau mot de passe (min 8 caractères)"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            style={inputStyle}
+                            minLength={8}
+                          />
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                              onClick={() => handleResetPassword(request.userId.id)}
+                              style={buttonStyle}
+                              disabled={resetting || newPassword.length < 8}
+                            >
+                              {resetting ? 'Réinitialisation...' : 'Confirmer'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedUserId(null);
+                                setNewPassword('');
+                              }}
+                              style={{ ...buttonStyle, background: '#6c757d' }}
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedUserId(request.userId.id)}
+                          style={buttonStyle}
+                        >
+                          Réinitialiser le mot de passe
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default PasswordResetManagementPage;
+

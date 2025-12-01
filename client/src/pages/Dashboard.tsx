@@ -22,6 +22,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [passwordResetCount, setPasswordResetCount] = useState<number>(0);
   const navigate = useNavigate(); // Initialiser useNavigate
   const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
@@ -77,11 +78,28 @@ const Dashboard = () => {
     }
   };
 
+  // Fonction pour récupérer le nombre de demandes de réinitialisation
+  const fetchPasswordResetRequests = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const response = await api.get('/auth/admin/password-reset-requests');
+      setPasswordResetCount(response.data.count || 0);
+    } catch (err) {
+      console.error('Erreur lors de la récupération des demandes:', err);
+    }
+  };
+
   useEffect(() => {
     if (user) { // Fetch only if user is available
       fetchEventStats();
+      if (isSuperAdmin) {
+        fetchPasswordResetRequests();
+        // Rafraîchir toutes les 30 secondes
+        const interval = setInterval(fetchPasswordResetRequests, 30000);
+        return () => clearInterval(interval);
+      }
     }
-  }, [user]); // Re-run effect if user changes
+  }, [user, isSuperAdmin]); // Re-run effect if user changes
 
   // Styles de base pour le conteneur principal
   const mainContainerStyle: CSSProperties = {
@@ -298,6 +316,11 @@ const Dashboard = () => {
               })}
               {renderCard("Nombre d'humoristes", eventStats?.comedianCount || 0, '🎤', {
                 variant: 'superAdmin'
+              })}
+              {renderCard('Réinitialisations en attente', passwordResetCount, '🔐', {
+                style: passwordResetCount > 0 ? glowingCardOrangeStyle : {},
+                variant: 'superAdmin',
+                onClick: () => navigate('/admin/password-resets')
               })}
             </>
           ) : (

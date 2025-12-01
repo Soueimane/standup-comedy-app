@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 function LoginOrganisateur() {
   const { loginMutation } = useAuth();
+  const navigate = useNavigate();
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -270,6 +271,15 @@ function LoginOrganisateur() {
             {loginMutation.isPending ? 'Connexion en cours...' : <>Se connecter <span style={{ marginLeft: '10px' }}>🚀</span></>}
           </button>
         </form>
+
+        <p style={{ marginTop: '15px', marginBottom: '10px' }}>
+          <Link 
+            to="/forgot-password" 
+            style={{ ...linkStyle, fontSize: '0.9em', display: 'block' }}
+          >
+            Mot de passe oublié ?
+          </Link>
+        </p>
 
         <p>Pas encore de compte ? <Link to="/register" style={linkStyle}>Inscris-toi</Link></p>
       </div>

@@ -1,7 +1,11 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'crypto';
 import { UserModel } from '../models/User';
+import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
 import { config } from '../config/env';
+import { AuthRequest } from '../middleware/auth';
+import sgMail from '@sendgrid/mail';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -295,5 +299,280 @@ export const getAllUsers = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs' });
+  }
+};
+
+// ============================================================================
+// FORGOT PASSWORD - Demander une réinitialisation
+// ============================================================================
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email requis' });
+    }
+
+    // Trouver l'utilisateur
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
+    
+    // Pour la sécurité, on ne révèle pas si l'email existe ou non
+    if (!user) {
+      return res.status(200).json({
+        message: 'Si cet email existe, un lien de réinitialisation a été envoyé'
+      });
+    }
+
+    // Générer un token de réinitialisation
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 3600000); // 1 heure
+
+    // Créer ou mettre à jour la demande de réinitialisation
+    await PasswordResetRequestModel.findOneAndUpdate(
+      { userId: user._id, status: 'pending' },
+      {
+        userId: user._id,
+        email: user.email,
+        resetToken,
+        expiresAt,
+        requestedAt: new Date(),
+        status: 'pending'
+      },
+      { upsert: true, new: true }
+    );
+
+    // Envoyer l'email de réinitialisation à l'utilisateur
+    const resetUrl = `${config.frontend.url}/reset-password?token=${resetToken}`;
+    
+    sgMail.setApiKey(config.email.smtpPass);
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser || '',
+        name: 'Standup Comedy Connect'
+      },
+      to: user.email,
+      subject: 'Réinitialisation de votre mot de passe',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <div style="background-color: #fff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #ff416c; margin-bottom: 20px;">🔐 Réinitialisation de mot de passe</h2>
+            <p>Bonjour ${user.firstName},</p>
+            <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
+            <p>Cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe :</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" style="display: inline-block; padding: 15px 30px; background: linear-gradient(to right, #ff416c, #ff4b2b); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                Réinitialiser mon mot de passe
+              </a>
+            </div>
+            
+            <p style="color: #666; font-size: 0.9em; margin-top: 20px;">
+              <strong>⚠️ Important :</strong> Ce lien expire dans 1 heure. Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
+            </p>
+            
+            <p style="color: #999; font-size: 0.85em; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :<br/>
+              <span style="word-break: break-all; color: #ff416c;">${resetUrl}</span>
+            </p>
+            
+            <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
+              Cordialement,<br/>
+              L'équipe Standup Comedy Connect
+            </p>
+          </div>
+        </div>
+      `,
+      text: `Bonjour ${user.firstName},\n\nVous avez demandé à réinitialiser votre mot de passe.\n\nCliquez sur ce lien pour créer un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 1 heure.\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\nCordialement,\nL'équipe Standup Comedy Connect`
+    });
+
+    console.log(`✅ Email de réinitialisation envoyé à ${user.email}`);
+
+    res.status(200).json({
+      message: 'Si cet email existe, un lien de réinitialisation a été envoyé à votre adresse email.'
+    });
+  } catch (error) {
+    console.error('Erreur lors de la demande de réinitialisation:', error);
+    res.status(500).json({ message: 'Erreur lors de la demande de réinitialisation' });
+  }
+};
+
+// ============================================================================
+// RESET PASSWORD - Réinitialiser avec un token
+// ============================================================================
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token et nouveau mot de passe requis' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    // Trouver la demande de réinitialisation
+    const resetRequest = await PasswordResetRequestModel.findOne({
+      resetToken: token,
+      status: 'pending'
+    });
+
+    if (!resetRequest || resetRequest.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'Token invalide ou expiré' });
+    }
+
+    // Trouver l'utilisateur
+    const user = await UserModel.findById(resetRequest.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    // Mettre à jour le mot de passe
+    user.password = password;
+    await user.save();
+
+    // Marquer la demande comme complétée
+    resetRequest.status = 'completed';
+    resetRequest.completedAt = new Date();
+    await resetRequest.save();
+
+    res.status(200).json({
+      message: 'Mot de passe réinitialisé avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur lors de la réinitialisation:', error);
+    res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
+  }
+};
+
+// ============================================================================
+// GET PASSWORD RESET REQUESTS - Pour Super Admin
+// ============================================================================
+export const getPasswordResetRequests = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+
+    const requests = await PasswordResetRequestModel.find({
+      status: 'pending'
+    })
+      .populate('userId', 'firstName lastName email role')
+      .populate('requestedBy', 'firstName lastName email')
+      .sort({ requestedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests: requests.map(req => ({
+        id: req._id,
+        userId: req.userId,
+        email: req.email,
+        requestedAt: req.requestedAt,
+        expiresAt: req.expiresAt,
+        requestedBy: req.requestedBy,
+        status: req.status
+      }))
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des demandes:', error);
+    res.status(500).json({ message: 'Erreur lors de la récupération des demandes' });
+  }
+};
+
+// ============================================================================
+// ADMIN RESET PASSWORD - Super Admin réinitialise le mot de passe
+// ============================================================================
+export const adminResetPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ message: 'userId et newPassword requis' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    // Trouver l'utilisateur
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    // Mettre à jour le mot de passe
+    user.password = newPassword;
+    await user.save();
+
+    // Marquer toutes les demandes en attente comme complétées
+    await PasswordResetRequestModel.updateMany(
+      { userId: user._id, status: 'pending' },
+      {
+        status: 'completed',
+        completedAt: new Date(),
+        completedBy: req.user.id
+      }
+    );
+
+    // Envoyer un email à l'utilisateur avec son nouveau mot de passe
+    try {
+      sgMail.setApiKey(config.email.smtpPass);
+      await sgMail.send({
+        from: {
+          email: config.email.smtpUser || '',
+          name: 'Standup Comedy Connect'
+        },
+        to: user.email,
+        subject: '🔐 Votre mot de passe a été réinitialisé',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+            <div style="background-color: #fff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #ff416c; margin-bottom: 20px;">🔐 Mot de passe réinitialisé</h2>
+              <p>Bonjour ${user.firstName},</p>
+              <p>Votre demande de réinitialisation de mot de passe a été traitée par un administrateur.</p>
+              
+              <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="margin: 0; font-weight: bold; color: #856404;">⚠️ Important : Conservez ce mot de passe en sécurité</p>
+                <p style="margin: 10px 0 0 0; font-size: 1.2em; color: #000; font-family: monospace; word-break: break-all;">
+                  <strong>Votre nouveau mot de passe :</strong><br/>
+                  ${newPassword}
+                </p>
+              </div>
+              
+              <p style="margin-top: 25px;">Vous pouvez maintenant vous connecter avec ce nouveau mot de passe :</p>
+              <a href="${config.frontend.url}/login" style="display: inline-block; padding: 12px 24px; background: #ff416c; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold;">
+                Se connecter
+              </a>
+              
+              <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
+                <strong>Conseil de sécurité :</strong> Nous vous recommandons de changer ce mot de passe après votre première connexion pour un mot de passe que vous seul connaissez.
+              </p>
+              
+              <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
+                Cordialement,<br/>
+                L'équipe Standup Comedy Connect
+              </p>
+            </div>
+          </div>
+        `,
+        text: `Bonjour ${user.firstName},\n\nVotre demande de réinitialisation de mot de passe a été traitée par un administrateur.\n\nVotre nouveau mot de passe : ${newPassword}\n\nVous pouvez maintenant vous connecter avec ce nouveau mot de passe.\n\nConseil de sécurité : Nous vous recommandons de changer ce mot de passe après votre première connexion.\n\nCordialement,\nL'équipe Standup Comedy Connect`
+      });
+      console.log(`✅ Email envoyé à ${user.email} avec le nouveau mot de passe`);
+    } catch (emailError) {
+      console.error('❌ Erreur lors de l\'envoi de l\'email à l\'utilisateur:', emailError);
+      // Ne pas faire échouer la réinitialisation si l'email échoue
+    }
+
+    res.status(200).json({
+      message: `Mot de passe réinitialisé avec succès pour ${user.firstName} ${user.lastName}. Un email a été envoyé à l'utilisateur.`
+    });
+  } catch (error) {
+    console.error('Erreur lors de la réinitialisation admin:', error);
+    res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
   }
 };
