@@ -13,7 +13,8 @@ import {
   getOrganizerEvents,
   notifyHumorists,
   processCompletedEvents,
-  resetParticipations
+  resetParticipations,
+  markEventsAsCompletedCron
 } from '../controllers/event';
 
 const router = express.Router();
@@ -73,5 +74,12 @@ router.post('/process-completed-events', authMiddleware, asyncHandler(processCom
 
 // POST /api/events/reset-participations - Réinitialiser les participations (SUPER_ADMIN uniquement)
 router.post('/reset-participations', authMiddleware, asyncHandler(resetParticipations));
+
+// ============================================================================
+// CRON JOB ROUTES
+// ============================================================================
+
+// POST /api/events/jobs/mark-completed - Cron job pour marquer les événements passés comme completed
+router.post('/jobs/mark-completed', asyncHandler(markEventsAsCompletedCron));
 
 export default router;

@@ -28,6 +28,12 @@ const cronJobs: CronJob[] = [
     schedule: config.cron.organizerReminderSchedule,
     endpoint: '/api/email/jobs/organizer-reminders',
     enabled: config.cron.enabled
+  },
+  {
+    name: 'Marquage événements terminés',
+    schedule: config.cron.markCompletedSchedule,
+    endpoint: '/api/events/jobs/mark-completed',
+    enabled: config.cron.enabled
   }
 ];
 

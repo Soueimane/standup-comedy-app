@@ -552,7 +552,13 @@ useEffect(() => {
   const pendingApplicationEvents = useMemo(() => {
     if (user?.role === 'COMEDIAN' && comedianApplications) {
       return comedianApplications
-        .filter(app => app.status === 'PENDING' && app.event)
+        .filter(app => {
+          const isPending = app.status === 'PENDING';
+          const hasEvent = !!app.event;
+          const eventStatus = app.event?.status?.toLowerCase();
+          const isPublished = eventStatus === 'published';
+          return isPending && hasEvent && isPublished;
+        })
         .map(app => app.event as unknown as IEvent);
     }
     return [] as IEvent[];

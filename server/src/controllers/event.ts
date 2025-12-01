@@ -925,3 +925,104 @@ export const resetParticipations = async (req: AuthRequest, res: Response): Prom
     res.status(500).json({ message: 'Erreur lors de la réinitialisation des participations' });
   }
 };
+
+// ============================================================================
+// MARK EVENTS AS COMPLETED - CRON JOB
+// ============================================================================
+/**
+ * Marque automatiquement les événements passés comme "completed" - Cron job
+ *
+ * Logique:
+ * - Trouve tous les événements qui ne sont pas déjà "completed" ou "cancelled"
+ * - Vérifie si la date + endTime est passée
+ * - Met à jour le statut à "completed"
+ */
+export const markEventsAsCompletedCron = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // --- SÉCURITÉ: Vérifier l'authentification du cron ---
+    const cronKey = req.header('X-CRON-KEY');
+    if (!cronKey || cronKey !== config.cron.secret) {
+      console.error('❌ Tentative d\'accès non autorisée à l\'endpoint cron mark-events-completed');
+      res.status(401).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    console.log('🔔 Démarrage du job cron: marquage des événements comme completed');
+    const now = new Date();
+
+    // Récupérer tous les événements qui ne sont pas déjà completed ou cancelled
+    const events = await EventModel.find({
+      status: { $nin: ['completed', 'COMPLETED', 'cancelled', 'CANCELLED'] },
+      date: { $lt: now } // Date dans le passé
+    });
+
+    console.log(`📊 ${events.length} événements passés trouvés (non-completed, non-cancelled)`);
+
+    let updatedCount = 0;
+    const updatedEvents: string[] = [];
+
+    // Traiter chaque événement
+    for (const event of events) {
+      try {
+        // Construire la date/heure de fin de l'événement
+        const eventDate = new Date(event.date);
+        let eventEndDateTime: Date;
+
+        if (event.endTime) {
+          // Si endTime est défini, l'utiliser
+          const [hours, minutes] = event.endTime.split(':').map(Number);
+          eventEndDateTime = new Date(
+            eventDate.getFullYear(),
+            eventDate.getMonth(),
+            eventDate.getDate(),
+            hours,
+            minutes,
+            0,
+            0
+          );
+        } else {
+          // Sinon, considérer la fin de la journée (23:59:59)
+          eventEndDateTime = new Date(
+            eventDate.getFullYear(),
+            eventDate.getMonth(),
+            eventDate.getDate(),
+            23,
+            59,
+            59,
+            999
+          );
+        }
+
+        // Vérifier si l'événement est vraiment terminé
+        if (now > eventEndDateTime) {
+          event.status = 'completed';
+          await event.save();
+          updatedCount++;
+          updatedEvents.push(event.title);
+          console.log(`✅ Événement "${event.title}" marqué comme completed`);
+        }
+
+      } catch (eventError) {
+        console.error(`❌ Erreur lors du traitement de l'événement ${event._id}:`, eventError);
+      }
+    }
+
+    const response = {
+      message: 'Événements passés marqués comme completed',
+      updated: updatedCount,
+      totalChecked: events.length,
+      updatedEvents: updatedEvents,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📊 Résumé: ${updatedCount} événements marqués comme completed sur ${events.length} vérifiés`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ Erreur CRON mark-events-completed:', error);
+    res.status(500).json({
+      message: 'Erreur lors du marquage des événements comme completed',
+      error: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+};

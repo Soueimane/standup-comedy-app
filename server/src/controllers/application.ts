@@ -387,7 +387,7 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
     const applications = await ApplicationModel.find(dbFilter).select('+performanceDetails +message +organizerMessage')
       .populate({
         path: 'event',
-        select: 'title date startTime endTime organizer location updatedAt modifiedByOrganizer',
+        select: 'title date startTime endTime organizer location updatedAt modifiedByOrganizer status requirements participants',
         populate: {
           path: 'organizer',
           select: 'firstName lastName email'

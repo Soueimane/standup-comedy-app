@@ -31,6 +31,7 @@ export const config = {
     enabled: process.env.ENABLE_CRONS !== 'false', // true by default
     comedianReminderSchedule: process.env.CRON_COMEDIAN_SCHEDULE || '0 * * * *', // Toutes les heures
     organizerReminderSchedule: process.env.CRON_ORGANIZER_SCHEDULE || '0 */6 * * *', // Toutes les 6 heures
+    markCompletedSchedule: process.env.CRON_MARK_COMPLETED_SCHEDULE || '0 2 * * *', // Tous les jours à 2h du matin
   },
 
   frontend: {
