@@ -4,6 +4,8 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
+import { useQuery } from '@tanstack/react-query';
+import { addFavorite, removeFavorite, getFavorites } from '../services/api';
 
 export interface IUser {
   _id: string;
@@ -44,8 +46,6 @@ export interface IApplication {
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
 type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
 
-const ORGANIZER_FAVORITES_STORAGE_PREFIX = 'organizerFavoriteApplications';
-
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
   const [applications, setApplications] = useState<IApplication[]>([]);
@@ -72,39 +72,86 @@ function ApplicationsPage() {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 768;
   });
-  const [favoriteApplicationIds, setFavoriteApplicationIds] = useState<string[]>([]);
-  const favoriteApplicationIdsSet = useMemo(
-    () => new Set(favoriteApplicationIds),
-    [favoriteApplicationIds]
+  const [favoriteComedianIds, setFavoriteComedianIds] = useState<string[]>([]);
+  const favoriteComedianIdsSet = useMemo(
+    () => new Set(favoriteComedianIds),
+    [favoriteComedianIds]
   );
   const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
-
-  const toggleFavoriteApplication = (appId: string) => {
-    if (!isOrganizerView) return;
-    setFavoriteApplicationIds(prev => {
-      const updated = new Set(prev);
-      if (updated.has(appId)) {
-        updated.delete(appId);
-      } else {
-        updated.add(appId);
-      }
-      const next = Array.from(updated);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(
-            getOrganizerFavoriteStorageKey(user?._id),
-            JSON.stringify(next)
-          );
-        } catch (err) {
-          console.error('Erreur lors de la sauvegarde des favoris organisateur:', err);
-        }
-      }
-      return next;
-    });
-  };
   const isOrganizerView = user?.role === 'ORGANIZER';
-  const getOrganizerFavoriteStorageKey = (userId?: string) =>
-    `${ORGANIZER_FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
+  const isQueryEnabled = !!token && !!user?._id && isOrganizerView;
+
+  // Charger les favoris depuis l'API
+  const { data: favoritesData, refetch: refetchFavorites } = useQuery<{ favorites: IUser[] }, Error>({
+    queryKey: ['organizerFavorites', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+        throw new Error("Informations d'authentification manquantes.");
+      }
+      const response = await getFavorites();
+      return response;
+    },
+    enabled: isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Extraire les IDs des comédiens favoris
+  useEffect(() => {
+    if (favoritesData?.favorites) {
+      const favoriteIds = favoritesData.favorites.map((comedian: IUser) => comedian._id);
+      setFavoriteComedianIds(favoriteIds);
+    } else if (!isOrganizerView) {
+      setFavoriteComedianIds([]);
+    }
+  }, [favoritesData, isOrganizerView]);
+
+  const toggleFavoriteApplication = async (appId: string) => {
+    if (!isOrganizerView || !token) return;
+    
+    const app = applications.find(a => a._id === appId);
+    if (!app || !app.comedian?._id) {
+      console.error('Candidature ou comédien introuvable');
+      return;
+    }
+
+    const comedianId = app.comedian._id;
+    const isCurrentlyFavorite = favoriteComedianIdsSet.has(comedianId);
+    
+    // Optimistic update
+    setFavoriteComedianIds(prev => {
+      const updated = new Set(prev);
+      if (isCurrentlyFavorite) {
+        updated.delete(comedianId);
+      } else {
+        updated.add(comedianId);
+      }
+      return Array.from(updated);
+    });
+
+    try {
+      if (isCurrentlyFavorite) {
+        await removeFavorite(comedianId);
+      } else {
+        await addFavorite(comedianId);
+      }
+      // Rafraîchir les favoris depuis l'API pour s'assurer de la cohérence
+      await refetchFavorites();
+    } catch (error: any) {
+      console.error('Erreur lors de la modification des favoris:', error);
+      // Revert optimistic update en cas d'erreur
+      setFavoriteComedianIds(prev => {
+        const updated = new Set(prev);
+        if (isCurrentlyFavorite) {
+          updated.add(comedianId);
+        } else {
+          updated.delete(comedianId);
+        }
+        return Array.from(updated);
+      });
+      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -115,21 +162,6 @@ function ApplicationsPage() {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isOrganizerView) {
-      setFavoriteApplicationIds([]);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem(getOrganizerFavoriteStorageKey(user?._id));
-      setFavoriteApplicationIds(stored ? JSON.parse(stored) : []);
-    } catch (err) {
-      console.error('Erreur lors du chargement des favoris organisateur:', err);
-      setFavoriteApplicationIds([]);
-    }
-  }, [isOrganizerView, user?._id]);
 
   const getStatusFromUrlOrTab = () => {
     const queryParams = new URLSearchParams(location.search);
@@ -345,7 +377,7 @@ function ApplicationsPage() {
       return 0;
     });
     const withFavoritesFilter = selectedTab === 'favorites'
-      ? sorted.filter(app => favoriteApplicationIdsSet.has(app._id))
+      ? sorted.filter(app => app.comedian && favoriteComedianIdsSet.has(app.comedian._id))
       : sorted;
 
     return withFavoritesFilter;
@@ -485,7 +517,7 @@ function ApplicationsPage() {
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
   const acceptedApplicationsCount = applications.filter(app => app.status === 'ACCEPTED').length;
   const rejectedApplicationsCount = applications.filter(app => app.status === 'REJECTED').length;
-  const favoriteApplicationsCount = applications.filter(app => favoriteApplicationIdsSet.has(app._id)).length;
+  const favoriteApplicationsCount = applications.filter(app => app.comedian && favoriteComedianIdsSet.has(app.comedian._id)).length;
 
   const organizerTabsConfig: Array<{ id: OrganizerApplicationTab; label: string; count: number }> = [
     { id: 'all', label: 'Toutes', count: allApplicationsCount },
@@ -1202,17 +1234,17 @@ function ApplicationsPage() {
 
                     {/* Section droite - Statut et actions */}
                     <div style={cardRightSectionStyle}>
-                      {isOrganizerView && (
+                      {isOrganizerView && app.comedian && (
                         <button
                           type="button"
-                          aria-label={favoriteApplicationIdsSet.has(app._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                          style={{ ...favoriteStarButtonStyle(favoriteApplicationIdsSet.has(app._id)), alignSelf: 'flex-end' }}
+                          aria-label={favoriteComedianIdsSet.has(app.comedian._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                          style={{ ...favoriteStarButtonStyle(favoriteComedianIdsSet.has(app.comedian._id)), alignSelf: 'flex-end' }}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             toggleFavoriteApplication(app._id);
                           }}
                         >
-                          {favoriteApplicationIdsSet.has(app._id) ? '★' : '☆'}
+                          {favoriteComedianIdsSet.has(app.comedian._id) ? '★' : '☆'}
                         </button>
                       )}
                       <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>

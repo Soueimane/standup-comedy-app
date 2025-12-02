@@ -55,4 +55,46 @@ export const getComedianAbsences = async (comedianId: string) => {
   return response.data;
 };
 
+// Fonctions pour gérer les favoris d'événements (comédiens)
+export const addEventFavorite = async (eventId: string) => {
+  const response = await api.post('/event-favorites', { eventId });
+  return response.data;
+};
+
+export const removeEventFavorite = async (eventId: string) => {
+  const response = await api.delete(`/event-favorites/${eventId}`);
+  return response.data;
+};
+
+export const getEventFavorites = async () => {
+  const response = await api.get('/event-favorites');
+  return response.data;
+};
+
+export const checkIsEventFavorite = async (eventId: string) => {
+  const response = await api.get(`/event-favorites/check/${eventId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les favoris de comédiens (organisateurs)
+export const addFavorite = async (comedianId: string) => {
+  const response = await api.post('/favorites', { comedianId });
+  return response.data;
+};
+
+export const removeFavorite = async (comedianId: string) => {
+  const response = await api.delete(`/favorites/${comedianId}`);
+  return response.data;
+};
+
+export const getFavorites = async () => {
+  const response = await api.get('/favorites');
+  return response.data;
+};
+
+export const checkIsFavorite = async (comedianId: string) => {
+  const response = await api.get(`/favorites/check/${comedianId}`);
+  return response.data;
+};
+
 export default api;

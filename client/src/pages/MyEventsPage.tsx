@@ -12,10 +12,9 @@ import type { IEvent } from '../types/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
-import { markAbsence, cancelAbsence, getEventAbsences } from '../services/api';
+import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, checkIsEventFavorite } from '../services/api';
 
 const ITEMS_PER_PAGE = 5;
-const FAVORITES_STORAGE_PREFIX = 'comedianFavoriteEvents';
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
 type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
 type SuperAdminTab = 'completed' | 'upcoming' | 'archived' | 'cancelled';
@@ -46,26 +45,35 @@ function MyEventsPage() {
     }
   }, [user?.role]);
 
-  const getFavoritesStorageKey = (userId?: string) => `${FAVORITES_STORAGE_PREFIX}_${userId ?? 'guest'}`;
-
-  useEffect(() => {
-    if (!isComedianView) {
-      setFavoriteEventIds([]);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem(getFavoritesStorageKey(user?._id));
-      if (stored) {
-        setFavoriteEventIds(JSON.parse(stored));
-      } else {
-        setFavoriteEventIds([]);
+  // Charger les favoris depuis l'API
+  const { data: eventFavoritesData, refetch: refetchEventFavorites } = useQuery<{ favorites: IEvent[] }, Error>({
+    queryKey: ['eventFavorites', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+        throw new Error("Informations d'authentification manquantes.");
       }
-    } catch (error) {
-      console.error('❌ [MyEventsPage] Erreur lors du chargement des favoris:', error);
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+      const response = await getEventFavorites();
+      return response;
+    },
+    enabled: isComedianView && isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Extraire les IDs des événements favoris
+  useEffect(() => {
+    if (eventFavoritesData?.favorites) {
+      const favoriteIds = eventFavoritesData.favorites.map(event => event._id);
+      setFavoriteEventIds(favoriteIds);
+    } else if (!isComedianView) {
       setFavoriteEventIds([]);
     }
-  }, [isComedianView, user?._id]);
+  }, [eventFavoritesData, isComedianView]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
@@ -237,25 +245,44 @@ useEffect(() => {
 
   const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
 
-  const toggleFavoriteEvent = (eventId: string) => {
-    if (!isComedianView) return;
+  const toggleFavoriteEvent = async (eventId: string) => {
+    if (!isComedianView || !token) return;
+    
+    const isCurrentlyFavorite = favoriteIdsSet.has(eventId);
+    
+    // Optimistic update
     setFavoriteEventIds(prev => {
       const updated = new Set(prev);
-      if (updated.has(eventId)) {
+      if (isCurrentlyFavorite) {
         updated.delete(eventId);
       } else {
         updated.add(eventId);
       }
-      const next = Array.from(updated);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(getFavoritesStorageKey(user?._id), JSON.stringify(next));
-        } catch (error) {
-          console.error('❌ [MyEventsPage] Erreur lors de la sauvegarde des favoris:', error);
-        }
-      }
-      return next;
+      return Array.from(updated);
     });
+
+    try {
+      if (isCurrentlyFavorite) {
+        await removeEventFavorite(eventId);
+      } else {
+        await addEventFavorite(eventId);
+      }
+      // Rafraîchir les favoris depuis l'API pour s'assurer de la cohérence
+      await refetchEventFavorites();
+    } catch (error: any) {
+      console.error('❌ [MyEventsPage] Erreur lors de la modification des favoris:', error);
+      // Revert optimistic update en cas d'erreur
+      setFavoriteEventIds(prev => {
+        const updated = new Set(prev);
+        if (isCurrentlyFavorite) {
+          updated.add(eventId);
+        } else {
+          updated.delete(eventId);
+        }
+        return Array.from(updated);
+      });
+      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+    }
   };
 
   const comedianApplicationsMap = useMemo(() => {
