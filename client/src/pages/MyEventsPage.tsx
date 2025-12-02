@@ -45,6 +45,9 @@ function MyEventsPage() {
     }
   }, [user?.role]);
 
+  // Calculer isQueryEnabled avant son utilisation
+  const isQueryEnabled = !authIsLoading && !!token && !!user?._id;
+
   // Charger les favoris depuis l'API
   const { data: eventFavoritesData, refetch: refetchEventFavorites } = useQuery<{ favorites: IEvent[] }, Error>({
     queryKey: ['eventFavorites', user?._id, token],
@@ -132,10 +135,8 @@ useEffect(() => {
   console.log("MyEventsPage: Initial token", token);
   console.log("MyEventsPage: Initial user", user);
   console.log("MyEventsPage: Auth is loading?", authIsLoading);
-
-  const isQueryEnabled = !authIsLoading && !!token && !!user?._id;
   console.log("MyEventsPage: useQuery enabled status", isQueryEnabled, { authIsLoading, token, userId: user?._id, userRole: user?.role });
-  
+
   // Debug supplémentaire pour diagnostiquer le problème
   console.log("🔧 DEBUG ACTIVATION QUERY:", {
     authIsLoading,

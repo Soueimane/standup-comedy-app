@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -29,39 +29,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<IUserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      setIsLoading(true);
-      const userString = localStorage.getItem('user');
-      if (userString) {
-        try {
-          const parsedUser = JSON.parse(userString) as IUserData;
-          setUser(parsedUser);
-          if (token) {
-            await refreshUser();
-          }
-        } catch (e) {
-          console.error("Erreur lors du parse de l'utilisateur depuis le localStorage", e);
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-      setIsLoading(false);
-    };
-    initializeAuth();
-  }, []);
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    navigate('/');
+  }, [navigate]);
 
-  useEffect(() => {
-    if (token) {
-      refreshUser();
-    } else {
-      setUser(null);
-      setIsLoading(false);
-    }
-  }, [token]);
-
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     console.log("refreshUser: Tentative de rafraîchissement des données utilisateur...");
     if (token) {
       try {
@@ -90,7 +66,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setIsLoading(false);
     }
-  };
+  }, [token, logout]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      if (!isMounted) return;
+
+      setIsLoading(true);
+      const userString = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+
+      if (userString && storedToken) {
+        try {
+          const parsedUser = JSON.parse(userString) as IUserData;
+          if (isMounted) setUser(parsedUser);
+
+          // Rafraîchir les données utilisateur une seule fois au montage
+          try {
+            const response = await api.get<IUserData>('/profile/me', {
+              headers: {
+                Authorization: `Bearer ${storedToken}`,
+              },
+            });
+            if (isMounted) {
+              localStorage.setItem('user', JSON.stringify(response.data));
+              setUser(response.data);
+            }
+          } catch (err: any) {
+            console.error("Erreur lors du rafraîchissement des données utilisateur", err);
+            if (isMounted && axios.isAxiosError(err) && (err.response?.status === 401 || err.response?.status === 403)) {
+              logout();
+            }
+          }
+        } catch (e) {
+          console.error("Erreur lors du parse de l'utilisateur depuis le localStorage", e);
+          if (isMounted) setUser(null);
+        }
+      } else {
+        if (isMounted) setUser(null);
+      }
+      if (isMounted) setIsLoading(false);
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [logout]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -154,13 +179,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   });
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    navigate('/');
-  };
 
   const contextValue = {
     token,
