@@ -196,16 +196,9 @@ function ComedianDashboardPage() {
 
         <div style={cardsGridStyle}>
           {/* Carte: Événements à venir (SWAPPED) - Avec effet clignotant vert */}
-          <div 
+          <div
             style={blinkingCardStyle}
-            onClick={() => {
-              const isOnNetlify = window.location.hostname.includes('netlify.app');
-              if (isOnNetlify) {
-                navigate('/events'); // navigation SPA, plus rapide
-              } else {
-                window.location.href = 'https://standup-comedy-app.netlify.app/events';
-              }
-            }}
+            onClick={() => navigate('/events?tab=accepted')}
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >

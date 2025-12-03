@@ -108,6 +108,55 @@ function MyEventsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Définir l'onglet initial pour les comédiens en fonction du paramètre URL 'tab'
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+
+    if (isComedianView && tabParam) {
+      const validComedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+      if (validComedianTabs.includes(tabParam as ComedianTab)) {
+        setComedianTab(tabParam as ComedianTab);
+      } else {
+        setComedianTab('opportunities');
+      }
+    }
+  }, [isComedianView, location.search]);
+
+  // Définir l'onglet initial pour les organisateurs en fonction du paramètre URL 'tab'
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+
+    if (isOrganizerView && tabParam) {
+      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
+      if (validOrganizerTabs.includes(tabParam as OrganizerTab)) {
+        setOrganizerTab(tabParam as OrganizerTab);
+      } else {
+        setOrganizerTab('upcoming');
+      }
+    } else if (!isOrganizerView) {
+      setOrganizerTab('upcoming');
+    }
+  }, [isOrganizerView, location.search]);
+
+  // Définir l'onglet initial pour les super-admins en fonction du paramètre URL 'tab'
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+
+    if (user?.role === 'SUPER_ADMIN' && tabParam) {
+      const validSuperAdminTabs: SuperAdminTab[] = ['completed', 'upcoming', 'archived', 'cancelled'];
+      if (validSuperAdminTabs.includes(tabParam as SuperAdminTab)) {
+        setSuperAdminTab(tabParam as SuperAdminTab);
+      } else {
+        setSuperAdminTab('completed');
+      }
+    } else if (user?.role !== 'SUPER_ADMIN') {
+      setSuperAdminTab('completed');
+    }
+  }, [user?.role, location.search]);
+
 useEffect(() => {
   if (user?.role === 'SUPER_ADMIN') {
     const params = new URLSearchParams(location.search);

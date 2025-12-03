@@ -295,21 +295,21 @@ const Dashboard = () => {
               {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=completed')
               })}
               {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=upcoming')
               })}
               {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
                 style: glowingCardOrangeStyle,
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=cancelled')
               })}
               {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events')
               })}
               {renderCard("Nombre d'organisateurs", eventStats?.organizerCount || 0, '🏢', {
                 variant: 'superAdmin'
@@ -328,17 +328,17 @@ const Dashboard = () => {
               {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=completed')
               })}
               {renderCard('Candidatures en attente', eventStats?.pendingApplications || 0, '⏳', {
                 style: glowingCardOrangeStyle,
                 variant: 'superAdmin',
-                onClick: () => navigate('/applications')
+                onClick: () => navigate('/applications?status=PENDING')
               })}
               {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=upcoming')
               })}
               <div 
                 style={{ 
@@ -360,11 +360,11 @@ const Dashboard = () => {
               </div>
               {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events')
               })}
               {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
                 variant: 'superAdmin',
-                onClick: openExternalEvents
+                onClick: () => navigate('/events?tab=cancelled')
               })}
             </>
           )}
