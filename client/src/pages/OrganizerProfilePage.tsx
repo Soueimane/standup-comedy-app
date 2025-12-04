@@ -151,8 +151,14 @@ function OrganizerProfilePage() {
         <div style={sectionContainerStyle}>
           {/* Profil principal (avatar et rôle) */}
           <div style={profileCardStyle}>
-            <div style={avatarStyle}>
-              {user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA'}
+            <div style={{
+              ...avatarStyle,
+              backgroundImage: user?.avatarUrl ? `url(${user.avatarUrl})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundColor: user?.avatarUrl ? 'transparent' : '#ff416c',
+            }}>
+              {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
             </div>
             <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Dahmane Aissa'}</h3>
             <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Organisateur'}</p>
