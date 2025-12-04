@@ -2,6 +2,7 @@ import React, { useState, type CSSProperties, useEffect } from 'react';
 import type { IUserData } from '../types/user';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 
 interface EditOrganizerProfileFormProps {
   isOpen: boolean;
@@ -53,6 +54,39 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   });
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [postalCodeError, setPostalCodeError] = useState<string>('');
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+
+  // Hook de validation du code postal
+  const { isValidating, error, cities, validatePostalCode, clearError } = usePostalCodeValidation({
+    postalCode: formData.organizerProfile.location.postalCode,
+    onCityAutoFill: (city) => {
+      // TOUJOURS remplacer
+      setFormData(prev => ({
+        ...prev,
+        organizerProfile: {
+          ...prev.organizerProfile,
+          location: { ...prev.organizerProfile.location, city }
+        }
+      }));
+      setShowCityDropdown(false);
+    },
+    onMultipleCities: (cityOptions) => {
+      setCitySuggestions(cityOptions);
+      setShowCityDropdown(true);
+    }
+  });
+
+  // Auto-validate when postal code reaches 5 digits
+  useEffect(() => {
+    const trimmedPostalCode = formData.organizerProfile.location.postalCode.trim();
+
+    // Only validate if we have exactly 5 digits and not already validating
+    if (trimmedPostalCode.length === 5 && /^\d{5}$/.test(trimmedPostalCode) && !isValidating) {
+      validatePostalCode();
+    }
+  }, [formData.organizerProfile.location.postalCode]);
 
   useEffect(() => {
     if (currentUser) {
@@ -109,6 +143,13 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
+
+    // Clear postal code error when user types
+    if (id === 'organizerProfile.location.postalCode') {
+      clearError();
+      setPostalCodeError('');
+    }
+
     if (id.startsWith('organizerProfile.location.')) {
       const nestedField = id.split('.')[2];
       setFormData(prev => ({
@@ -140,6 +181,18 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     }
   };
 
+  const handleCitySelect = (city: string) => {
+    setFormData(prev => ({
+      ...prev,
+      organizerProfile: {
+        ...prev.organizerProfile,
+        location: { ...prev.organizerProfile.location, city }
+      }
+    }));
+    setShowCityDropdown(false);
+    setCitySuggestions([]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('token:', token, 'currentUser.id:', currentUser?.id, 'currentUser._id:', currentUser?._id, 'currentUser:', currentUser);
@@ -147,6 +200,15 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     if (!token || !(currentUser?.id || currentUser?._id)) {
       alert("Vous devez être connecté pour modifier votre profil.");
       return;
+    }
+
+    // Valider le code postal
+    if (formData.organizerProfile.location.postalCode) {
+      const isValid = await validatePostalCode();
+      if (!isValid) {
+        setPostalCodeError(error || 'Code postal invalide');
+        return; // Bloquer la soumission
+      }
     }
 
     try {
@@ -406,16 +468,67 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
               />
             </div>
           </div>
-          <div style={inputGroupStyle}>
-            <label htmlFor="organizerProfile.location.postalCode" style={labelStyle}>Code Postal</label>
+          <div style={{ ...inputGroupStyle, position: 'relative' }}>
+            <label htmlFor="organizerProfile.location.postalCode" style={labelStyle}>
+              Code Postal {isValidating && <span style={{ fontSize: '12px', color: '#888' }}>(validation...)</span>}
+            </label>
             <input
               id="organizerProfile.location.postalCode"
               type="text"
               value={formData.organizerProfile.location.postalCode}
               onChange={handleChange}
-              style={inputStyle}
+              onBlur={validatePostalCode}
+              style={{
+                ...inputStyle,
+                borderColor: (postalCodeError || error) ? '#ef4444' : undefined
+              }}
+              maxLength={5}
+              disabled={isValidating}
               required
             />
+            {(postalCodeError || error) && (
+              <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                {postalCodeError || error}
+              </p>
+            )}
+
+            {/* Dropdown de sélection de ville si plusieurs options */}
+            {showCityDropdown && citySuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: '#fff',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                marginTop: '4px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                zIndex: 1000,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ padding: '8px', color: '#666', fontSize: '12px', borderBottom: '1px solid #eee' }}>
+                  Plusieurs villes pour ce code postal :
+                </div>
+                {citySuggestions.map((option, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleCitySelect(option.city)}
+                    style={{
+                      padding: '10px',
+                      cursor: 'pointer',
+                      borderBottom: index < citySuggestions.length - 1 ? '1px solid #eee' : 'none',
+                      color: '#333'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {option.city}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div style={inputGroupStyle}>
             <label htmlFor="organizerProfile.location.address" style={labelStyle}>Adresse complète</label>

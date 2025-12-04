@@ -1,5 +1,6 @@
 import React, { type CSSProperties, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import { X, ChevronDown, MapPin, Calendar, Users } from 'lucide-react';
 import api from '../services/api';
 
@@ -60,6 +61,34 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
 
   const isAutoFillingRef = useRef(false);
   const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; city: string; postalCode: string }>>([]);
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+
+  // Hook de validation du code postal
+  const { isValidating: isValidatingPostalCode, error: postalCodeError, cities, validatePostalCode, clearError: clearPostalCodeError } = usePostalCodeValidation({
+    postalCode: formData.postalCode,
+    onCityAutoFill: (city) => {
+      // TOUJOURS remplacer la ville, même si déjà remplie
+      isAutoFillingRef.current = true;
+      setFormData(prev => ({ ...prev, city }));
+      setTimeout(() => { isAutoFillingRef.current = false; }, 100);
+      setShowCityDropdown(false);
+    },
+    onMultipleCities: (cityOptions) => {
+      setCitySuggestions(cityOptions);
+      setShowCityDropdown(true);
+    }
+  });
+
+  // Auto-validate when postal code reaches 5 digits
+  useEffect(() => {
+    const trimmedPostalCode = formData.postalCode.trim();
+
+    // Only validate if we have exactly 5 digits and not already validating
+    if (trimmedPostalCode.length === 5 && /^\d{5}$/.test(trimmedPostalCode) && !isValidatingPostalCode) {
+      validatePostalCode();
+    }
+  }, [formData.postalCode]);
 
   // Fermer les dropdowns quand on clique en dehors
   useEffect(() => {
@@ -174,33 +203,9 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       }));
     }
 
-    // Auto-complétion pour le code postal
-    if (id === 'postalCode' && value.length >= 5 && /^\d{5}$/.test(value)) {
-      // Annuler le timeout précédent
-      if (addressSearchTimeoutRef.current) {
-        clearTimeout(addressSearchTimeoutRef.current);
-      }
-      
-      // Attendre 500ms après la dernière frappe
-      addressSearchTimeoutRef.current = setTimeout(async () => {
-        const result = await searchCityByPostalCode(value);
-        if (result) {
-          isAutoFillingRef.current = true;
-          setFormData(prev => {
-            // Ne remplir que si la ville est vide ou très courte
-            if (!prev.city || prev.city.length < 2) {
-              return {
-                ...prev,
-                city: result.city
-              };
-            }
-            return prev;
-          });
-          setTimeout(() => {
-            isAutoFillingRef.current = false;
-          }, 100);
-        }
-      }, 500);
+    // Clear postal code validation error when user types
+    if (id === 'postalCode') {
+      clearPostalCodeError();
     }
 
     // Auto-complétion pour la ville
@@ -341,6 +346,14 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     }, 100);
   };
 
+  const handleCitySelect = (city: string) => {
+    isAutoFillingRef.current = true;
+    setFormData(prev => ({ ...prev, city }));
+    setTimeout(() => { isAutoFillingRef.current = false; }, 100);
+    setShowCityDropdown(false);
+    setCitySuggestions([]);
+  };
+
   const handleTimeSelect = (timeValue: string, field: 'startTime' | 'endTime') => {
     setFormData(prev => ({
       ...prev,
@@ -423,7 +436,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     return timeSlots;
   };
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const newErrors: {[key: string]: string} = {};
     
     // Validation du titre
@@ -454,13 +467,13 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       newErrors.city = 'Le nom de la ville doit contenir au moins 2 caractères';
     }
     
-    // Validation du code postal
+    // Validation du code postal avec API
     if (!formData.postalCode.trim()) {
       newErrors.postalCode = 'Le code postal est requis';
     } else {
-      const postalCodeRegex = /^\d{5}$/;
-      if (!postalCodeRegex.test(formData.postalCode.trim())) {
-        newErrors.postalCode = 'Le code postal doit contenir exactement 5 chiffres';
+      const isValid = await validatePostalCode();
+      if (!isValid && postalCodeError) {
+        newErrors.postalCode = postalCodeError;
       }
     }
     
@@ -579,7 +592,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       return;
     }
 
-    if (!validateForm()) {
+    if (!(await validateForm())) {
       return;
     }
 
@@ -933,26 +946,67 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                 </div>
 
                 {/* Code postal */}
-                <div>
+                <div style={{ position: 'relative' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                    Code postal *
+                    Code postal * {isValidatingPostalCode && <span style={{ fontSize: '12px', color: '#888' }}>(validation...)</span>}
                   </label>
                   <input
                     type="text"
                     id="postalCode"
                     value={formData.postalCode}
                     onChange={handleChange}
+                    onBlur={validatePostalCode}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.postalCode ? '#ef4444' : '#444'
+                      borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#444'
                     }}
                     placeholder="Ex: 75001"
                     maxLength={5}
+                    disabled={isValidatingPostalCode}
                   />
-                  {errors.postalCode && (
+                  {(errors.postalCode || postalCodeError) && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                      {errors.postalCode}
+                      {errors.postalCode || postalCodeError}
                     </p>
+                  )}
+
+                  {/* Dropdown de sélection de ville si plusieurs options */}
+                  {showCityDropdown && citySuggestions.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      backgroundColor: '#2a2a2a',
+                      border: '1px solid #444',
+                      borderRadius: '4px',
+                      marginTop: '4px',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      zIndex: 1000,
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
+                    }}>
+                      <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #444' }}>
+                        Plusieurs villes possibles pour ce code postal :
+                      </div>
+                      {citySuggestions.map((option, index) => (
+                        <div
+                          key={index}
+                          onClick={() => handleCitySelect(option.city)}
+                          style={{
+                            padding: '12px',
+                            cursor: 'pointer',
+                            borderBottom: index < citySuggestions.length - 1 ? '1px solid #333' : 'none',
+                            color: '#ccc',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#333'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          {option.city} ({option.postcode})
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
