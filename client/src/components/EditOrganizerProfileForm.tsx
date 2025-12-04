@@ -57,6 +57,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   const [postalCodeError, setPostalCodeError] = useState<string>('');
   const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Hook de validation du code postal
   const { isValidating, error, cities, validatePostalCode, clearError } = usePostalCodeValidation({
@@ -82,11 +83,16 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   useEffect(() => {
     const trimmedPostalCode = formData.organizerProfile.location.postalCode.trim();
 
-    // Only validate if we have exactly 5 digits and not already validating
-    if (trimmedPostalCode.length === 5 && /^\d{5}$/.test(trimmedPostalCode) && !isValidating) {
+    // Skip validation on initial load or if already validating
+    if (isInitialLoad || !trimmedPostalCode || isValidating) {
+      return;
+    }
+
+    // Only validate if we have exactly 5 digits
+    if (trimmedPostalCode.length === 5 && /^\d{5}$/.test(trimmedPostalCode)) {
       validatePostalCode();
     }
-  }, [formData.organizerProfile.location.postalCode]);
+  }, [formData.organizerProfile.location.postalCode, isInitialLoad, isValidating]);
 
   useEffect(() => {
     if (currentUser) {
@@ -111,6 +117,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       });
       setPreviewImage(currentUser.avatarUrl || null);
       setAvatarRemoved(false);
+      setIsInitialLoad(true);
     }
   }, [currentUser]);
 
@@ -148,6 +155,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     if (id === 'organizerProfile.location.postalCode') {
       clearError();
       setPostalCodeError('');
+      setIsInitialLoad(false); // Enable validation after first user interaction
     }
 
     if (id.startsWith('organizerProfile.location.')) {
@@ -200,15 +208,6 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     if (!token || !(currentUser?.id || currentUser?._id)) {
       alert("Vous devez être connecté pour modifier votre profil.");
       return;
-    }
-
-    // Valider le code postal
-    if (formData.organizerProfile.location.postalCode) {
-      const isValid = await validatePostalCode();
-      if (!isValid) {
-        setPostalCodeError(error || 'Code postal invalide');
-        return; // Bloquer la soumission
-      }
     }
 
     try {
