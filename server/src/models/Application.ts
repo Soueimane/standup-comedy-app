@@ -4,7 +4,7 @@ import { Application, PerformanceDetails } from '../types';
 export interface ApplicationDocument extends Document {
   event: Types.ObjectId;
   comedian: Types.ObjectId;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
   performanceDetails?: PerformanceDetails;
   message?: string;
   organizerMessage?: string;
@@ -34,7 +34,7 @@ const applicationSchema = new Schema<ApplicationDocument>({
   },
   status: {
     type: String,
-    enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
+    enum: ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'],
     default: 'PENDING'
   },
   performanceDetails: {

@@ -4,6 +4,7 @@ import { UserModel } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
+import { expirePendingApplicationsForEvent } from './application';
 import { sendNewEventNotificationToHumorists, sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants } from '../services/emailService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
@@ -596,8 +597,8 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
         return isUpcoming && isPublished && isIncomplete;
       }).length;
 
-      // Calculer les événements complets
-      const completedEvents = allEvents.filter(event => {
+      // Calculer les événements complets (toutes les places prises)
+      const fullEvents = allEvents.filter(event => {
         const participantsCount = event.participants?.length || 0;
         const maxPerformers = event.requirements?.maxPerformers || 0;
         const eventDate = new Date(event.date);
@@ -617,7 +618,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
         acceptedApplications,
         rejectedApplications,
         upcomingIncompleteEvents,
-        completedEvents,
+        fullEvents,
         cancelledEvents,
         organizerCount,
         comedianCount
@@ -626,7 +627,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
       return res.status(200).json({
         totalEvents,
         upcomingIncompleteEvents,
-        completedEvents,
+        fullEvents,
         cancelledEvents,
         pendingApplications,
         acceptedApplications,
@@ -676,8 +677,8 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
       return isUpcoming && isPublished && isIncomplete;
     }).length;
 
-    // Calculer les événements complets
-    const completedEvents = allEvents.filter(event => {
+    // Calculer les événements complets (toutes les places prises)
+    const fullEvents = allEvents.filter(event => {
       const participantsCount = event.participants?.length || 0;
       const maxPerformers = event.requirements?.maxPerformers || 0;
       const eventDate = new Date(event.date);
@@ -691,7 +692,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
     console.log('📊 Statistiques calculées pour organisateur:', {
       totalEvents,
       upcomingIncompleteEvents,
-      completedEvents,
+      fullEvents,
       cancelledEvents,
       pendingApplications,
       acceptedApplications,
@@ -701,7 +702,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
     return res.status(200).json({
       totalEvents,
       upcomingIncompleteEvents,
-      completedEvents,
+      fullEvents,
       cancelledEvents,
       pendingApplications,
       acceptedApplications,
@@ -1000,6 +1001,17 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
           updatedCount++;
           updatedEvents.push(event.title);
           console.log(`✅ Événement "${event.title}" marqué comme completed`);
+
+          // Expirer les candidatures en attente pour cet événement
+          try {
+            const expiredCount = await expirePendingApplicationsForEvent(event._id as mongoose.Types.ObjectId);
+            if (expiredCount > 0) {
+              console.log(`⏰ ${expiredCount} candidature(s) expirée(s) pour "${event.title}"`);
+            }
+          } catch (expireError) {
+            console.error(`❌ Erreur lors de l'expiration des candidatures pour "${event.title}":`, expireError);
+            // Ne pas faire échouer le cron si l'expiration échoue
+          }
         }
 
       } catch (eventError) {

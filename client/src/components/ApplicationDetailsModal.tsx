@@ -40,6 +40,9 @@ function ApplicationDetailsModal({ isOpen, onClose, application }: ApplicationDe
       case 'REJECTED':
         backgroundColor = '#dc3545'; // red
         break;
+      case 'EXPIRED':
+        backgroundColor = '#6c757d'; // gray
+        break;
       default:
         backgroundColor = '#6c757d'; // gray
     }
@@ -62,6 +65,8 @@ function ApplicationDetailsModal({ isOpen, onClose, application }: ApplicationDe
         return 'Acceptée';
       case 'REJECTED':
         return 'Refusée';
+      case 'EXPIRED':
+        return 'Expirée';
       default:
         return status; // Fallback for other statuses
     }

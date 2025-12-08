@@ -16,7 +16,7 @@ interface ComedianApplicationsModalProps {
 
 interface Application {
   _id: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
   message?: string;
   organizerMessage?: string;
   createdAt: string;
@@ -87,6 +87,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'ACCEPTED': return 'Acceptée';
       case 'REJECTED': return 'Refusée';
       case 'PENDING': return 'En attente';
+      case 'EXPIRED': return 'Expirée';
       default: return status;
     }
   };
@@ -96,6 +97,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'ACCEPTED': return '#28a745';
       case 'REJECTED': return '#dc3545';
       case 'PENDING': return '#ffc107';
+      case 'EXPIRED': return '#6c757d';
       default: return '#6c757d';
     }
   };
@@ -105,6 +107,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'ACCEPTED': return '✅';
       case 'REJECTED': return '❌';
       case 'PENDING': return '⏳';
+      case 'EXPIRED': return '⏰';
       default: return '❓';
     }
   };
@@ -119,6 +122,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
     accepted: applications.filter(app => app.status === 'ACCEPTED').length,
     rejected: applications.filter(app => app.status === 'REJECTED').length,
     pending: applications.filter(app => app.status === 'PENDING').length,
+    expired: applications.filter(app => app.status === 'EXPIRED').length,
   };
 
   // Styles
@@ -131,7 +135,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
 
   const statsContainerStyle: CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
+    gridTemplateColumns: 'repeat(5, 1fr)',
     gap: '10px',
     marginBottom: '20px'
   };
@@ -213,6 +217,10 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffc107' }}>{stats.pending}</div>
                 <div style={{ fontSize: '12px', color: '#aaa' }}>En attente</div>
               </div>
+              <div style={statCardStyle}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#6c757d' }}>{stats.expired}</div>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Expirées</div>
+              </div>
             </div>
 
             {/* Filtres */}
@@ -235,11 +243,17 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
               >
                 ❌ Refusées ({stats.rejected})
               </button>
-              <button 
+              <button
                 style={filterButtonStyle(filter === 'PENDING')}
                 onClick={() => setFilter('PENDING')}
               >
                 ⏳ En attente ({stats.pending})
+              </button>
+              <button
+                style={filterButtonStyle(filter === 'EXPIRED')}
+                onClick={() => setFilter('EXPIRED')}
+              >
+                ⏰ Expirées ({stats.expired})
               </button>
             </div>
 

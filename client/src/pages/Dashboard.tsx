@@ -7,7 +7,7 @@ import api from '../services/api';
 interface EventStats {
   totalEvents: number;
   upcomingIncompleteEvents: number;
-  completedEvents: number;
+  fullEvents: number;
   cancelledEvents?: number;
   pendingApplications: number;
   acceptedApplications: number;
@@ -292,10 +292,10 @@ const Dashboard = () => {
         <div style={cardsGridStyle}>
           {isSuperAdmin ? (
             <>
-              {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
+              {renderCard('Événements complets', eventStats?.fullEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
-                onClick: () => navigate('/events?tab=completed')
+                onClick: () => navigate('/events?tab=full')
               })}
               {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
@@ -325,10 +325,10 @@ const Dashboard = () => {
             </>
           ) : (
             <>
-              {renderCard('Événements complets', eventStats?.completedEvents || 0, '✅', {
+              {renderCard('Événements complets', eventStats?.fullEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
-                onClick: () => navigate('/events?tab=completed')
+                onClick: () => navigate('/events?tab=full')
               })}
               {renderCard('Candidatures en attente', eventStats?.pendingApplications || 0, '⏳', {
                 style: glowingCardOrangeStyle,

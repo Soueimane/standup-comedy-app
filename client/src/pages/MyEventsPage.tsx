@@ -16,8 +16,8 @@ import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeE
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
-type OrganizerTab = 'upcoming' | 'completed' | 'archived' | 'cancelled';
-type SuperAdminTab = 'completed' | 'upcoming' | 'archived' | 'cancelled';
+type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled';
+type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
@@ -41,7 +41,7 @@ function MyEventsPage() {
 
   useEffect(() => {
     if (user?.role !== 'SUPER_ADMIN') {
-      setSuperAdminTab('completed');
+      setSuperAdminTab('full');
     }
   }, [user?.role]);
 
@@ -92,7 +92,7 @@ function MyEventsPage() {
   const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
   const [comedianTab, setComedianTab] = useState<ComedianTab>('opportunities');
   const [organizerTab, setOrganizerTab] = useState<OrganizerTab>('upcoming');
-  const [superAdminTab, setSuperAdminTab] = useState<SuperAdminTab>('completed');
+  const [superAdminTab, setSuperAdminTab] = useState<SuperAdminTab>('full');
   const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -129,7 +129,7 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (isOrganizerView && tabParam) {
-      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
+      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled'];
       if (validOrganizerTabs.includes(tabParam as OrganizerTab)) {
         setOrganizerTab(tabParam as OrganizerTab);
       } else {
@@ -146,14 +146,14 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (user?.role === 'SUPER_ADMIN' && tabParam) {
-      const validSuperAdminTabs: SuperAdminTab[] = ['completed', 'upcoming', 'archived', 'cancelled'];
+      const validSuperAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
       if (validSuperAdminTabs.includes(tabParam as SuperAdminTab)) {
         setSuperAdminTab(tabParam as SuperAdminTab);
       } else {
-        setSuperAdminTab('completed');
+        setSuperAdminTab('full');
       }
     } else if (user?.role !== 'SUPER_ADMIN') {
-      setSuperAdminTab('completed');
+      setSuperAdminTab('full');
     }
   }, [user?.role, location.search]);
 
@@ -711,7 +711,7 @@ useEffect(() => {
       switch (superAdminTab) {
         case 'upcoming':
           return incompleteUpcomingEvents;
-        case 'completed':
+        case 'full':
           return completedUpcomingEvents;
         case 'archived':
           return archivedEventsToShow;
@@ -749,13 +749,13 @@ useEffect(() => {
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
     upcoming: filteredUpcomingEvents.length,
-    completed: completedUpcomingEvents.length,
+    full: completedUpcomingEvents.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
   }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents]);
 
   const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
-    completed: completedUpcomingEvents.length,
+    full: completedUpcomingEvents.length,
     upcoming: incompleteUpcomingEvents.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
@@ -771,13 +771,13 @@ useEffect(() => {
 
   const organizerTabTitles: Record<OrganizerTab, string> = {
     upcoming: 'Événements à venir',
-    completed: 'Événements complets',
+    full: 'Événements complets',
     archived: 'Événements archivés',
     cancelled: 'Événements annulés',
   };
 
   const superAdminTabTitles: Record<SuperAdminTab, string> = {
-    completed: 'Événements complets',
+    full: 'Événements complets',
     upcoming: 'Événements à venir (non complets)',
     archived: 'Événements archivés',
     cancelled: 'Événements annulés',
@@ -811,8 +811,8 @@ useEffect(() => {
     (isSuperAdminView && superAdminTab === 'upcoming')
   );
   const showCompletedSection = !isComedianView && (
-    (isOrganizerView && organizerTab === 'completed') ||
-    (isSuperAdminView && superAdminTab === 'completed')
+    (isOrganizerView && organizerTab === 'full') ||
+    (isSuperAdminView && superAdminTab === 'full')
   );
   const showArchivedSection = !isComedianView && (
     (isOrganizerView && organizerTab === 'archived') ||
@@ -823,7 +823,7 @@ useEffect(() => {
     (isSuperAdminView && superAdminTab === 'cancelled')
   );
 
-  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'completed' | 'archived') => {
+  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived') => {
     if (user?.role !== 'ORGANIZER') {
       return null;
     }
@@ -1273,8 +1273,8 @@ useEffect(() => {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
-  const organizerTabs: OrganizerTab[] = ['upcoming', 'completed', 'archived', 'cancelled'];
-  const superAdminTabs: SuperAdminTab[] = ['completed', 'upcoming', 'archived', 'cancelled'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled'];
+  const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
     display: 'flex',
@@ -2153,7 +2153,7 @@ useEffect(() => {
                     <div style={cardStatusBlockStyle}>
                       {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
                       {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
-                      {renderOrganizerActions(event, 'completed')}
+                      {renderOrganizerActions(event, 'full')}
                     </div>
                   </div>
                 );

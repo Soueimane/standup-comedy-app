@@ -257,7 +257,7 @@ export const createApplicationSchema = z.object({
 });
 
 export const updateApplicationStatusSchema = z.object({
-  status: z.enum(['PENDING', 'ACCEPTED', 'REJECTED'], {
+  status: z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'], {
     errorMap: () => ({ message: 'Invalid application status' })
   }),
   organizerMessage: z.string()

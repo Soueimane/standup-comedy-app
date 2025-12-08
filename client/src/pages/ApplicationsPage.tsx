@@ -39,7 +39,7 @@ export interface IApplication {
   performanceDetails?: { duration: number; description: string; videoLink?: string; }; // Make optional
   message?: string; // Add optional message field
   organizerMessage?: string; // Message de l'organisateur lors de l'acceptation/refus
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
   createdAt: string;
 }
 
@@ -354,7 +354,7 @@ function ApplicationsPage() {
     }
     // Tri
     const sortByStatusOrder = (a: IApplication['status'], b: IApplication['status']) => {
-      const order = ['PENDING', 'ACCEPTED', 'REJECTED'];
+      const order = ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
       return order.indexOf(a) - order.indexOf(b);
     };
     const sorted = [...filtered].sort((a, b) => {
@@ -765,6 +765,10 @@ function ApplicationsPage() {
         backgroundColor = 'transparent'; // pas de fond rouge
         color = '#dc3545'; // texte rouge
         break;
+      case 'EXPIRED':
+        backgroundColor = 'transparent'; // pas de fond gris
+        color = '#999'; // texte gris
+        break;
       default:
         backgroundColor = '#6c757d'; // gray
     }
@@ -772,8 +776,8 @@ function ApplicationsPage() {
       display: 'inline-block',
       padding: '6px 12px',
       borderRadius: '6px',
-      backgroundColor: (status === 'ACCEPTED' || status === 'REJECTED') ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED et REJECTED
-      color: status === 'ACCEPTED' ? '#28a745' : (status === 'REJECTED' ? '#dc3545' : color), // Force vert pour ACCEPTED, rouge pour REJECTED
+      backgroundColor: (status === 'ACCEPTED' || status === 'REJECTED' || status === 'EXPIRED') ? 'transparent' : backgroundColor, // Force transparent pour ACCEPTED, REJECTED et EXPIRED
+      color: status === 'ACCEPTED' ? '#28a745' : (status === 'REJECTED' ? '#dc3545' : (status === 'EXPIRED' ? '#999' : color)), // Force vert pour ACCEPTED, rouge pour REJECTED, gris pour EXPIRED
       fontWeight: 'bold',
       fontSize: '0.9em',
       border: status === 'ACCEPTED' ? 'none' : undefined, // Pas de bordure pour ACCEPTED
@@ -790,6 +794,8 @@ function ApplicationsPage() {
         return 'Acceptée';
       case 'REJECTED':
         return 'Refusée';
+      case 'EXPIRED':
+        return 'Expirée';
       default:
         return status; // Fallback for other statuses not directly related to application (e.g., event status)
     }

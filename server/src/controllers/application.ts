@@ -234,16 +234,10 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
         // Logique pour applicationsAccepted
         if (status === 'ACCEPTED' && oldStatus !== 'ACCEPTED') {
           comedian.stats.applicationsAccepted = (comedian.stats.applicationsAccepted || 0) + 1;
-
-          // 🎪 NOUVEAU: Incrémenter automatiquement les participations (totalEvents) lors de l'acceptation
-          comedian.stats.totalEvents = (comedian.stats.totalEvents || 0) + 1;
-          console.log(`✅ Participation automatiquement ajoutée pour ${comedian.firstName} ${comedian.lastName} - Total: ${comedian.stats.totalEvents}`);
+          // Note: totalEvents sera incrémenté lors de la complétion de l'événement via processCompletedEvents
         } else if (status !== 'ACCEPTED' && oldStatus === 'ACCEPTED') {
           comedian.stats.applicationsAccepted = Math.max(0, (comedian.stats.applicationsAccepted || 0) - 1);
-
-          // 🎪 NOUVEAU: Décrémenter les participations si on passe d'ACCEPTED à autre chose
-          comedian.stats.totalEvents = Math.max(0, (comedian.stats.totalEvents || 0) - 1);
-          console.log(`❌ Participation retirée pour ${comedian.firstName} ${comedian.lastName} - Total: ${comedian.stats.totalEvents}`);
+          // Note: totalEvents est uniquement géré par processCompletedEvents
         }
 
         // Logique pour applicationsRejected
@@ -258,6 +252,12 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
           comedian.stats.applicationsPending = (comedian.stats.applicationsPending || 0) + 1;
         } else if (status !== 'PENDING' && oldStatus === 'PENDING') {
           comedian.stats.applicationsPending = Math.max(0, (comedian.stats.applicationsPending || 0) - 1);
+        }
+
+        // Logique pour EXPIRED - décrémente applicationsPending si transition PENDING → EXPIRED
+        // Note: Déjà géré par la logique ci-dessus, mais explicité ici pour clarté
+        if (status === 'EXPIRED' && oldStatus === 'PENDING') {
+          console.log(`⏰ Application expirée pour ${comedian.firstName} ${comedian.lastName}`);
         }
 
         comedian.markModified('stats');
@@ -588,6 +588,50 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
   } catch (error) {
     console.error('Erreur lors de la suppression de la candidature:', error);
     res.status(500).json({ message: 'Erreur lors de la suppression de la candidature' });
+  }
+};
+
+/**
+ * Expire toutes les candidatures en attente pour un événement terminé
+ * Appelé par le cron job lors du marquage de l'événement comme completed
+ * @param eventId - L'ID de l'événement
+ * @returns Le nombre de candidatures expirées
+ */
+export const expirePendingApplicationsForEvent = async (eventId: Types.ObjectId): Promise<number> => {
+  try {
+    const pendingApplications = await ApplicationModel.find({
+      event: eventId,
+      status: 'PENDING'
+    }).populate('comedian');
+
+    let expiredCount = 0;
+
+    for (const application of pendingApplications) {
+      // Mettre à jour le statut
+      application.status = 'EXPIRED';
+      await application.save();
+
+      // Mettre à jour les stats du comédien
+      if (application.comedian) {
+        const comedianId = (application.comedian as any)._id || application.comedian;
+        const comedian = await UserModel.findById(comedianId);
+
+        if (comedian && comedian.stats) {
+          comedian.stats.applicationsPending = Math.max(0, (comedian.stats.applicationsPending || 0) - 1);
+          comedian.markModified('stats');
+          await comedian.save();
+          console.log(`📊 applicationsPending décrementé pour ${comedian.firstName} ${comedian.lastName}`);
+        }
+      }
+
+      expiredCount++;
+      console.log(`⏰ Candidature ${application._id} expirée`);
+    }
+
+    return expiredCount;
+  } catch (error) {
+    console.error(`❌ Erreur lors de l'expiration des candidatures:`, error);
+    return 0;
   }
 };
 
