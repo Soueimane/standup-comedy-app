@@ -66,6 +66,10 @@ function ApplicationsPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
   const [organizerEvents, setOrganizerEvents] = useState<Array<{ id: string; title: string }>>([]);
   const [sortKey, setSortKey] = useState<'dateAsc' | 'dateDesc' | 'statusAsc' | 'statusDesc'>('dateDesc');
+  // États pour les filtres spécifiques COMEDIAN
+  const [comedianSortKey, setComedianSortKey] = useState<'dateAsc' | 'dateDesc'>('dateDesc');
+  const [comedianOrganizerFilter, setComedianOrganizerFilter] = useState<string>('all');
+  const [archivedOutcomeFilter, setArchivedOutcomeFilter] = useState<'all' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'>('all');
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState<boolean>(() => {
@@ -401,51 +405,94 @@ function ApplicationsPage() {
     return eventDateObj < todayMidnight;
   };
 
+  // Extraction des organisateurs uniques pour le filtre du tab "accepted"
+  const getAcceptedOrganizers = () => {
+    return Array.from(
+      new Set(
+        applications
+          .filter(app =>
+            app.status === 'ACCEPTED' &&
+            app.event?.date &&
+            isEventUpcoming(app.event.date) &&
+            app.event?.organizer
+          )
+          .map(app => `${app.event.organizer._id}::${app.event.organizer.firstName} ${app.event.organizer.lastName}`)
+      )
+    ).map(str => {
+      const [id, name] = str.split('::');
+      return { id, name };
+    });
+  };
+
+  const acceptedOrganizers = user?.role === 'COMEDIAN' ? getAcceptedOrganizers() : [];
+
   const getComedianFilteredApplications = (): IApplication[] => {
     const base = applications.filter(app => app.event);
-    
+
+    // Étape 1: Filtrage par tab (switch existant)
+    let tabFiltered: IApplication[] = [];
     switch (comedianTab) {
       case 'accepted':
-        // Événements à venir + statut ACCEPTED
-        return base.filter(app => 
-          app.status === 'ACCEPTED' && 
-          app.event?.date && 
+        tabFiltered = base.filter(app =>
+          app.status === 'ACCEPTED' &&
+          app.event?.date &&
           isEventUpcoming(app.event.date)
         );
-      
+        break;
       case 'pending':
-        // Événements à venir + statut PENDING
-        return base.filter(app => 
-          app.status === 'PENDING' && 
-          app.event?.date && 
+        tabFiltered = base.filter(app =>
+          app.status === 'PENDING' &&
+          app.event?.date &&
           isEventUpcoming(app.event.date)
         );
-      
+        break;
       case 'rejected':
-        // Événements à venir + statut REJECTED
-        return base.filter(app => 
-          app.status === 'REJECTED' && 
-          app.event?.date && 
+        tabFiltered = base.filter(app =>
+          app.status === 'REJECTED' &&
+          app.event?.date &&
           isEventUpcoming(app.event.date)
         );
-      
+        break;
       case 'archived':
-        // Événements dans le passé + tous les statuts (sauf PENDING)
-        return base.filter(app => 
-          app.event?.date && 
+        tabFiltered = base.filter(app =>
+          app.event?.date &&
           isEventPast(app.event.date) &&
           app.status !== 'PENDING'
         );
-      
+        break;
       case 'cancelled':
-        // Statut événement CANCELLED
-        return base.filter(app => 
+        tabFiltered = base.filter(app =>
           app.event?.status === 'CANCELLED'
         );
-      
+        break;
       default:
         return [];
     }
+
+    // Étape 2: Filtre organisateur (tab "accepted")
+    let filtered = tabFiltered;
+    if (comedianTab === 'accepted' && comedianOrganizerFilter !== 'all') {
+      filtered = filtered.filter(app =>
+        app.event.organizer._id === comedianOrganizerFilter
+      );
+    }
+
+    // Étape 3: Filtre outcome (tab "archived")
+    if (comedianTab === 'archived' && archivedOutcomeFilter !== 'all') {
+      filtered = filtered.filter(app => app.status === archivedOutcomeFilter);
+    }
+
+    // Étape 4: Tri par date
+    const sorted = [...filtered].sort((a, b) => {
+      if (!a.event?.date || !b.event?.date) return 0;
+
+      const dateA = new Date(a.event.date).getTime();
+      const dateB = new Date(b.event.date).getTime();
+
+      return comedianSortKey === 'dateAsc' ? dateA - dateB : dateB - dateA;
+    });
+
+    return sorted;
   };
 
   const comedianFilteredApplications = user?.role === 'COMEDIAN' 
@@ -500,7 +547,15 @@ function ApplicationsPage() {
 
   useEffect(() => {
     setComedianPage(1);
+    // Réinitialiser tous les filtres au changement de tab
+    setComedianOrganizerFilter('all');
+    setArchivedOutcomeFilter('all');
+    setComedianSortKey('dateDesc');
   }, [comedianTab]);
+
+  useEffect(() => {
+    setComedianPage(1);
+  }, [comedianSortKey, comedianOrganizerFilter, archivedOutcomeFilter, comedianFilteredApplications.length]);
 
   useEffect(() => {
     if (comedianPage > totalComedianPages) {
@@ -1008,7 +1063,7 @@ function ApplicationsPage() {
         )}
 
         <div style={filtersRowStyle}>
-          {/* Menu déroulant de filtrage par humoriste (ORGANIZER uniquement) */}
+          {/* FILTRES ORGANISATEUR - Garder l'existant */}
           {user?.role === 'ORGANIZER' && (
             <>
               <select
@@ -1032,20 +1087,84 @@ function ApplicationsPage() {
                   <option key={ev.id} value={ev.id}>{ev.title}</option>
                 ))}
               </select>
+
+              <select
+                value={sortKey}
+                onChange={e => setSortKey(e.target.value as any)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220, marginLeft: 'auto' }}
+              >
+                <option value="dateDesc">Trier: Date (plus récent)</option>
+                <option value="dateAsc">Trier: Date (plus ancien)</option>
+                <option value="statusAsc">Trier: Statut (PENDING→ACCEPTED→REJECTED)</option>
+                <option value="statusDesc">Trier: Statut (REJECTED→ACCEPTED→PENDING)</option>
+              </select>
             </>
           )}
 
-          {/* Tri */}
-          <select
-            value={sortKey}
-            onChange={e => setSortKey(e.target.value as any)}
-            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220, marginLeft: user?.role === 'ORGANIZER' ? 'auto' : undefined }}
-          >
-            <option value="dateDesc">Trier: Date (plus récent)</option>
-            <option value="dateAsc">Trier: Date (plus ancien)</option>
-            <option value="statusAsc">Trier: Statut (PENDING→ACCEPTED→REJECTED)</option>
-            <option value="statusDesc">Trier: Statut (REJECTED→ACCEPTED→PENDING)</option>
-          </select>
+          {/* FILTRES HUMORISTE - Nouveaux filtres conditionnels */}
+          {user?.role === 'COMEDIAN' && (
+            <>
+              {/* TAB "ACCEPTED": Filtre organisateur + Tri */}
+              {comedianTab === 'accepted' && (
+                <>
+                  <select
+                    value={comedianOrganizerFilter}
+                    onChange={e => setComedianOrganizerFilter(e.target.value)}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 200 }}
+                  >
+                    <option value="all">Tous les organisateurs</option>
+                    {acceptedOrganizers.map(org => (
+                      <option key={org.id} value={org.id}>{org.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={comedianSortKey}
+                    onChange={e => setComedianSortKey(e.target.value as 'dateAsc' | 'dateDesc')}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 200 }}
+                  >
+                    <option value="dateDesc">Trier: Date (plus récent)</option>
+                    <option value="dateAsc">Trier: Date (plus ancien)</option>
+                  </select>
+                </>
+              )}
+
+              {/* TABS "PENDING", "REJECTED", "CANCELLED": Tri uniquement */}
+              {['pending', 'rejected', 'cancelled'].includes(comedianTab) && (
+                <select
+                  value={comedianSortKey}
+                  onChange={e => setComedianSortKey(e.target.value as 'dateAsc' | 'dateDesc')}
+                  style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 200 }}
+                >
+                  <option value="dateDesc">Trier: Date (plus récent)</option>
+                  <option value="dateAsc">Trier: Date (plus ancien)</option>
+                </select>
+              )}
+
+              {/* TAB "ARCHIVED": Filtre outcome + Tri */}
+              {comedianTab === 'archived' && (
+                <>
+                  <select
+                    value={archivedOutcomeFilter}
+                    onChange={e => setArchivedOutcomeFilter(e.target.value as any)}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 180 }}
+                  >
+                    <option value="all">Tous les statuts</option>
+                    <option value="ACCEPTED">Acceptées</option>
+                    <option value="REJECTED">Refusées</option>
+                    <option value="EXPIRED">Expirées</option>
+                  </select>
+                  <select
+                    value={comedianSortKey}
+                    onChange={e => setComedianSortKey(e.target.value as 'dateAsc' | 'dateDesc')}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 200 }}
+                  >
+                    <option value="dateDesc">Trier: Date (plus récent)</option>
+                    <option value="dateAsc">Trier: Date (plus ancien)</option>
+                  </select>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {loading && <p style={{ textAlign: 'center', color: '#ccc' }}>Chargement des candidatures...</p>}
