@@ -775,14 +775,6 @@ function ApplicationsPage() {
     minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
-  };
-
-  const comedianApplicationTitleRowStyle: CSSProperties = {
-    display: 'flex',
-    flexDirection: isMobile ? 'column' : 'row',
-    alignItems: isMobile ? 'flex-start' : 'center',
-    gap: '8px',
   };
 
   const comedianApplicationDateBadgeStyle: CSSProperties = {
@@ -1188,32 +1180,38 @@ function ApplicationsPage() {
                     >
                       <div style={comedianApplicationRowStyle}>
                         <div style={comedianApplicationInfoStyle}>
-                          <div style={comedianApplicationTitleRowStyle}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-                              <h3 style={cardTitleStyle}>{app.event.title}</h3>
-                              <span style={comedianApplicationDateBadgeStyle}>
-                                {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
-                              </span>
-                              <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap', color: '#9ad7ff' }}>
-                                · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
-                              </p>
-                              {app.message && (
-                                <p style={{ ...cardDetailStyle, margin: 0, whiteSpace: 'nowrap' }}>
-                                  · Message: {app.message}
-                                </p>
-                              )}
-                            </div>
-                            {app.performanceDetails && (
-                              <p style={{ ...cardDetailStyle, color: '#9ad7ff', marginTop: 6 }}>
-                                Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
-                              </p>
-                            )}
+                          {/* Ligne 1 : Titre + Date */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: isMobile ? 'wrap' : 'nowrap', marginBottom: '8px' }}>
+                            <h3 style={{ ...cardTitleStyle, margin: 0, lineHeight: 1.2 }}>{app.event.title}</h3>
+                            <span style={{ ...comedianApplicationDateBadgeStyle, display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}>
+                              {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
+                            </span>
                           </div>
+
+                          {/* Ligne 2 : Organisateur */}
+                          <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#9ad7ff' }}>
+                            · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
+                          </p>
+
+                          {/* Ligne 3 : Prestation (si disponible) */}
+                          {app.performanceDetails && (
+                            <p style={{ ...cardDetailStyle, color: '#9ad7ff', margin: 0, marginBottom: '4px' }}>
+                              · Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                            </p>
+                          )}
+
+                          {/* Ligne 4 : Message (si disponible) */}
+                          {app.message && (
+                            <p style={{ ...cardDetailStyle, margin: 0, color: '#ccc' }}>
+                              · Message: {app.message}
+                            </p>
+                          )}
                         </div>
+
                         <div style={comedianApplicationStatusStyle}>
                           <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
-                          {/* Afficher le statut sur les cartes archivées */}
-                          {comedianTab === 'archived' && (
+                          {/* Afficher le statut supplémentaire sur les cartes archivées */}
+                          {comedianTab === 'archived' && app.status !== 'EXPIRED' && (
                             <span style={{
                               ...statusBadgeStyle(app.status),
                               marginTop: '8px',
