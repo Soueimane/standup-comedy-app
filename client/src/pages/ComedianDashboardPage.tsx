@@ -62,10 +62,12 @@ function ComedianDashboardPage() {
   // Données pour le camembert
   const refusedCount = applications ? applications.filter((app: any) => app.status === 'REJECTED').length : 0;
   const pendingCount = applications ? applications.filter((app: any) => app.status === 'PENDING').length : 0;
+  const expiredCount = applications ? applications.filter((app: any) => app.status === 'EXPIRED').length : 0;
   const pieData = [
     { name: 'Acceptées', value: acceptedCount, color: '#28a745' },
     { name: 'Refusées', value: refusedCount, color: '#dc3545' },
     { name: 'En cours', value: pendingCount, color: '#ffc107' },
+    { name: 'Expirées', value: expiredCount, color: '#6c757d' },
   ];
 
   const mainContainerStyle: CSSProperties = {
@@ -230,7 +232,7 @@ function ComedianDashboardPage() {
         {/* Ajout du camembert */}
         <div style={{ maxWidth: 400, margin: '40px auto 0 auto', background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: 24 }}>
           <h2 style={{ color: '#ff416c', textAlign: 'center', marginBottom: 16 }}>Répartition des Candidatures</h2>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
                 data={pieData}
@@ -239,7 +241,23 @@ function ComedianDashboardPage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label
+                label={({ value, x, y, payload }) => {
+                  if (value === 0) return null;
+                  return (
+                    <text
+                      x={x}
+                      y={y}
+                      fill={payload.color}
+                      fontSize="20px"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                    >
+                      {value}
+                    </text>
+                  );
+                }}
+                labelLine={false}
               >
                 {pieData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
