@@ -541,7 +541,8 @@ export const confirmParticipation = async (req: AuthRequest, res: Response): Pro
 };
 
 /**
- * Supprime une candidature avec nettoyage des stats et participants
+ * Retire une candidature en changeant son statut à WITHDRAWN
+ * Conserve la candidature dans la base de données mais la marque comme retirée
  */
 export const deleteApplication = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -558,7 +559,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
     const isOrganizer = (application.event as IPopulatedEvent).organizer._id.toString() === req.user?.id;
 
     if (!isComedian && !isOrganizer) {
-      res.status(403).json({ message: 'Non autorisé à supprimer cette candidature' });
+      res.status(403).json({ message: 'Non autorisé à retirer cette candidature' });
       return;
     }
 
@@ -583,11 +584,12 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
       console.error('Erreur lors du retrait du participant de l\'événement:', e);
     }
 
-    await ApplicationModel.findByIdAndDelete(applicationId);
-    res.json({ message: 'Candidature supprimée avec succès' });
+    // Au lieu de supprimer, changer le statut à WITHDRAWN
+    await ApplicationModel.findByIdAndUpdate(applicationId, { status: 'WITHDRAWN' });
+    res.json({ message: 'Candidature retirée avec succès' });
   } catch (error) {
-    console.error('Erreur lors de la suppression de la candidature:', error);
-    res.status(500).json({ message: 'Erreur lors de la suppression de la candidature' });
+    console.error('Erreur lors du retrait de la candidature:', error);
+    res.status(500).json({ message: 'Erreur lors du retrait de la candidature' });
   }
 };
 

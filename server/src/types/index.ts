@@ -44,7 +44,7 @@ export interface IPopulatedApplication extends Application {
 export interface Application {
   event: Types.ObjectId | IPopulatedEvent;
   comedian: Types.ObjectId | IPopulatedUser;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'WITHDRAWN';
   performanceDetails: PerformanceDetails;
 }
 

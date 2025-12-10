@@ -98,6 +98,8 @@ function MyEventsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [eventToWithdraw, setEventToWithdraw] = useState<IEvent | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
@@ -926,21 +928,30 @@ useEffect(() => {
     setShowApplyEventForm(true);
   };
 
-  // Désinscription de l'humoriste (suppression de candidature)
-  const handleWithdrawApplication = async (event: IEvent) => {
-    if (!token || !user?._id) return;
+  const openWithdrawModal = (event: IEvent) => {
+    setEventToWithdraw(event);
+    setShowWithdrawModal(true);
+  };
+
+  const closeWithdrawModal = () => {
+    setShowWithdrawModal(false);
+    setEventToWithdraw(null);
+  };
+
+  const confirmWithdrawApplication = async () => {
+    if (!token || !user?._id || !eventToWithdraw) return;
     try {
-      const app = comedianApplications?.find(a => a.event && a.event._id === event._id);
+      const app = comedianApplications?.find(a => a.event && a.event._id === eventToWithdraw._id);
       if (!app) return;
       const config = {
         headers: { Authorization: `Bearer ${token}` },
       };
       await api.delete(`/applications/${app._id}`, config);
-      alert('Vous avez été désinscrit de cet événement.');
-      // Rafraîchir les données
+      // alert('Vous avez été désinscrit de cet événement.');
       refetch();
       refreshUser();
       queryClient.invalidateQueries({ queryKey: ['comedianApplications'] });
+      closeWithdrawModal();
     } catch (error: any) {
       console.error('Erreur lors de la désinscription:', error);
       alert('Erreur: ' + (error.response?.data?.message || error.message));
@@ -1857,13 +1868,28 @@ useEffect(() => {
                   color = '#dc3545';
                   bg = 'rgba(220, 53, 69, 0.2)';
                   label = 'Candidature: Refusée';
+                } else if (relatedApplication.status === 'WITHDRAWN') {
+                  color = '#888';
+                  bg = 'rgba(136, 136, 136, 0.15)';
+                  label = 'Candidature: Retirée';
                 }
                 comedianApplicationChip = renderStatusChip(label, color, bg);
               }
             }
 
+            const isWithdrawn = relatedApplication?.status === 'WITHDRAWN';
+
             return (
-              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+              <div
+                key={event._id}
+                style={{
+                  ...eventCardStyle,
+                  opacity: isWithdrawn ? 0.6 : 1,
+                  cursor: isWithdrawn ? 'not-allowed' : 'pointer',
+                  pointerEvents: isWithdrawn ? 'none' : 'auto',
+                }}
+                onClick={() => !isWithdrawn && handleCardClick(event)}
+              >
                 <div style={cardContentStyle}>
                   <div style={cardHeaderRowStyle}>
                     <div>
@@ -1922,9 +1948,14 @@ useEffect(() => {
                           ? 'Événement complet'
                           : 'Postuler'}
                       </button>
+                    ) : isWithdrawn ? (
+                      null
                     ) : (
                       <button
-                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleWithdrawApplication(event); }}
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          e.stopPropagation();
+                          openWithdrawModal(event);
+                        }}
                         style={deleteButtonStyle}
                       >
                         Me désinscrire
@@ -2547,6 +2578,56 @@ useEffect(() => {
           </div>
         </div>
       </Modal>
+
+      {/* Modal de confirmation de retrait */}
+      {showWithdrawModal && eventToWithdraw && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: '#fff', padding: 30, borderRadius: 10,
+            minWidth: 320, maxWidth: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            <h2 style={{ color: '#dc3545', marginBottom: 20, fontSize: '1.5em' }}>
+              Retirer votre candidature
+            </h2>
+            <p style={{ color: '#333', fontSize: '1.05em', lineHeight: '1.6', marginBottom: 15 }}>
+              Êtes-vous sûr de vouloir retirer votre candidature pour l'événement <strong>"{eventToWithdraw.title}"</strong> ?
+            </p>
+            <p style={{ color: '#666', fontSize: '0.95em', marginBottom: 25 }}>
+              Cette action est définitive.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={closeWithdrawModal} style={{
+                padding: '10px 20px',
+                borderRadius: '5px',
+                border: 'none',
+                background: '#6c757d',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '1em'
+              }}>
+                Annuler
+              </button>
+              <button onClick={confirmWithdrawApplication} style={{
+                padding: '10px 20px',
+                borderRadius: '5px',
+                border: 'none',
+                background: '#dc3545',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '1em'
+              }}>
+                Confirmer le retrait
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -39,7 +39,7 @@ export interface IApplication {
   performanceDetails?: { duration: number; description: string; videoLink?: string; }; // Make optional
   message?: string; // Add optional message field
   organizerMessage?: string; // Message de l'organisateur lors de l'acceptation/refus
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'WITHDRAWN';
   createdAt: string;
 }
 
