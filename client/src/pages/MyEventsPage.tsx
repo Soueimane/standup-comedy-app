@@ -15,7 +15,7 @@ import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, checkIsEventFavorite } from '../services/api';
 
 const ITEMS_PER_PAGE = 5;
-type ComedianTab = 'opportunities' | 'accepted' | 'pending' | 'rejected' | 'favorites';
+type ComedianTab = 'opportunities' | 'accepted' | 'favorites';
 type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
@@ -114,7 +114,7 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (isComedianView && tabParam) {
-      const validComedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+      const validComedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites'];
       if (validComedianTabs.includes(tabParam as ComedianTab)) {
         setComedianTab(tabParam as ComedianTab);
       } else {
@@ -696,10 +696,6 @@ useEffect(() => {
       switch (comedianTab) {
         case 'accepted':
           return acceptedUpcomingEvents;
-        case 'pending':
-          return pendingApplicationEvents;
-        case 'rejected':
-          return rejectedApplicationEvents;
         case 'favorites':
           return favoriteEvents;
         default:
@@ -730,8 +726,6 @@ useEffect(() => {
     comedianTab,
     filteredUpcomingEvents,
     acceptedUpcomingEvents,
-    pendingApplicationEvents,
-    rejectedApplicationEvents,
     favoriteEvents,
     incompleteUpcomingEvents,
     completedUpcomingEvents,
@@ -742,10 +736,8 @@ useEffect(() => {
   const comedianTabCounts: Record<ComedianTab, number> = useMemo(() => ({
     opportunities: filteredUpcomingEvents.length,
     accepted: acceptedUpcomingEvents.length,
-    pending: pendingApplicationEvents.length,
-    rejected: rejectedApplicationEvents.length,
     favorites: favoriteEvents.length,
-  }), [filteredUpcomingEvents, acceptedUpcomingEvents, pendingApplicationEvents, rejectedApplicationEvents, favoriteEvents]);
+  }), [filteredUpcomingEvents, acceptedUpcomingEvents, favoriteEvents]);
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
     upcoming: filteredUpcomingEvents.length,
@@ -764,8 +756,6 @@ useEffect(() => {
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
     accepted: 'Événements acceptés',
-    pending: 'Candidatures en attente',
-    rejected: 'Candidatures refusées',
     favorites: 'Mes favoris',
   };
 
@@ -786,8 +776,6 @@ useEffect(() => {
   const comedianEmptyStates: Record<ComedianTab, string> = {
     opportunities: 'Aucune opportunité disponible pour le moment.',
     accepted: 'Aucun événement accepté à venir.',
-    pending: 'Aucune candidature en attente.',
-    rejected: 'Aucune candidature refusée.',
     favorites: 'Aucun événement en favori.',
   };
 
@@ -1272,7 +1260,7 @@ useEffect(() => {
     fontSize: '1.1em',
   };
 
-  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'pending', 'rejected', 'favorites'];
+  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites'];
   const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
