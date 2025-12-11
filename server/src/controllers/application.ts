@@ -316,7 +316,10 @@ export const getComedianApplications = async (req: AuthRequest, res: Response): 
       return;
     }
 
-    const applications = await ApplicationModel.find({ comedian: comedianId })
+    const applications = await ApplicationModel.find({
+      comedian: comedianId,
+      status: { $ne: 'WITHDRAWN' }
+    })
       .populate({
         path: 'event',
         select: 'title date location status'
@@ -582,6 +585,32 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
       }
     } catch (e) {
       console.error('Erreur lors du retrait du participant de l\'événement:', e);
+    }
+
+    // 🎪 MISE À JOUR DES STATS: Décrémenter les compteurs selon le statut actuel
+    const oldStatus = application.status;
+    const comedianId = (application.comedian as any)._id || application.comedian;
+    const comedian = await UserModel.findById(comedianId);
+
+    if (comedian) {
+      if (!comedian.stats) {
+        comedian.stats = {};
+      }
+
+      console.log(`📊 [STATS UPDATE - WITHDRAWN] ${comedian.firstName} ${comedian.lastName}: ${oldStatus} → WITHDRAWN`);
+
+      // Décrémenter le compteur approprié selon le statut actuel
+      if (oldStatus === 'PENDING') {
+        comedian.stats.applicationsPending = Math.max(0, (comedian.stats.applicationsPending || 0) - 1);
+      } else if (oldStatus === 'ACCEPTED') {
+        comedian.stats.applicationsAccepted = Math.max(0, (comedian.stats.applicationsAccepted || 0) - 1);
+      } else if (oldStatus === 'REJECTED') {
+        comedian.stats.applicationsRejected = Math.max(0, (comedian.stats.applicationsRejected || 0) - 1);
+      }
+
+      comedian.markModified('stats');
+      await comedian.save();
+      console.log(`💾 Stats sauvegardées après retrait pour ${comedian.firstName} ${comedian.lastName}`);
     }
 
     // Au lieu de supprimer, changer le statut à WITHDRAWN

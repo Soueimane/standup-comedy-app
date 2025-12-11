@@ -576,9 +576,12 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
 
       const eventIds = allEvents.map(event => event._id);
 
-      // Récupérer TOUTES les candidatures de la plateforme
-      const allApplications = await ApplicationModel.find({ event: { $in: eventIds } });
-      console.log('📊 Candidatures trouvées dans la DB:', allApplications.length);
+      // Récupérer TOUTES les candidatures de la plateforme (SAUF WITHDRAWN)
+      const allApplications = await ApplicationModel.find({
+        event: { $in: eventIds },
+        status: { $ne: 'WITHDRAWN' }
+      });
+      console.log('📊 Candidatures trouvées dans la DB (hors WITHDRAWN):', allApplications.length);
 
       const totalEvents = allEvents.length;
       const pendingApplications = allApplications.filter(app => app.status === 'PENDING').length;
@@ -655,10 +658,13 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
     console.log('📊 Événements trouvés:', allEvents.length);
     const eventIds = allEvents.map(event => event._id);
 
-    // Récupérer toutes les candidatures liées à ces événements
+    // Récupérer toutes les candidatures liées à ces événements (SAUF WITHDRAWN)
     console.log('🔍 Recherche candidatures pour événements:', eventIds.length);
-    const allApplications = await ApplicationModel.find({ event: { $in: eventIds } });
-    console.log('📊 Candidatures trouvées:', allApplications.length);
+    const allApplications = await ApplicationModel.find({
+      event: { $in: eventIds },
+      status: { $ne: 'WITHDRAWN' }
+    });
+    console.log('📊 Candidatures trouvées (hors WITHDRAWN):', allApplications.length);
 
     const totalEvents = allEvents.length;
     const pendingApplications = allApplications.filter(app => app.status === 'PENDING').length;
