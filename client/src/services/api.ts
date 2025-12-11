@@ -27,8 +27,24 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Ne rediriger que si :
+      // 1. On a un token (donc c'était une session authentifiée)
+      // 2. On n'est PAS déjà sur une page de login
+      const currentPath = window.location.pathname;
+      const isLoginPage = currentPath === '/login' || currentPath === '/organisateur';
+      const hadToken = localStorage.getItem('token');
+
+      // Toujours supprimer le token s'il existe
+      if (hadToken) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+
+      // Ne rediriger que si on n'est pas déjà sur une page de login
+      // et qu'on avait un token (session expirée)
+      if (!isLoginPage && hadToken) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

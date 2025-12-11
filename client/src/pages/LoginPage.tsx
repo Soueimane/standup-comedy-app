@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 function LoginPage() {
   const { loginMutation } = useAuth();
-  const navigate = useNavigate();
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -12,8 +11,6 @@ function LoginPage() {
   });
   const [passwordError, setPasswordError] = useState('');
   const [loginError, setLoginError] = useState('');
-  const loginErrorTimeoutRef = useRef<number | null>(null);
-  const loginErrorRef = useRef<string>(''); // Ref pour persister l'erreur
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     isValid: false
@@ -23,32 +20,6 @@ function LoginPage() {
   useEffect(() => {
     validatePassword(loginData.password);
   }, []);
-
-  // Cleanup du timeout au démontage
-  useEffect(() => {
-    return () => {
-      if (loginErrorTimeoutRef.current) {
-        clearTimeout(loginErrorTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Debug: surveiller les changements de loginError
-  useEffect(() => {
-    if (loginError) {
-      console.log('✅ Message d\'erreur défini:', loginError);
-      loginErrorRef.current = loginError; // Synchroniser le ref
-    } else {
-      console.log('⚠️ Message d\'erreur effacé');
-      // Si l'erreur est effacée mais qu'on a une erreur dans le ref, la restaurer
-      if (loginErrorRef.current) {
-        console.log('🔄 Restauration de l\'erreur depuis le ref:', loginErrorRef.current);
-        setTimeout(() => {
-          setLoginError(loginErrorRef.current);
-        }, 0);
-      }
-    }
-  }, [loginError]);
 
   const validatePassword = (password: string) => {
     const length = password.length >= 8;
@@ -63,51 +34,38 @@ function LoginPage() {
   const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
-    // Ne PAS effacer loginError ici - on le fera seulement si la connexion réussit
-    
+    setLoginError('');
+
     // Vérifier la validation du mot de passe
     if (!passwordValidation.isValid) {
       setPasswordError('Vous ne respectez pas les 8 caractères minimum !');
       return;
     }
-    
-    try {
-      await loginMutation.mutateAsync(loginData);
-      // La redirection est gérée dans AuthContext.onSuccess
-      // Si on arrive ici, la connexion a réussi, on peut effacer l'erreur
-      setLoginError('');
-      loginErrorRef.current = '';
-    } catch (error: any) {
-      console.error('Erreur de connexion capturée:', error);
-      // L'erreur peut être dans error.response.data.message ou error.message
-      const errorMessage = error?.response?.data?.message || error?.message || 'Une erreur est survenue lors de la connexion';
-      console.log('Message d\'erreur extrait:', errorMessage);
-      
-      // Afficher un message d'erreur spécifique
-      const finalErrorMessage = errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')
-        ? 'Email ou mot de passe invalide'
-        : errorMessage;
-      
-      console.log('🔴 Définition du message d\'erreur:', finalErrorMessage);
-      
-      // Stocker dans le ref ET dans l'état
-      loginErrorRef.current = finalErrorMessage;
-      setLoginError(finalErrorMessage);
-      console.log('✅ Message d\'erreur défini immédiatement:', finalErrorMessage);
-    }
+
+    loginMutation.mutate(loginData, {
+      onError: (error) => {
+        const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+        const errorMessage = axiosError?.response?.data?.message || axiosError?.message || 'Une erreur est survenue lors de la connexion';
+
+        setLoginError(errorMessage);
+
+        // Vider seulement le mot de passe, garder l'email
+        setLoginData(prev => ({
+          ...prev,
+          password: ''
+        }));
+      }
+    });
   };
 
   const handleChangeLogin = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
-    // Ne PAS effacer l'erreur automatiquement - laisser l'utilisateur voir l'erreur
-    // L'erreur sera effacée seulement quand l'utilisateur soumet à nouveau le formulaire
-    
+
     // Validation en temps réel du mot de passe
     if (name === 'password') {
       validatePassword(value);
     }
-    
+
     setLoginData(prev => ({
       ...prev,
       [name]: value
@@ -137,7 +95,7 @@ function LoginPage() {
   };
 
   const inputStyle: CSSProperties = {
-    width: 'calc(100% - 20px)',
+    width: '100%',
     padding: '12px 10px',
     margin: '10px 0',
     borderRadius: '8px',
@@ -146,6 +104,7 @@ function LoginPage() {
     color: '#ffffff',
     fontSize: '1em',
     outline: 'none',
+    boxSizing: 'border-box',
   };
 
   const buttonStyle: CSSProperties = {

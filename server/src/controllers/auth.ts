@@ -113,9 +113,11 @@ export const login = async (req: Request, res: Response) => {
       .populate('profile')
       .populate('organizerProfile');
 
+    // Si l'utilisateur n'existe pas ou le mot de passe est invalide,
+    // renvoyer le même message pour ne pas révéler si l'email existe
     if (!user) {
-      return res.status(404).json({
-        message: 'Utilisateur non trouvé'
+      return res.status(401).json({
+        message: 'Email ou mot de passe incorrect'
       });
     }
 
@@ -123,7 +125,7 @@ export const login = async (req: Request, res: Response) => {
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
-        message: 'Mot de passe invalide'
+        message: 'Email ou mot de passe incorrect'
       });
     }
 

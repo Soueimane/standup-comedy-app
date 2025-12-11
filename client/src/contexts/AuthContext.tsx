@@ -143,15 +143,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loginMutation = useMutation({
     mutationFn: async (data: any) => {
       console.log("🔄 Tentative de connexion avec:", data.email);
-      try {
-        const response = await api.post('/auth/login', data);
-        console.log("✅ Réponse de l'API de connexion:", response.data);
-        return response.data;
-      } catch (error: any) {
-        console.error("❌ Erreur dans mutationFn:", error);
-        // S'assurer que l'erreur est bien propagée
-        throw error;
-      }
+      const response = await api.post('/auth/login', data);
+      console.log("✅ Réponse de l'API de connexion:", response.data);
+      return response.data;
     },
     onSuccess: (data) => {
       console.log("🎉 Connexion réussie pour:", data.user.email, "avec le rôle:", data.user.role);
@@ -172,11 +166,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("📍 Redirection par défaut vers /");
         navigate("/");
       }
-    },
-    onError: (error) => {
-      console.error("❌ Erreur de connexion dans AuthContext:", error);
-      // Ne pas intercepter l'erreur, la laisser se propager pour mutateAsync
     }
+    // Pas de onError ici - laisse les composants gérer leurs propres erreurs
   });
 
 
