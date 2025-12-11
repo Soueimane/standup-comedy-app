@@ -67,9 +67,24 @@ const AppRouter: React.FC = () => {
 // };
 
 const DashboardRouter = () => {
-  const { user } = useAuth()
-  console.log("🏠 DashboardRouter - Utilisateur:", user?.email, "Rôle:", user?.role);
-  
+  const { user, isLoading } = useAuth()
+  console.log("🏠 DashboardRouter - Utilisateur:", user?.email, "Rôle:", user?.role, "Loading:", isLoading);
+
+  // Attendre la fin de l'initialisation avant de prendre des décisions de routing
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
+      }}>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
   if (user?.role === 'ORGANIZER') {
     console.log("📊 Chargement dashboard ORGANIZER");
     return <Dashboard />
@@ -80,7 +95,7 @@ const DashboardRouter = () => {
     console.log("🔥 Chargement dashboard SUPER_ADMIN");
     return <Dashboard /> // Pour l'instant, même interface que l'organisateur
   }
-  
+
   console.log("❌ Aucun rôle reconnu, redirection vers login");
   return <Navigate to="/login" replace />
 }

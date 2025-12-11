@@ -7,15 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function ComedianDashboardPage() {
-  const { user, token, refreshUser } = useAuth();
+  const { user, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (token) {
-      refreshUser();
-    }
-  }, [token, refreshUser]);
 
   // Afficher un message simple selon ?update=kept|withdrawn
   useEffect(() => {
