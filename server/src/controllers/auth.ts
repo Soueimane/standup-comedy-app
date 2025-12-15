@@ -6,6 +6,7 @@ import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
 import { config } from '../config/env';
 import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
+import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -60,6 +61,9 @@ export const register = async (req: Request, res: Response) => {
     });
 
     await user.save();
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitUserRegistered(user._id.toString());
 
     // Générer le token JWT
     if (!config.jwt.secret) {
@@ -510,6 +514,9 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
     // Mettre à jour le mot de passe
     user.password = newPassword;
     await user.save();
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitPasswordReset(userId);
 
     // Marquer toutes les demandes en attente comme complétées
     await PasswordResetRequestModel.updateMany(

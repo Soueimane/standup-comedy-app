@@ -19,6 +19,7 @@ import PasswordResetManagementPage from './pages/PasswordResetManagementPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 // import type { IUserData } from './types/user.ts'
 import LandingPage from './pages/LandingPage'
+import { SSEProvider } from './components/SSEProvider'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -104,7 +105,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <Router>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
+        <SSEProvider>
+          <AppRouter />
+        </SSEProvider>
       </AuthProvider>
     </QueryClientProvider>
   </Router>,

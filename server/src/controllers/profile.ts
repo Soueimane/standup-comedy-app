@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Buffer } from 'buffer';
 import { UserModel } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
+import { emitProfileUpdated } from '../services/eventEmitter';
 
 const buildAvatarDataUrl = (user: any): string | undefined => {
   if (user?.avatar?.data) {
@@ -192,6 +193,9 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     console.log('💾 Tentative de sauvegarde...');
     await user.save();
     console.log('✅ Utilisateur sauvegardé avec succès');
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitProfileUpdated(userId);
 
     // Retrieve updated user with profiles populated
     const updatedUser = await UserModel.findById(userId)

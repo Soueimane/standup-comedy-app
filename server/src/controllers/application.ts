@@ -12,6 +12,7 @@ import { IPopulatedApplication, IPopulatedEvent } from '../types';
 import { IPopulatedUser } from '../types/user';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
+import { emitApplicationCreated, emitApplicationStatusChanged, emitApplicationWithdrawn } from '../services/eventEmitter';
 
 // Fonction pour construire avatarUrl à partir de avatar.data
 const buildAvatarDataUrl = (user: any): string | undefined => {
@@ -89,6 +90,9 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
     });
 
     await application.save();
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitApplicationCreated(application._id.toString(), eventId);
 
     // Ajouter l'application à l'événement
     const eventDoc = event as EventDocument;
@@ -207,6 +211,12 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
       updateData,
       { new: true }
     ).populate<{ event: IPopulatedEvent; comedian: IPopulatedUser }>('event').populate('comedian');
+
+    // Émettre un événement SSE pour notifier tous les clients
+    if (updatedApplication) {
+      const eventId = (updatedApplication.event as any)?._id?.toString() || updatedApplication.event?.toString() || '';
+      emitApplicationStatusChanged(applicationId, status, eventId);
+    }
 
     // Ajout du participant à l'événement si la candidature est acceptée
     if (status === 'ACCEPTED' && updatedApplication && updatedApplication.event && updatedApplication.comedian) {
@@ -615,6 +625,11 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
 
     // Au lieu de supprimer, changer le statut à WITHDRAWN
     await ApplicationModel.findByIdAndUpdate(applicationId, { status: 'WITHDRAWN' });
+
+    // Émettre un événement SSE pour notifier tous les clients
+    const eventId = (application.event as any)?._id?.toString() || application.event?.toString() || '';
+    emitApplicationWithdrawn(applicationId, eventId);
+
     res.json({ message: 'Candidature retirée avec succès' });
   } catch (error) {
     console.error('Erreur lors du retrait de la candidature:', error);

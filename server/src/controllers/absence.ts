@@ -4,6 +4,7 @@ import { EventModel } from '../models/Event';
 import { UserModel } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
+import { emitAbsenceMarked, emitAbsenceCancelled } from '../services/eventEmitter';
 
 /**
  * Marque un participant comme absent à un événement (protégée - organisateur seulement)
@@ -81,6 +82,9 @@ export const markAbsence = async (req: AuthRequest, res: Response): Promise<void
 
     await absence.save();
 
+    // Émettre un événement SSE pour notifier tous les clients
+    emitAbsenceMarked(eventId, comedianId);
+
     // Incrémenter les statistiques d'absence du humoriste
     const comedian = await UserModel.findById(comedianId);
     if (comedian) {
@@ -137,6 +141,9 @@ export const deleteAbsence = async (req: AuthRequest, res: Response): Promise<vo
       res.status(404).json({ message: 'Aucune absence trouvée pour ce participant.' });
       return;
     }
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitAbsenceCancelled(eventId, comedianId);
 
     // Décrémenter les statistiques d'absence du humoriste
     const comedian = await UserModel.findById(comedianId);

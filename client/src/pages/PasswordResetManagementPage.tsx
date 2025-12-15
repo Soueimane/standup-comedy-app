@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -26,8 +27,7 @@ interface PasswordResetRequest {
 function PasswordResetManagementPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -39,23 +39,19 @@ function PasswordResetManagementPage() {
       navigate('/dashboard');
       return;
     }
-    fetchRequests();
-    // Rafraîchir toutes les 30 secondes
-    const interval = setInterval(fetchRequests, 30000);
-    return () => clearInterval(interval);
   }, [user, navigate]);
 
-  const fetchRequests = async () => {
-    try {
+  // Récupérer les demandes avec React Query
+  const { data: requestsData, isLoading: loading } = useQuery({
+    queryKey: ['password-reset-requests'],
+    queryFn: async () => {
       const response = await api.get('/auth/admin/password-reset-requests');
-      setRequests(response.data.requests || []);
-      setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erreur lors du chargement des demandes');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return response.data;
+    },
+    enabled: !!user && user.role === 'SUPER_ADMIN',
+  });
+
+  const requests: PasswordResetRequest[] = requestsData?.requests || [];
 
   const handleResetPassword = async (userId: string) => {
     if (!newPassword || newPassword.length < 8) {
@@ -74,7 +70,8 @@ function PasswordResetManagementPage() {
       setSuccessMessage('Mot de passe réinitialisé avec succès !');
       setSelectedUserId(null);
       setNewPassword('');
-      fetchRequests();
+      // Invalider la query pour recharger les demandes
+      queryClient.invalidateQueries({ queryKey: ['password-reset-requests'] });
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Erreur lors de la réinitialisation');

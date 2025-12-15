@@ -8,6 +8,7 @@ import { expirePendingApplicationsForEvent } from './application';
 import { sendNewEventNotificationToHumorists, sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants } from '../services/emailService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
+import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
 
 // ============================================================================
 // CREATE EVENT
@@ -46,6 +47,9 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
 
     await event.save();
     console.log('✅ Événement sauvegardé avec succès:', event._id);
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitEventCreated(event._id.toString());
 
     // Récupérer les informations de l'organisateur pour l'email et mise à jour stats
     console.log('🔍 Récupération des infos organisateur pour email...');
@@ -347,6 +351,9 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       title: updatedEvent.title,
     });
 
+    // Émettre un événement SSE pour notifier tous les clients
+    emitEventUpdated(updatedEvent._id.toString());
+
     // Notifier les humoristes ayant postulé si l'événement est futur
     if (updatedEvent && new Date(updatedEvent.date) >= new Date()) {
       console.log('📧 [DEBUG] Mise à jour événement futur, préparation envoi emails de mise à jour...');
@@ -472,6 +479,9 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
     await ApplicationModel.deleteMany({ event: eventId });
 
     await EventModel.findByIdAndDelete(eventId);
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitEventDeleted(eventId);
 
     // Décrémenter le compteur d'événements créés de l'organisateur
     const organizer = await UserModel.findById(organizerId);
@@ -1007,6 +1017,9 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
           updatedCount++;
           updatedEvents.push(event.title);
           console.log(`✅ Événement "${event.title}" marqué comme completed`);
+
+          // Émettre un événement SSE pour notifier tous les clients
+          emitEventCompleted(event._id.toString());
 
           // Expirer les candidatures en attente pour cet événement
           try {

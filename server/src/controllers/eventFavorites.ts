@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { UserModel } from '../models/User';
 import { EventModel } from '../models/Event';
 import { Types } from 'mongoose';
+import { emitEventFavoriteAdded, emitEventFavoriteRemoved } from '../services/eventEmitter';
 
 /**
  * Ajoute un événement aux favoris du comédien
@@ -75,6 +76,9 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
     comedian.favoriteEvents.push(eventObjectId);
     await comedian.save();
 
+    // Émettre un événement SSE pour notifier tous les clients
+    emitEventFavoriteAdded(comedianId, eventId);
+
     res.status(201).json({
       message: 'Événement ajouté aux favoris avec succès',
       favoriteEvents: comedian.favoriteEvents
@@ -135,6 +139,9 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
     // Retirer l'événement des favoris
     comedian.favoriteEvents?.splice(favoriteIndex, 1);
     await comedian.save();
+
+    // Émettre un événement SSE pour notifier tous les clients
+    emitEventFavoriteRemoved(comedianId, eventId);
 
     res.json({
       message: 'Événement retiré des favoris avec succès',

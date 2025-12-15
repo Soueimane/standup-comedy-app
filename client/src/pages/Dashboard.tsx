@@ -1,4 +1,5 @@
 import { type CSSProperties, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth'; // Import useAuth
 import { useNavigate } from 'react-router-dom'; // Importer useNavigate
@@ -18,36 +19,39 @@ interface EventStats {
 
 const Dashboard = () => {
   const { user } = useAuth(); // Get user from useAuth for createdEvents
-  const [eventStats, setEventStats] = useState<EventStats | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [passwordResetCount, setPasswordResetCount] = useState<number>(0);
   const navigate = useNavigate(); // Initialiser useNavigate
   const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
-  // Fonction pour récupérer les statistiques
-  const fetchEventStats = async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  // Récupérer les statistiques avec React Query
+  const { data: eventStats, isLoading: loading, error: statsError, refetch: refetchStats } = useQuery({
+    queryKey: ['events', 'stats'],
+    queryFn: async () => {
       const token = localStorage.getItem("token");
       if (!token) {
         throw new Error("Vous devez être connecté pour voir les statistiques d'événements.");
       }
-
       const response = await api.get('/events/stats');
-      const data = response.data;
-      console.log('📊 Statistiques reçues du serveur:', data);
+      console.log('📊 Statistiques reçues du serveur:', response.data);
       console.log('👤 Rôle utilisateur:', (user as any)?.role);
-      setEventStats(data);
-    } catch (err: any) {
-      console.error("Erreur fetch event stats:", err);
-      setError(err.message || "Erreur lors du chargement des statistiques.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return response.data as EventStats;
+    },
+    enabled: !!user,
+  });
+
+  const error = statsError ? (statsError as any).message || "Erreur lors du chargement des statistiques." : null;
+
+  // Récupérer les demandes de réinitialisation de mot de passe avec React Query (Super Admin uniquement)
+  const { data: passwordResetData } = useQuery({
+    queryKey: ['password-reset-requests'],
+    queryFn: async () => {
+      const response = await api.get('/auth/admin/password-reset-requests');
+      return response.data;
+    },
+    enabled: !!user && isSuperAdmin,
+  });
+
+  const passwordResetCount = passwordResetData?.count || 0;
 
   // Fonction pour traiter les événements terminés (Super Admin uniquement)
   const handleProcessCompletedEvents = async () => {
@@ -67,9 +71,9 @@ const Dashboard = () => {
 
       const result = response.data;
       alert(`✅ Traitement terminé !\n${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} événements traités.`);
-      
+
       // Recharger les statistiques après traitement
-      await fetchEventStats();
+      await refetchStats();
     } catch (error: any) {
       console.error('Erreur lors du traitement:', error);
       alert(`❌ Erreur: ${error.response?.data?.message || error.message}`);
@@ -77,29 +81,6 @@ const Dashboard = () => {
       setIsProcessing(false);
     }
   };
-
-  // Fonction pour récupérer le nombre de demandes de réinitialisation
-  const fetchPasswordResetRequests = async () => {
-    if (!isSuperAdmin) return;
-    try {
-      const response = await api.get('/auth/admin/password-reset-requests');
-      setPasswordResetCount(response.data.count || 0);
-    } catch (err) {
-      console.error('Erreur lors de la récupération des demandes:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (user) { // Fetch only if user is available
-      fetchEventStats();
-      if (isSuperAdmin) {
-        fetchPasswordResetRequests();
-        // Rafraîchir toutes les 30 secondes
-        const interval = setInterval(fetchPasswordResetRequests, 30000);
-        return () => clearInterval(interval);
-      }
-    }
-  }, [user, isSuperAdmin]); // Re-run effect if user changes
 
   // Styles de base pour le conteneur principal
   const mainContainerStyle: CSSProperties = {
