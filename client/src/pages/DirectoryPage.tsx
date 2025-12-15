@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import Navbar from '../components/Navbar';
 import ComedianApplicationsModal from '../components/ComedianApplicationsModal';
@@ -39,9 +40,7 @@ interface User {
 }
 
 const DirectoryPage: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +58,21 @@ const DirectoryPage: React.FC = () => {
   const [selectedOrganizerProfile, setSelectedOrganizerProfile] = useState<IUserData | null>(null);
   const [isOrganizerProfileModalOpen, setIsOrganizerProfileModalOpen] = useState(false);
   const { user, token } = useAuth();
+
+  // Charger les utilisateurs avec React Query
+  const { data: usersData, isLoading: loading, refetch: refetchUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      console.log('🔍 Chargement des utilisateurs...');
+      console.log('👤 Utilisateur actuel:', user);
+      const response = await api.get('/auth/users');
+      console.log('📊 Réponse API reçue:', response.data);
+      return (response.data.users || []) as User[];
+    },
+    enabled: !!user && user.role === 'SUPER_ADMIN',
+  });
+
+  const users = usersData || [];
 
   // Styles
   const mainContainerStyle = {
@@ -161,40 +175,8 @@ const DirectoryPage: React.FC = () => {
   });
 
   useEffect(() => {
-    loadUsers();
-  }, []);
-
-  useEffect(() => {
     filterUsers();
   }, [users, searchTerm, roleFilter]);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      console.log('🔍 Chargement des utilisateurs...');
-      console.log('👤 Utilisateur actuel:', user);
-      
-      const response = await api.get('/auth/users');
-      console.log('📊 Réponse API reçue:', response.data);
-      
-      setUsers(response.data.users || []);
-    } catch (error: any) {
-      console.error('❌ Erreur lors du chargement des utilisateurs:', error);
-      console.error('📋 Détails de l\'erreur:', error.response?.data);
-      console.error('🔢 Status de l\'erreur:', error.response?.status);
-      
-      let errorMessage = 'Erreur inconnue';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(`Impossible de charger le répertoire des utilisateurs: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filterUsers = () => {
     let filtered = users;
@@ -430,7 +412,7 @@ const DirectoryPage: React.FC = () => {
             <option value="ORGANIZER">Organisateurs</option>
           </select>
           <button
-            onClick={loadUsers}
+            onClick={() => refetchUsers()}
             style={{
               padding: '12px 20px',
               borderRadius: '8px',

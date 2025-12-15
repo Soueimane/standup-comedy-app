@@ -1,4 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
@@ -11,44 +12,31 @@ function ComedianProfilePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user: authUser, token, refreshUser } = useAuth();
-  const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
   const searchParams = new URLSearchParams(location.search);
   const fromApplications = searchParams.get('from') === 'applications';
   const applicationIdFromQuery = searchParams.get('applicationId');
 
-  useEffect(() => {
-    if (id && id !== authUser?._id) {
-      // Charger le profil d'un autre humoriste
-      setLoading(true);
-      const loadProfile = async () => {
-        try {
-          if (!token) {
-            alert('Vous devez être connecté pour voir ce profil');
-            return;
-          }
-          const config = {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          };
-          const response = await api.get<IUserData>(`/profile/${id}`, config);
-          setUser(response.data);
-        } catch (err: any) {
-          console.error('Erreur lors de la récupération du profil:', err.response?.data || err.message);
-          alert('Erreur lors du chargement du profil de l\'humoriste');
-        } finally {
-          setLoading(false);
-        }
+  // Charger le profil avec React Query (uniquement si on visite un autre profil)
+  const { data: profileData, isLoading: loading } = useQuery({
+    queryKey: ['profile', 'comedian', id],
+    queryFn: async () => {
+      if (!token) {
+        throw new Error('Vous devez être connecté pour voir ce profil');
+      }
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       };
-      loadProfile();
-    } else {
-      // Afficher le profil de l'utilisateur connecté
-      setUser(authUser);
-    }
-  }, [id, authUser, token]);
+      const response = await api.get<IUserData>(`/profile/${id}`, config);
+      return response.data;
+    },
+    enabled: !!id && id !== authUser?._id && !!token,
+  });
+
+  const user = isViewingOtherProfile ? profileData : authUser;
 
   const handleSaveSuccess = () => {
     refreshUser();

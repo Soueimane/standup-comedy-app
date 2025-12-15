@@ -4,7 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addFavorite, removeFavorite, getFavorites } from '../services/api';
 
 export interface IUser {
@@ -48,9 +48,7 @@ type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'fa
 
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
-  const [applications, setApplications] = useState<IApplication[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] = useState<IApplication | null>(null);
@@ -84,6 +82,31 @@ function ApplicationsPage() {
   const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
   const isOrganizerView = user?.role === 'ORGANIZER';
   const isQueryEnabled = !!token && !!user?._id && isOrganizerView;
+
+  // Charger les candidatures avec React Query
+  const { data: applicationsData, isLoading: loading, error: applicationsError } = useQuery({
+    queryKey: ['applications', selectedEventId],
+    queryFn: async () => {
+      if (!token) {
+        throw new Error("Vous devez être connecté pour voir les candidatures.");
+      }
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+      const query = selectedEventId !== 'all' ? `?eventId=${encodeURIComponent(selectedEventId)}` : '';
+      const res = await api.get<IApplication[]>(`/applications${query}`, config);
+      const list = Array.isArray(res.data)
+        ? res.data
+        : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
+      return list as IApplication[];
+    },
+    enabled: !!token && !!user,
+  });
+
+  const applications = applicationsData || [];
+  const error = applicationsError ? (applicationsError as any).response?.data?.message || (applicationsError as any).message || 'Échec de la récupération des candidatures.' : null;
 
   // Charger les favoris depuis l'API
   const { data: favoritesData, refetch: refetchFavorites } = useQuery<{ favorites: IUser[] }, Error>({
@@ -200,39 +223,6 @@ function ApplicationsPage() {
     }
   }, [location.search]);
 
-  const fetchApplications = async () => {
-    if (!token) {
-      setError("Vous devez être connecté pour voir les candidatures.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
-      const query = selectedEventId !== 'all' ? `?eventId=${encodeURIComponent(selectedEventId)}` : '';
-      const res = await api.get<IApplication[]>(`/applications${query}`, config);
-      const list = Array.isArray(res.data)
-        ? res.data
-        : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
-      setApplications(list);
-    } catch (err: any) {
-      console.error('Erreur lors de la récupération des candidatures:', err.response?.data || err.message);
-      setError(err.response?.data?.message || 'Échec de la récupération des candidatures.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchApplications();
-  }, [token, selectedTab, selectedEventId]);
-
   useEffect(() => {
     if (!applicationIdFromUrl) return;
     const found = applications.find(app => app._id === applicationIdFromUrl);
@@ -318,7 +308,7 @@ function ApplicationsPage() {
       };
       await api.put(`/applications/${statusAppId}/status`, { status: statusToSet, organizerMessage: statusMessage }, config);
       alert(`Candidature ${statusToSet === 'ACCEPTED' ? 'acceptée' : 'refusée'} avec succès !`);
-      fetchApplications();
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
       refreshUser();
       closeStatusModal();
     } catch (err: any) {
@@ -1230,7 +1220,7 @@ function ApplicationsPage() {
                                       headers: { Authorization: `Bearer ${token}` }
                                     });
                                     alert('Confirmation enregistrée !');
-                                    fetchApplications();
+                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
                                   } catch (error) {
                                     alert('Erreur lors de la confirmation.');
                                   }
@@ -1248,7 +1238,7 @@ function ApplicationsPage() {
                                     const config = { headers: { Authorization: `Bearer ${token}` } };
                                     await api.delete(`/applications/${app._id}`, config);
                                     alert('Candidature retirée.');
-                                    fetchApplications();
+                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
                                     refreshUser();
                                   } catch (err: any) {
                                     alert('Échec de la désinscription.');
