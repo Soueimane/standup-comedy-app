@@ -280,17 +280,14 @@ function ComedianProfilePage() {
               <span style={infoLabelStyle}>Niveau d'expérience:</span>
               <span style={infoValueStyle}>
                 {(() => {
-                  const scenes = user?.profile?.numberOfScenes || 0;
-                  if (scenes === 0) return 'Non spécifié';
-                  if (scenes < 50) return `Débutant (${scenes} scène${scenes > 1 ? 's' : ''})`;
-                  if (scenes < 200) return `Expérimenté (${scenes} scène${scenes > 1 ? 's' : ''})`;
-                  return `Pro (${scenes} scène${scenes > 1 ? 's' : ''})`;
+                  const scenes = user?.profile?.numberOfScenes;
+                  if (!scenes) return 'Non spécifié';
+                  if (scenes === '0-50') return '0-50 scènes (Débutant)';
+                  if (scenes === '50-200') return '50-200 scènes (Expérimenté)';
+                  if (scenes === '200+') return '200+ scènes (Pro)';
+                  return 'Non spécifié';
                 })()}
               </span>
-            </div>
-            <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Spécialité:</span>
-              <span style={infoValueStyle}>{user?.profile?.speciality || 'Non spécifié'}</span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Style de comédie:</span>

@@ -253,22 +253,16 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
               </div>
             )}
             
-            {comedian.profile.speciality && (
-              <div style={infoRowStyle}>
-                <span style={infoLabelStyle}>Spécialité:</span>
-                <span style={infoValueStyle}>{comedian.profile.speciality}</span>
-              </div>
-            )}
-            
-            {comedian.profile.numberOfScenes !== undefined && comedian.profile.numberOfScenes > 0 && (
+            {comedian.profile.numberOfScenes && (
               <div style={infoRowStyle}>
                 <span style={infoLabelStyle}>Niveau d'expérience:</span>
                 <span style={infoValueStyle}>
                   {(() => {
-                    const scenes = comedian.profile.numberOfScenes || 0;
-                    if (scenes < 50) return `Débutant (${scenes} scène${scenes > 1 ? 's' : ''})`;
-                    if (scenes < 200) return `Expérimenté (${scenes} scène${scenes > 1 ? 's' : ''})`;
-                    return `Pro (${scenes} scène${scenes > 1 ? 's' : ''})`;
+                    const scenes = comedian.profile.numberOfScenes;
+                    if (scenes === '0-50') return '0-50 scènes (Débutant)';
+                    if (scenes === '50-200') return '50-200 scènes (Expérimenté)';
+                    if (scenes === '200+') return '200+ scènes (Pro)';
+                    return 'Non spécifié';
                   })()}
                 </span>
               </div>

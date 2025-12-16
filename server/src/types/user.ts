@@ -20,7 +20,7 @@ export interface UserProfile {
   bio?: string;
   experience?: number;
   speciality?: string;
-  numberOfScenes?: number;
+  numberOfScenes?: '0-50' | '50-200' | '200+';
   comedyStyle?: ('stand-up' | 'improvisation' | 'plateau' | 'sketch')[];
   performanceLanguages?: ('francais' | 'arabe' | 'anglais' | 'italien' | 'espagnol')[];
   socialLinks?: {

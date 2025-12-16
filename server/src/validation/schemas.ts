@@ -308,7 +308,7 @@ export const updateProfileSchema = z.object({
       .max(100, { message: 'L\'expérience ne peut pas dépasser 100 ans' })
       .optional(),
     speciality: z.string().optional(),
-    numberOfScenes: z.number().min(0).optional(),
+    numberOfScenes: z.enum(['0-50', '50-200', '200+']).optional(),
     comedyStyle: z.array(z.enum(['stand-up', 'improvisation', 'plateau', 'sketch'])).optional(),
     performanceLanguages: z.array(z.enum(['francais', 'arabe', 'anglais', 'italien', 'espagnol'])).optional(),
     socialLinks: z.object({

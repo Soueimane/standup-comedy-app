@@ -142,7 +142,7 @@ const userProfileSchema = new Schema<UserProfile>({
   bio: { type: String },
   experience: { type: Number },
   speciality: { type: String },
-  numberOfScenes: { type: Number, default: 0 }, // Nombre de scènes jouées
+  numberOfScenes: { type: String, enum: ['0-50', '50-200', '200+'] }, // Nombre de scènes jouées
   comedyStyle: [{ 
     type: String, 
     enum: ['stand-up', 'improvisation', 'plateau', 'sketch'] 

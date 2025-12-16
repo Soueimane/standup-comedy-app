@@ -100,8 +100,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         profile: {
             bio: formData.profile?.bio,
             experience: formData.profile?.experience ? Number(formData.profile.experience) : undefined,
-            speciality: formData.profile?.speciality,
-            numberOfScenes: formData.profile?.numberOfScenes ? Number(formData.profile.numberOfScenes) : undefined,
+            numberOfScenes: formData.profile?.numberOfScenes || undefined,
             comedyStyle: formData.profile?.comedyStyle || undefined,
             performanceLanguages: formData.profile?.performanceLanguages || undefined,
             socialLinks: {
@@ -312,28 +311,18 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         />
         
         <label style={labelStyle}>Nombre de scènes jouées *</label>
-        <input
-          type="number"
+        <select
           name="profile.numberOfScenes"
           value={formData.profile?.numberOfScenes || ''}
           onChange={handleChange}
-          placeholder="Ex: 0-50 (Débutant), 50-200 (Expérimenté), 200+ (Pro)"
           style={inputStyle}
-          min="0"
-        />
-        <p style={{ fontSize: '0.85em', color: '#aaa', marginTop: '-10px', marginBottom: '15px' }}>
-          Débutant: 0-50 scènes | Expérimenté: 50-200 scènes | Pro: 200+ scènes
-        </p>
+        >
+          <option value="">Sélectionnez votre niveau</option>
+          <option value="0-50">0-50 scènes (Débutant)</option>
+          <option value="50-200">50-200 scènes (Expérimenté)</option>
+          <option value="200+">200+ scènes (Pro)</option>
+        </select>
         
-        <label style={labelStyle}>Spécialité</label>
-        <input
-          type="text"
-          name="profile.speciality"
-          value={formData.profile?.speciality || ''}
-          onChange={handleChange}
-          placeholder="Ex: Stand-up, One-man-show, Improvisation..."
-          style={inputStyle}
-        />
         
         <label style={labelStyle}>Style de comédie</label>
         <div style={{ marginBottom: '15px' }}>
