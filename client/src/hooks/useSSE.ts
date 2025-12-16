@@ -92,8 +92,8 @@ export const useSSE = (
 
     // Déterminer l'URL de base selon l'environnement (CRA -> process.env)
     const baseUrl = process.env.REACT_APP_API_URL ||
-      (process.env.NODE_ENV === 'production'
-        ? 'https://connectcomedyclub.com/api'
+      (process.env.NODE_ENV === 'development'
+        ? 'https://test.connectcomedyclub.com/api'
         : 'http://localhost:3001/api');
 
     const url = `${baseUrl}/sse/stream?token=${encodeURIComponent(token)}`;
