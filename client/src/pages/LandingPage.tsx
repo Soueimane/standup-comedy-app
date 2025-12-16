@@ -140,7 +140,7 @@ function LandingPage() {
         </svg>
       </div>
       
-      <h1 style={titleStyle}>Stand-up Comedy Connect</h1>
+      <h1 style={titleStyle}>Connect Comedy Club</h1>
       <p style={subtitleStyle}>
         La plateforme qui connecte les humoristes et les organisateurs d'événements.
       </p>
