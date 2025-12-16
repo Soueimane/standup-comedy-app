@@ -198,6 +198,31 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
       return;
     }
 
+    // Validation de capacité pour les acceptations
+    if (status === 'ACCEPTED') {
+      const event = application.event as IPopulatedEvent;
+      const maxPerformers = event.requirements?.maxPerformers;
+
+      // Vérifier seulement si une limite est définie
+      if (maxPerformers && maxPerformers > 0) {
+        const currentParticipants = event.participants?.length || 0;
+
+        // Vérifier si le comédien est déjà participant (cas de ré-acceptation)
+        const comedianId = application.comedian;
+        const isAlreadyParticipant = event.participants?.some(
+          p => p.toString() === comedianId.toString()
+        );
+
+        // Si pas déjà participant et l'événement est complet, rejeter
+        if (!isAlreadyParticipant && currentParticipants >= maxPerformers) {
+          res.status(409).json({
+            message: `L'événement est complet (${currentParticipants}/${maxPerformers} participants)`
+          });
+          return;
+        }
+      }
+    }
+
     const updateData: any = { status };
     if (organizerMessage !== undefined) {
       updateData.organizerMessage = organizerMessage;
@@ -226,6 +251,16 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
       await EventModel.findByIdAndUpdate(
         eventId,
         { $addToSet: { participants: comedianId } } // $addToSet évite les doublons
+      );
+    }
+
+    // Retrait du participant si le statut passe de ACCEPTED à autre chose
+    if (oldStatus === 'ACCEPTED' && status !== 'ACCEPTED' && updatedApplication && updatedApplication.event && updatedApplication.comedian) {
+      const eventId = (updatedApplication.event as any)._id || updatedApplication.event;
+      const comedianId = (updatedApplication.comedian as any)._id || updatedApplication.comedian;
+      await EventModel.findByIdAndUpdate(
+        eventId,
+        { $pull: { participants: comedianId } }
       );
     }
 
