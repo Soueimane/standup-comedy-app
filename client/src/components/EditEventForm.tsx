@@ -608,23 +608,6 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
           </div>
         </div>
 
-        <div style={inputGroupStyle}>
-          <label htmlFor="status" style={labelStyle}>Statut *</label>
-          <select 
-            id="status" 
-            style={{
-              ...inputStyle,
-              borderColor: errors.status ? '#ef4444' : '#555'
-            }} 
-            value={formData.status} 
-            onChange={handleChange}
-          >
-            <option value="PUBLISHED">Publié</option>
-            <option value="CANCELLED">Annulé</option>
-            <option value="COMPLETED">Terminé</option>
-          </select>
-        </div>
-
         <div style={buttonContainerStyle}>
           <button type="submit" style={primaryButtonStyle} disabled={isSubmitting}>
             {isSubmitting ? 'Modification...' : 'Sauvegarder'}
