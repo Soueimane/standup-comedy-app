@@ -737,12 +737,12 @@ export const respondToEventUpdate = async (req: Request, res: Response): Promise
 
       if (action === 'withdraw') {
         await ApplicationModel.findByIdAndDelete(applicationId);
-        res.redirect('https://standup-comedy-app.netlify.app/applications?update=withdrawn');
+        res.redirect(`${config.frontend.url}/applications?update=withdrawn`);
         return;
       }
 
       // keep: on ne change rien, simple confirmation
-      res.redirect('https://standup-comedy-app.netlify.app/applications?update=kept');
+      res.redirect(`${config.frontend.url}/applications?update=kept`);
     } catch (_e) {
       res.status(400).send('Lien expiré ou invalide');
     }

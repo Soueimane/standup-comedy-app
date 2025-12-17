@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditOrganizerProfileForm from '../components/EditOrganizerProfileForm';
+import EmailPreferences from '../components/EmailPreferences';
 
 function OrganizerProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
@@ -229,6 +230,11 @@ function OrganizerProfilePage() {
               <span style={infoLabelStyle}>Fréquence des événements:</span>
               <span style={infoValueStyle}>{user?.organizerProfile?.eventFrequency || 'monthly'}</span>
             </div>
+          </div>
+
+          {/* Préférences Email */}
+          <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
+            <EmailPreferences />
           </div>
         </div>
       )}

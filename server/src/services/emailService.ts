@@ -54,14 +54,12 @@ function generateUnsubscribeUrl(userId: string, email: string): string {
   try {
     const token = generateUnsubscribeToken(userId, email);
 
-    // Utiliser l'URL de l'API backend
-    const apiBaseUrl = process.env.API_URL || 'http://localhost:3001';
-
-    return `${apiBaseUrl}/api/email/unsubscribe?token=${token}&userId=${userId}&email=${encodeURIComponent(email)}`;
+    // Utiliser l'URL de l'API backend pour le désabonnement
+    return `${config.api.url}/api/email/unsubscribe?token=${token}&userId=${userId}&email=${encodeURIComponent(email)}`;
   } catch (error) {
     console.error(`❌ Error generating unsubscribe URL for ${email}:`, error);
     // Fallback URL générique
-    return 'https://standup-comedy-app.netlify.app/unsubscribe';
+    return `${config.frontend.url}/unsubscribe`;
   }
 }
 
@@ -105,7 +103,7 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
     // Générer l'URL de désabonnement AVANT le template HTML
     const unsubscribeUrl = organizerId
       ? generateUnsubscribeUrl(organizerId.toString(), organizerData.email)
-      : 'https://standup-comedy-app.netlify.app/unsubscribe';
+      : `${config.frontend.url}/unsubscribe`;
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -402,7 +400,7 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
             ` : ''}
             
             <div class="cta-buttons">
-                <a href="https://standup-comedy-app.netlify.app/applications" class="cta-button btn-review">
+                <a href="${config.frontend.url}/applications" class="cta-button btn-review">
                     📋 Voir les Candidatures
                 </a>
             </div>
@@ -456,7 +454,7 @@ Date: ${new Date(eventData.date).toLocaleDateString('fr-FR')}
 Lieu: ${eventData.location.address}, ${eventData.location.city}
 
 Connectez-vous à votre tableau de bord pour examiner cette candidature:
-https://standup-comedy-app.netlify.app/applications
+${config.frontend.url}/applications
 
 L'équipe Comedy Connect Club
     `.trim();
@@ -706,7 +704,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
               ${requirementsSection}
               <tr>
                 <td align="center" style="padding:20px 0;">
-                  <a href="https://standup-comedy-app.netlify.app/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Je postule maintenant</a>
+                  <a href="${config.frontend.url}/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Je postule maintenant</a>
                 </td>
               </tr>
               <tr>
@@ -784,7 +782,7 @@ Exigences:
 - Expérience minimale: ${eventData.requirements.minExperience} ans
 ` : ''}
 
-Postulez maintenant: https://standup-comedy-app.netlify.app/events
+Postulez maintenant: ${config.frontend.url}/events
 
 L'équipe Comedy Connect Club
     `.trim();
@@ -879,24 +877,24 @@ export const sendApplicationStatusToComedian = async (
   // =========================================
 
   const subject = status === 'ACCEPTED'
-    ? `🎉 Votre candidature a été ACCEPTÉE pour l'événement "${event.title}" !`
-    : `😔 Votre candidature a été REFUSÉE pour l'événement "${event.title}"`;
+    ? `Bonne nouvelle - Candidature acceptée pour "${event.title}" 🎉`
+    : `Candidature non retenue pour "${event.title}"`;
 
   // Générer l'URL de désabonnement AVANT le template HTML
   const unsubscribeUrl = comedianId
     ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
-    : 'https://standup-comedy-app.netlify.app/unsubscribe';
+    : `${config.frontend.url}/unsubscribe`;
 
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 30px;">
     <div style="max-width: 600px; margin: auto; background: white; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 32px;">
       <h2 style="color: ${status === 'ACCEPTED' ? '#28a745' : '#dc3545'}; text-align: center;">
-        ${status === 'ACCEPTED' ? '🎉 Félicitations !' : '😔 Candidature refusée'}
+        ${status === 'ACCEPTED' ? 'Félicitations !' : 'Candidature non retenue'}
       </h2>
       <p style="font-size: 1.1em; text-align: center;">
         ${status === 'ACCEPTED'
           ? `Votre candidature pour l'événement <b>${event.title}</b> a été <b>acceptée</b> par l'organisateur.`
-          : `Votre candidature pour l'événement <b>${event.title}</b> a été <b>refusée</b> par l'organisateur.`}
+          : `Votre candidature pour l'événement <b>${event.title}</b> n'a pas été retenue par l'organisateur.`}
       </p>
       <div style="margin: 24px 0; padding: 18px; background: #f0f0f0; border-radius: 8px;">
         <b>Message de l'organisateur :</b><br/>
@@ -909,7 +907,7 @@ export const sendApplicationStatusToComedian = async (
         <span>📍 ${event.location.address}, ${event.location.city}</span>
       </div>
       <div style="text-align: center; margin-top: 32px;">
-        <a href="https://standup-comedy-app.netlify.app/applications" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #667eea, #764ba2); color: white; border-radius: 24px; text-decoration: none; font-weight: bold; font-size: 1.1em;">Voir mes candidatures</a>
+        <a href="${config.frontend.url}/applications" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #667eea, #764ba2); color: white; border-radius: 24px; text-decoration: none; font-weight: bold; font-size: 1.1em;">Voir mes candidatures</a>
       </div>
       <p style="text-align: center; color: #888; margin-top: 32px; font-size: 0.95em;">L'équipe Comedy Connect Club</p>
 
@@ -928,11 +926,11 @@ export const sendApplicationStatusToComedian = async (
 
   // Version texte pour améliorer la délivrabilité
   const textContent = `
-${status === 'ACCEPTED' ? '🎉 Félicitations !' : '😔 Candidature refusée'}
+${status === 'ACCEPTED' ? 'Félicitations !' : 'Candidature non retenue'}
 
 ${status === 'ACCEPTED'
   ? `Votre candidature pour l'événement "${event.title}" a été acceptée par l'organisateur.`
-  : `Votre candidature pour l'événement "${event.title}" a été refusée par l'organisateur.`}
+  : `Votre candidature pour l'événement "${event.title}" n'a pas été retenue par l'organisateur.`}
 
 ${organizerMessage ? `Message de l'organisateur: ${organizerMessage}` : ''}
 
@@ -941,7 +939,7 @@ Détails de l'événement:
 - Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
 - Lieu: ${event.location.address}, ${event.location.city}
 
-Voir mes candidatures: https://standup-comedy-app.netlify.app/applications
+Voir mes candidatures: ${config.frontend.url}/applications
 
 L'équipe Comedy Connect Club
   `.trim();
@@ -979,7 +977,7 @@ export const sendEventUpdatedNotificationToApplicants = async (
   if (!applications || applications.length === 0) return;
 
   const subject = `✏️ Mise à jour de l'événement "${event.title}"`;
-  const frontendBase = 'https://standup-comedy-app.netlify.app';
+  const frontendBase = config.frontend.url;
 
   const sendAll = applications.map(async (app: any) => {
     const comedian = app.comedian;
@@ -1039,14 +1037,14 @@ Lieu: ${event.location?.address || ''} ${event.location?.city ? `- ${event.locat
 ${event.startTime ? `Heure: ${event.startTime}` : ''}
 
 Pour confirmer si vous restez inscrit ou vous désinscrire, connectez-vous sur votre espace candidatures:
-https://standup-comedy-app.netlify.app/login?redirect=/applications
+${config.frontend.url}/login?redirect=/applications
 
 L'équipe Comedy Connect Club
     `.trim();
 
     const unsubscribeUrl = comedianId
       ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
-      : 'https://standup-comedy-app.netlify.app/unsubscribe';
+      : `${config.frontend.url}/unsubscribe`;
 
     // Générer le html pour ce comédien spécifique avec son unsubscribeUrl
     const htmlForComedian = html.replace(/\$\{unsubscribeUrl\}/g, unsubscribeUrl);
@@ -1100,7 +1098,7 @@ export const sendEventReminder = async (
   // Générer l'URL de désabonnement AVANT le template HTML
   const unsubscribeUrl = comedianId
     ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
-    : 'https://standup-comedy-app.netlify.app/unsubscribe';
+    : `${config.frontend.url}/unsubscribe`;
 
   const html = `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 24px;">
@@ -1115,7 +1113,7 @@ export const sendEventReminder = async (
       </div>
       <p>Nous vous souhaitons une excellente performance !</p>
       <div style="text-align:center; margin-top: 12px;">
-        <a href="https://standup-comedy-app.netlify.app/applications" style="display:inline-block;padding:12px 24px;background:#667eea;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Voir mes candidatures</a>
+        <a href="${config.frontend.url}/applications" style="display:inline-block;padding:12px 24px;background:#667eea;color:#fff;border-radius:24px;text-decoration:none;font-weight:bold">Voir mes candidatures</a>
       </div>
       <p style="color:#888; margin-top:16px;">Cet email est automatique. Merci de ne pas y répondre.</p>
 
@@ -1145,7 +1143,7 @@ ${event.location ? `Lieu: ${event.location.address || ''} ${event.location.city 
 
 Nous vous souhaitons une excellente performance !
 
-Voir mes candidatures: https://standup-comedy-app.netlify.app/applications
+Voir mes candidatures: ${config.frontend.url}/applications
 
 L'équipe Comedy Connect Club
   `.trim();
@@ -1165,7 +1163,7 @@ L'équipe Comedy Connect Club
       }
     },
     headers: {
-      'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
+      'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : `<${config.frontend.url}/unsubscribe>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       'X-Entity-Ref-ID': `rappel-${type}-${Date.now()}`
     },
@@ -1236,7 +1234,7 @@ L'équipe Comedy Connect Club
 
       const unsubscribeUrl = participantId
         ? generateUnsubscribeUrl(participantId.toString(), p.email)
-        : 'https://standup-comedy-app.netlify.app/unsubscribe';
+        : `${config.frontend.url}/unsubscribe`;
 
       // Générer le html pour ce participant spécifique avec son unsubscribeUrl
       const htmlForParticipant = html.replace(/\$\{unsubscribeUrl\}/g, unsubscribeUrl);
@@ -1257,7 +1255,7 @@ L'équipe Comedy Connect Club
           }
         },
         headers: {
-          'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
+          'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : `<${config.frontend.url}/unsubscribe>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           'X-Entity-Ref-ID': `annulation-${Date.now()}`
         },
@@ -1320,7 +1318,7 @@ export const sendOrganizerEventReminder = async (
     }
 
     // Construction de l'URL frontend pour les actions
-    const frontendBase = process.env.FRONTEND_URL || 'https://standup-comedy-app.netlify.app';
+    const frontendBase = config.frontend.url;
     const eventId = event._id?.toString() || '';
     const applicationsUrl = `${frontendBase}/applications?eventId=${eventId}`;
     const editEventUrl = `${frontendBase}/events/edit/${eventId}`;
@@ -1360,7 +1358,7 @@ export const sendOrganizerEventReminder = async (
     // Générer l'URL de désabonnement AVANT le template HTML
     const unsubscribeUrl = organizerId
       ? generateUnsubscribeUrl(organizerId.toString(), organizer.email)
-      : 'https://standup-comedy-app.netlify.app/unsubscribe';
+      : `${config.frontend.url}/unsubscribe`;
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -1684,7 +1682,7 @@ Système de relance automatique - Ne pas répondre à cet email
         }
       },
       headers: {
-        'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : '<https://standup-comedy-app.netlify.app/unsubscribe>',
+        'List-Unsubscribe': unsubscribeUrl ? `<${unsubscribeUrl}>` : `<${config.frontend.url}/unsubscribe>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'X-Entity-Ref-ID': `organizer-reminder-${eventId}-j${daysRemaining}-${Date.now()}`,
         'Precedence': 'bulk'

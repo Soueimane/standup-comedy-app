@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditComedianProfileForm from '../components/EditComedianProfileForm';
+import EmailPreferences from '../components/EmailPreferences';
 import api from '../services/api';
 
 function ComedianProfilePage() {
@@ -378,6 +379,13 @@ function ComedianProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Préférences Email - uniquement pour son propre profil */}
+          {!isViewingOtherProfile && (
+            <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
+              <EmailPreferences />
+            </div>
+          )}
         </div>
       )}
       {loading && (
