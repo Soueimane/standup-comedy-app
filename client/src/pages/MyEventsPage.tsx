@@ -2418,7 +2418,7 @@ useEffect(() => {
               </div>
             ) : (
               <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
-                Participants attendus ({selectedEvent.requirements?.maxPerformers ?? 0})
+                Participants confirmés ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
               </h3>
             )}
           </div>
