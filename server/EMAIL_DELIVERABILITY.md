@@ -14,7 +14,7 @@
 - **Precedence: bulk** : Indique que c'est un email en masse (pour les notifications d'événements)
 
 ### 3. **Nom d'expéditeur cohérent**
-- Tous les emails utilisent maintenant "Standup Comedy Connect" comme nom d'expéditeur
+- Tous les emails utilisent maintenant "Comedy Connect Club" comme nom d'expéditeur
 - Crée une identité de marque cohérente
 - Améliore la reconnaissance par les utilisateurs
 

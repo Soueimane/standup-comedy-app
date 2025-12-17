@@ -413,13 +413,13 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
         </div>
 
         <div class="footer">
-            <p><strong>L'équipe Standup Comedy Connect</strong></p>
+            <p><strong>L'équipe Comedy Connect Club</strong></p>
             <p>Connecter les talents avec les opportunités</p>
         </div>
 
         <!-- Footer de désabonnement -->
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
             <p>
                 <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
                     Se désabonner de tous les emails
@@ -458,13 +458,13 @@ Lieu: ${eventData.location.address}, ${eventData.location.city}
 Connectez-vous à votre tableau de bord pour examiner cette candidature:
 https://standup-comedy-app.netlify.app/applications
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
     `.trim();
 
     await sgMail.send({
       from: {
         email: config.email.smtpUser, // Email vérifié SendGrid
-        name: 'Standup Comedy Connect' // Nom de marque cohérent
+        name: 'Comedy Connect Club' // Nom de marque cohérent
       },
       replyTo: humoristData.email, // Les réponses iront directement à l'humoriste
       to: organizerData.email,
@@ -626,7 +626,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
         <tr>
           <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
             <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">Nouvel événement disponible</p>
-            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">Une nouvelle opportunité est ouverte sur Standup Comedy Connect.</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">Une nouvelle opportunité est ouverte sur Comedy Connect Club.</p>
           </td>
         </tr>
         <tr>
@@ -714,7 +714,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
               </tr>
               <tr>
                 <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
-                  Connectez-vous à votre espace Standup Comedy Connect pour candidater rapidement.
+                  Connectez-vous à votre espace Comedy Connect Club pour candidater rapidement.
                 </td>
               </tr>
             </table>
@@ -723,7 +723,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
         <tr>
           <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
             <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
-              Standup Comedy Connect · Restez inspiré et à l'écoute des nouvelles scènes.
+              Comedy Connect Club · Restez inspiré et à l'écoute des nouvelles scènes.
             </p>
           </td>
         </tr>
@@ -732,7 +732,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
         <tr>
           <td style="padding:40px 24px 20px 24px;border-top:1px solid #e0e0e0;text-align:center;">
             <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#666;">
-              Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.
+              Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.
             </p>
             <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;">
               <a href="\${unsubscribeUrl}" style="color:#666;text-decoration:underline;">
@@ -765,7 +765,7 @@ Nouvel Événement Disponible !
 
 Bonjour,
 
-Une nouvelle opportunité vient d'être publiée sur Standup Comedy Connect !
+Une nouvelle opportunité vient d'être publiée sur Comedy Connect Club !
 
 Organisateur: ${organizerData.firstName} ${organizerData.lastName}
 Email: ${organizerData.email}
@@ -786,7 +786,7 @@ Exigences:
 
 Postulez maintenant: https://standup-comedy-app.netlify.app/events
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
     `.trim();
 
     const emailPromises = subscribedHumorists.map(async (humorist, index) => {
@@ -810,7 +810,7 @@ L'équipe Standup Comedy Connect
         const result = await sgMail.send({
           from: {
             email: config.email.smtpUser,
-            name: 'Standup Comedy Connect' // Nom de marque cohérent au lieu du nom de l'organisateur
+            name: 'Comedy Connect Club' // Nom de marque cohérent au lieu du nom de l'organisateur
           },
           replyTo: organizerData.email, // Les réponses iront directement à l'organisateur
           to: humorist.email,
@@ -911,11 +911,11 @@ export const sendApplicationStatusToComedian = async (
       <div style="text-align: center; margin-top: 32px;">
         <a href="https://standup-comedy-app.netlify.app/applications" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #667eea, #764ba2); color: white; border-radius: 24px; text-decoration: none; font-weight: bold; font-size: 1.1em;">Voir mes candidatures</a>
       </div>
-      <p style="text-align: center; color: #888; margin-top: 32px; font-size: 0.95em;">L'équipe Standup Comedy Connect</p>
+      <p style="text-align: center; color: #888; margin-top: 32px; font-size: 0.95em;">L'équipe Comedy Connect Club</p>
 
       <!-- Footer de désabonnement -->
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-        <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+        <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
         <p>
           <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
             Se désabonner de tous les emails
@@ -943,13 +943,13 @@ Détails de l'événement:
 
 Voir mes candidatures: https://standup-comedy-app.netlify.app/applications
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
   `.trim();
 
   await sgMail.send({
     from: {
       email: config.email.smtpUser,
-      name: 'Standup Comedy Connect'
+      name: 'Comedy Connect Club'
     },
     replyTo: organizer.email,
     to: comedian.email,
@@ -1015,7 +1015,7 @@ export const sendEventUpdatedNotificationToApplicants = async (
 
         <!-- Footer de désabonnement -->
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-          <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+          <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
           <p>
             <a href="\${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
               Se désabonner de tous les emails
@@ -1041,7 +1041,7 @@ ${event.startTime ? `Heure: ${event.startTime}` : ''}
 Pour confirmer si vous restez inscrit ou vous désinscrire, connectez-vous sur votre espace candidatures:
 https://standup-comedy-app.netlify.app/login?redirect=/applications
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
     `.trim();
 
     const unsubscribeUrl = comedianId
@@ -1054,7 +1054,7 @@ L'équipe Standup Comedy Connect
     return sgMail.send({
       from: {
         email: config.email.smtpUser,
-        name: 'Standup Comedy Connect'
+        name: 'Comedy Connect Club'
       },
       replyTo: organizer.email,
       to: comedian.email,
@@ -1121,7 +1121,7 @@ export const sendEventReminder = async (
 
       <!-- Footer de désabonnement -->
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-        <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+        <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
         <p>
           <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
             Se désabonner de tous les emails
@@ -1147,13 +1147,13 @@ Nous vous souhaitons une excellente performance !
 
 Voir mes candidatures: https://standup-comedy-app.netlify.app/applications
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
   `.trim();
 
   await sgMail.send({
     from: {
       email: config.email.smtpUser,
-      name: 'Standup Comedy Connect'
+      name: 'Comedy Connect Club'
     },
     to: comedian.email,
     subject: subjectMap[type],
@@ -1208,7 +1208,7 @@ export const sendEventCancellationToParticipants = async (
 
           <!-- Footer de désabonnement -->
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
             <p>
               <a href="\${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
                 Se désabonner de tous les emails
@@ -1231,7 +1231,7 @@ ${cancellationReason ? `Raison: ${cancellationReason}` : ''}
 
 Nous vous remercions pour votre compréhension.
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
       `.trim();
 
       const unsubscribeUrl = participantId
@@ -1244,7 +1244,7 @@ L'équipe Standup Comedy Connect
       return sgMail.send({
         from: {
           email: config.email.smtpUser,
-          name: 'Standup Comedy Connect'
+          name: 'Comedy Connect Club'
         },
         replyTo: organizer.email,
         to: p.email,
@@ -1621,13 +1621,13 @@ export const sendOrganizerEventReminder = async (
         </div>
 
         <div class="footer">
-            <p><strong>L'équipe Standup Comedy Connect</strong></p>
+            <p><strong>L'équipe Comedy Connect Club</strong></p>
             <p>Système de relance automatique - Ne pas répondre à cet email</p>
         </div>
 
         <!-- Footer de désabonnement -->
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-            <p>Vous recevez cet email car vous êtes inscrit sur Standup Comedy Connect.</p>
+            <p>Vous recevez cet email car vous êtes inscrit sur Comedy Connect Club.</p>
             <p>
                 <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
                     Se désabonner de tous les emails
@@ -1664,7 +1664,7 @@ ${pendingApplicationsCount > 0 ? `- Voir les candidatures: ${applicationsUrl}` :
 - Modifier l'événement: ${editEventUrl}
 - Tableau de bord: ${eventsUrl}
 
-L'équipe Standup Comedy Connect
+L'équipe Comedy Connect Club
 Système de relance automatique - Ne pas répondre à cet email
     `.trim();
 
@@ -1672,7 +1672,7 @@ Système de relance automatique - Ne pas répondre à cet email
     await sgMail.send({
       from: {
         email: config.email.smtpUser,
-        name: 'Standup Comedy Connect'
+        name: 'Comedy Connect Club'
       },
       to: organizer.email,
       subject: subject,

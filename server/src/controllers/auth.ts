@@ -354,7 +354,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     await sgMail.send({
       from: {
         email: config.email.smtpUser || '',
-        name: 'Standup Comedy Connect'
+        name: 'Comedy Connect Club'
       },
       to: user.email,
       subject: 'Réinitialisation de votre mot de passe',
@@ -383,12 +383,12 @@ export const forgotPassword = async (req: Request, res: Response) => {
             
             <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
               Cordialement,<br/>
-              L'équipe Standup Comedy Connect
+              L'équipe Comedy Connect Club
             </p>
           </div>
         </div>
       `,
-      text: `Bonjour ${user.firstName},\n\nVous avez demandé à réinitialiser votre mot de passe.\n\nCliquez sur ce lien pour créer un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 1 heure.\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\nCordialement,\nL'équipe Standup Comedy Connect`
+      text: `Bonjour ${user.firstName},\n\nVous avez demandé à réinitialiser votre mot de passe.\n\nCliquez sur ce lien pour créer un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 1 heure.\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\nCordialement,\nL'équipe Comedy Connect Club`
     });
 
     console.log(`✅ Email de réinitialisation envoyé à ${user.email}`);
@@ -534,7 +534,7 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
       await sgMail.send({
         from: {
           email: config.email.smtpUser || '',
-          name: 'Standup Comedy Connect'
+          name: 'Comedy Connect Club'
         },
         to: user.email,
         subject: '🔐 Votre mot de passe a été réinitialisé',
@@ -564,12 +564,12 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
               
               <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
                 Cordialement,<br/>
-                L'équipe Standup Comedy Connect
+                L'équipe Comedy Connect Club
               </p>
             </div>
           </div>
         `,
-        text: `Bonjour ${user.firstName},\n\nVotre demande de réinitialisation de mot de passe a été traitée par un administrateur.\n\nVotre nouveau mot de passe : ${newPassword}\n\nVous pouvez maintenant vous connecter avec ce nouveau mot de passe.\n\nConseil de sécurité : Nous vous recommandons de changer ce mot de passe après votre première connexion.\n\nCordialement,\nL'équipe Standup Comedy Connect`
+        text: `Bonjour ${user.firstName},\n\nVotre demande de réinitialisation de mot de passe a été traitée par un administrateur.\n\nVotre nouveau mot de passe : ${newPassword}\n\nVous pouvez maintenant vous connecter avec ce nouveau mot de passe.\n\nConseil de sécurité : Nous vous recommandons de changer ce mot de passe après votre première connexion.\n\nCordialement,\nL'équipe Comedy Connect Club`
       });
       console.log(`✅ Email envoyé à ${user.email} avec le nouveau mot de passe`);
     } catch (emailError) {

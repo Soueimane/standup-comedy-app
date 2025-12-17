@@ -306,7 +306,7 @@ function generateSuccessPage(email: string): string {
 <body>
     <div class="content">
         <h1>✅ Désabonnement Réussi</h1>
-        <p>Vous avez été désabonné de tous les emails de <strong>Standup Comedy Connect</strong>.</p>
+        <p>Vous avez été désabonné de tous les emails de <strong>Comedy Connect Club</strong>.</p>
         <p class="email">${email}</p>
         <div class="info">
             <p><strong>Note:</strong> Vous ne recevrez plus aucun email de notre plateforme, y compris les notifications d'événements, candidatures et mises à jour.</p>
