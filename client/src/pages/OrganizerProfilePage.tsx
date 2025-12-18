@@ -162,7 +162,7 @@ function OrganizerProfilePage() {
               {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
             </div>
             <h3 style={{ color: '#ffffff', marginBottom: '5px' }}>{user ? `${user.firstName} ${user.lastName}` : 'Dahmane Aissa'}</h3>
-            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role || 'Organisateur'}</p>
+            <p style={{ color: '#ff4b2b', fontSize: '1.1em', fontWeight: 'bold' }}>{user?.role === 'ORGANIZER' ? 'Organisateur' : user?.role || 'Organisateur'}</p>
 
             {/* Stats rapides */}
             <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
