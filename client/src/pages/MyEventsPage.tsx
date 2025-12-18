@@ -1159,10 +1159,9 @@ useEffect(() => {
         };
       });
 
-      // Recharger les absences pour l'affichage du détail
-      await loadEventAbsences(selectedAbsenceParticipant.eventId);
-
-      alert('Participant marqué comme absent avec succès !');
+      // Fermer les deux modals (absence + event)
+      closeAbsenceModal();
+      closeModal();
     } catch (error: any) {
       console.error('Erreur lors du marquage d\'absence:', error);
       alert('Erreur: ' + (error.response?.data?.message || error.message));
@@ -1197,10 +1196,9 @@ useEffect(() => {
         };
       });
 
-      // Recharger les absences pour l'affichage du détail
-      await loadEventAbsences(selectedAbsenceParticipant.eventId);
-
-      alert('Absence annulée avec succès !');
+      // Fermer les deux modals (absence + event)
+      closeAbsenceModal();
+      closeModal();
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation d\'absence:', error);
       alert('Erreur: ' + (error.response?.data?.message || error.message));
