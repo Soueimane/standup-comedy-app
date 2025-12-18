@@ -62,7 +62,7 @@ export const register = async (req: Request, res: Response) => {
 
     await user.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitUserRegistered(user._id.toString());
 
     // Générer le token JWT
@@ -515,7 +515,7 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
     user.password = newPassword;
     await user.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitPasswordReset(userId);
 
     // Marquer toutes les demandes en attente comme complétées

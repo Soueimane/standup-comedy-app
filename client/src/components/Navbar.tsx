@@ -106,7 +106,7 @@ function Navbar() {
       },
       {
         to: "/events",
-        label: user?.role === 'ORGANIZER' ? 'Mes Événements' : 'Événements',
+        label: user?.role === 'ORGANIZER' ? 'Mes Évènements' : 'Évènements',
         icon: "📅",
         show: true
       }
@@ -175,7 +175,7 @@ function Navbar() {
           <div style={{ marginLeft: '30px' }}>
             <Link to="/dashboard" style={{ ...navLinkBaseStyle, ...(location.pathname === '/dashboard' ? activeLinkStyle : {}) }}>Accueil</Link>
             <Link to="/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/events' ? activeLinkStyle : {}) }}>
-              {user?.role === 'ORGANIZER' ? 'Mes Événements' : 'Événements'}
+              {user?.role === 'ORGANIZER' ? 'Mes Évènements' : 'Évènements'}
             </Link>
             {user?.role !== 'SUPER_ADMIN' && (
               <Link to="/applications" style={{ ...navLinkBaseStyle, ...(location.pathname === '/applications' ? activeLinkStyle : {}) }}>Candidatures</Link>

@@ -157,12 +157,12 @@ export const MyEventsPage: React.FC = () => {
       });
       setIsCreating(false);
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde de l\'événement:', error);
+      console.error('Erreur lors de la sauvegarde de l\'évènement:', error);
     }
   };
 
   const handleEdit = (event: Event) => {
-    console.log('Événement à modifier:', event);
+    console.log('Évènement à modifier:', event);
     setEditingEvent(event);
     setFormData({
       title: event.title,
@@ -197,7 +197,7 @@ export const MyEventsPage: React.FC = () => {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Mes Événements</h1>
+        <h1 className="text-2xl font-bold text-white">Mes Évènements</h1>
         <button
           onClick={() => {
             setIsCreating(true);
@@ -224,16 +224,16 @@ export const MyEventsPage: React.FC = () => {
           }}
           className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors"
         >
-          Créer un événement
+          Créer un évènement
         </button>
       </div>
 
       {isCreating && (
         <div className="mb-8 p-6 bg-gray-800/50 rounded-lg border border-gray-700">
-          <h2 className="text-xl font-bold text-white mb-4">{editingEvent ? 'Modifier l\'événement' : 'Créer un nouvel événement'}</h2>
+          <h2 className="text-xl font-bold text-white mb-4">{editingEvent ? 'Modifier l\'évènement' : 'Créer un nouvel évènement'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-300">Titre de l'événement</label>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-300">Titre de l'évènement</label>
               <input
                 type="text"
                 id="title"
@@ -403,7 +403,7 @@ export const MyEventsPage: React.FC = () => {
                 type="submit"
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
               >
-                {editingEvent ? 'Mettre à jour' : 'Créer l\'événement'}
+                {editingEvent ? 'Mettre à jour' : 'Créer l\'évènement'}
               </button>
               <button
                 type="button"
@@ -418,9 +418,9 @@ export const MyEventsPage: React.FC = () => {
       )}
 
       <div className="mt-8">
-        <h2 className="text-xl font-bold text-white mb-4">Événements à venir</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Évènements à venir</h2>
         {upcomingAndActiveEvents.length === 0 ? (
-          <p className="text-gray-400">Aucun événement à venir. Créez-en un !</p>
+          <p className="text-gray-400">Aucun évènement à venir. Créez-en un !</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {upcomingAndActiveEvents.map(event => (
@@ -444,9 +444,9 @@ export const MyEventsPage: React.FC = () => {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-xl font-bold text-white mb-4">Historique des événements (Archives)</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Historique des évènements (Archives)</h2>
         {pastEvents.length === 0 ? (
-          <p className="text-gray-400">Aucun événement passé ou archivé.</p>
+          <p className="text-gray-400">Aucun évènement passé ou archivé.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pastEvents.map(event => (
@@ -505,7 +505,7 @@ export const MyEventsPage: React.FC = () => {
                   ))}
               </ul>
             ) : (
-              <p className="text-gray-400">Aucun humoriste accepté pour cet événement.</p>
+              <p className="text-gray-400">Aucun humoriste accepté pour cet évènement.</p>
             )}
 
             <p className="text-gray-400 text-sm mt-4">Statut: <span className="capitalize font-medium text-blue-400">{selectedEventForDetails.status}</span></p>

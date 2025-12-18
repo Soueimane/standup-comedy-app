@@ -82,7 +82,7 @@ export const addFavorite = async (req: AuthRequest, res: Response): Promise<void
     organizer.favoriteComedians.push(comedianObjectId);
     await organizer.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitFavoriteComedianAdded(organizerId, comedianId);
 
     res.status(201).json({
@@ -146,7 +146,7 @@ export const removeFavorite = async (req: AuthRequest, res: Response): Promise<v
     organizer.favoriteComedians?.splice(favoriteIndex, 1);
     await organizer.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitFavoriteComedianRemoved(organizerId, comedianId);
 
     res.json({

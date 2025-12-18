@@ -11,7 +11,7 @@
 - **List-Unsubscribe** : Permet aux utilisateurs de se désabonner facilement
 - **List-Unsubscribe-Post** : Support du désabonnement en un clic (RFC 8058)
 - **X-Entity-Ref-ID** : ID unique pour le tracking et le débogage
-- **Precedence: bulk** : Indique que c'est un email en masse (pour les notifications d'événements)
+- **Precedence: bulk** : Indique que c'est un email en masse (pour les notifications d'évènements)
 
 ### 3. **Nom d'expéditeur cohérent**
 - Tous les emails utilisent maintenant "Comedy Connect Club" comme nom d'expéditeur
@@ -25,7 +25,7 @@
 
 ### 5. **Custom Args pour le tracking**
 - Ajout de `customArgs` pour le tracking avancé dans SendGrid
-- Permet de suivre les événements, organisateurs, etc.
+- Permet de suivre les évènements, organisateurs, etc.
 
 ### 6. **Désactivation du mode sandbox**
 - `sandboxMode: false` pour s'assurer que les emails sont bien envoyés en production

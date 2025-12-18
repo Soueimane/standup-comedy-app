@@ -1,23 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 // Type pour le statut de la connexion SSE
 export type SSEConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-// Type pour les événements SSE
+// Type pour les évènements SSE
 export interface SSEEvent {
   type: string;
   data: Record<string, any>;
   timestamp: string;
 }
 
-// Type pour le handler d'événements
+// Type pour le handler d'évènements
 export type SSEEventHandler = (event: SSEEvent) => void;
 
 /**
  * Hook personnalisé pour gérer la connexion Server-Sent Events
  *
  * @param token - Le token JWT pour l'authentification
- * @param onEvent - Callback appelé lors de la réception d'un événement
+ * @param onEvent - Callback appelé lors de la réception d'un évènement
  * @param enabled - Active/désactive la connexion SSE (par défaut: true)
  * @returns Le statut de la connexion
  */
@@ -33,6 +34,7 @@ export const useSSE = (
   const isUnmountingRef = useRef<boolean>(false);
 
   // Constantes de reconnexion
+  const MAX_RECONNECT_ATTEMPTS = 5; // Limiter à 5 tentatives
   const MAX_RECONNECT_DELAY = 30000; // 30 secondes max
   const INITIAL_RECONNECT_DELAY = 1000; // 1 seconde au départ
 
@@ -90,32 +92,26 @@ export const useSSE = (
     console.log('🔌 [SSE] Tentative de connexion...');
     setStatus('connecting');
 
-    // Déterminer l'URL de base selon l'environnement (CRA -> process.env)
-    const baseUrl = process.env.REACT_APP_API_URL ||
-      (process.env.NODE_ENV === 'production'
-    ? 'https://connectcomedyclub.com/api'
-    : process.env.NODE_ENV === 'test'
-      ? 'https://test.connectcomedyclub.com/api'
-      : 'http://localhost:3001/api');
-
+    // Utiliser la même logique que l'API pour garantir la cohérence
+    const baseUrl = getApiBaseUrl();
     const url = `${baseUrl}/sse/stream?token=${encodeURIComponent(token)}`;
 
     try {
       const eventSource = new EventSource(url);
       eventSourceRef.current = eventSource;
 
-      // Événement de connexion établie
+      // Évènement de connexion établie
       eventSource.addEventListener('CONNECTED', (e) => {
         console.log('✅ [SSE] Connexion établie', e.data);
         setStatus('connected');
         reconnectAttemptsRef.current = 0; // Reset le compteur de tentatives
       });
 
-      // Événements génériques
+      // Évènements génériques
       eventSource.addEventListener('message', (e) => {
         try {
           const event: SSEEvent = JSON.parse(e.data);
-          console.log('📨 [SSE] Événement reçu:', event.type, event.data);
+          console.log('📨 [SSE] Évènement reçu:', event.type, event.data);
           if (onEvent) {
             onEvent(event);
           }
@@ -124,7 +120,7 @@ export const useSSE = (
         }
       });
 
-      // Écouter tous les types d'événements personnalisés
+      // Écouter tous les types d'évènements personnalisés
       const eventTypes = [
         'EVENT_CREATED', 'EVENT_UPDATED', 'EVENT_DELETED', 'EVENT_COMPLETED',
         'APPLICATION_CREATED', 'APPLICATION_STATUS_CHANGED', 'APPLICATION_WITHDRAWN',
@@ -152,6 +148,16 @@ export const useSSE = (
       // Gérer les erreurs
       eventSource.onerror = (error) => {
         console.error('❌ [SSE] Erreur de connexion:', error);
+        
+        // Ne pas essayer de se reconnecter si on a dépassé le nombre max de tentatives
+        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.log(`⏹️ [SSE] Arrêt des tentatives de reconnexion (max atteint: ${MAX_RECONNECT_ATTEMPTS})`);
+          setStatus('disconnected');
+          eventSource.close();
+          eventSourceRef.current = null;
+          return;
+        }
+
         setStatus('error');
         eventSource.close();
         eventSourceRef.current = null;
@@ -160,7 +166,7 @@ export const useSSE = (
         if (!isUnmountingRef.current) {
           reconnectAttemptsRef.current++;
           const delay = getReconnectDelay();
-          console.log(`🔄 [SSE] Reconnexion dans ${delay}ms (tentative ${reconnectAttemptsRef.current})...`);
+          console.log(`🔄 [SSE] Reconnexion dans ${delay}ms (tentative ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -168,7 +174,7 @@ export const useSSE = (
         }
       };
 
-      // Événement d'ouverture
+      // Évènement d'ouverture
       eventSource.onopen = () => {
         console.log('🔓 [SSE] Connexion ouverte');
       };

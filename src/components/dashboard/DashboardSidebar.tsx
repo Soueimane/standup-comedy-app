@@ -36,7 +36,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ userType }) => {
 
   const organisateurMenuItems = [
     { icon: Home, label: 'Tableau de bord', href: '/dashboard/organisateur' },
-    { icon: Calendar, label: 'Mes événements', href: '/dashboard/organisateur/events' },
+    { icon: Calendar, label: 'Mes évènements', href: '/dashboard/organisateur/events' },
     { icon: Users, label: 'Rechercher', href: '/dashboard/organisateur/search' },
     { icon: MessageCircle, label: 'Messages', href: '/dashboard/organisateur/messages' },
     { icon: FileText, label: 'Facturation', href: '/dashboard/organisateur/billing' },

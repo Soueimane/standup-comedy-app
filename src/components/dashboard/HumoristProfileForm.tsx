@@ -224,7 +224,7 @@ export const HumoristProfileForm: React.FC = () => {
               required
             />
             <p className="mt-1 text-sm text-gray-500">
-              Rayon maximum en kilomètres autour de votre localisation pour accepter des événements
+              Rayon maximum en kilomètres autour de votre localisation pour accepter des évènements
             </p>
           </div>
         </div>

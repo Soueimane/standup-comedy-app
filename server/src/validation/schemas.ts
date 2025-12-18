@@ -74,7 +74,7 @@ export const loginSchema = z.object({
 });
 
 // ============================================================================
-// SCHÉMAS D'ÉVÉNEMENT
+// SCHÉMAS D'ÉVÈNEMENT
 // ============================================================================
 
 export const locationSchema = z.object({

@@ -51,7 +51,7 @@ const OpportunitiesPage: React.FC = () => {
     const labels = {
       'open-mic': 'Open Mic',
       'show': 'Spectacle',
-      'private': 'Événement privé',
+      'private': 'Évènement privé',
       'festival': 'Festival'
     };
     return labels[type as keyof typeof labels] || type;
@@ -63,7 +63,7 @@ const OpportunitiesPage: React.FC = () => {
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Opportunités près de toi</h1>
-          <p className="text-gray-400">{filteredEvents.length} événement{filteredEvents.length !== 1 ? 's' : ''} disponible{filteredEvents.length !== 1 ? 's' : ''}</p>
+          <p className="text-gray-400">{filteredEvents.length} évènement{filteredEvents.length !== 1 ? 's' : ''} disponible{filteredEvents.length !== 1 ? 's' : ''}</p>
         </div>
         
         <div className="flex flex-wrap gap-3 w-full lg:w-auto">
@@ -103,12 +103,12 @@ const OpportunitiesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Liste des événements */}
+      {/* Liste des évènements */}
       {filteredEvents.length === 0 ? (
         <Card className="p-12 text-center bg-gray-800/50 border-gray-700">
           <MapPin className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-300 mb-2">
-            Aucun événement trouvé
+            Aucun évènement trouvé
           </h3>
           <p className="text-gray-500">
             Essayez de modifier vos filtres ou revenez plus tard

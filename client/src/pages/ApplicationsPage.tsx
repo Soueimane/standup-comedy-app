@@ -232,7 +232,7 @@ function ApplicationsPage() {
     }
   }, [applicationIdFromUrl, applications]);
 
-  // Charger les événements de l'organisateur pour le sélecteur
+  // Charger les évènements de l'organisateur pour le sélecteur
   useEffect(() => {
     const loadOrganizerEvents = async () => {
       if (!token || user?.role !== 'ORGANIZER') return;
@@ -243,7 +243,7 @@ function ApplicationsPage() {
         const options = list.map((ev: any) => ({ id: ev._id, title: ev.title }));
         setOrganizerEvents(options);
       } catch (err) {
-        console.error('Erreur chargement événements pour filtre:', err);
+        console.error('Erreur chargement évènements pour filtre:', err);
       }
     };
     loadOrganizerEvents();
@@ -353,12 +353,12 @@ function ApplicationsPage() {
     };
     const sorted = [...filtered].sort((a, b) => {
       if (sortKey === 'dateAsc') {
-        // Vérifier que les événements et leurs dates existent
+        // Vérifier que les évènements et leurs dates existent
         if (!a.event || !a.event.date || !b.event || !b.event.date) return 0;
         return new Date(a.event.date).getTime() - new Date(b.event.date).getTime();
       }
       if (sortKey === 'dateDesc') {
-        // Vérifier que les événements et leurs dates existent
+        // Vérifier que les évènements et leurs dates existent
         if (!a.event || !a.event.date || !b.event || !b.event.date) return 0;
         return new Date(b.event.date).getTime() - new Date(a.event.date).getTime();
       }
@@ -528,7 +528,7 @@ function ApplicationsPage() {
     pending: 'Aucune candidature en attente.',
     rejected: 'Aucune candidature refusée à venir.',
     archived: 'Aucune candidature archivée.',
-    cancelled: 'Aucun événement annulé.',
+    cancelled: 'Aucun évènement annulé.',
   };
 
   // Pagination pour les candidatures humoriste
@@ -991,7 +991,7 @@ function ApplicationsPage() {
     marginTop: '2px',
   };
 
-  // Détermine si l'événement a été modifié par l'organisateur
+  // Détermine si l'évènement a été modifié par l'organisateur
   const wasEventUpdatedAfterApplication = (app: IApplication): boolean => {
     // Utiliser le champ modifiedByOrganizer qui est défini uniquement lors de vraies modifications
     return Boolean(app?.event?.modifiedByOrganizer);
@@ -1005,7 +1005,7 @@ function ApplicationsPage() {
           <h1 style={titleStyle}>{user?.role === 'ORGANIZER' ? 'Gérer les Candidatures' : 'Mes Candidatures'}</h1>
           <p style={subtitleStyle}>
             {user?.role === 'ORGANIZER' 
-              ? 'Visualisez et gérez toutes les candidatures pour vos événements.'
+              ? 'Visualisez et gérez toutes les candidatures pour vos évènements.'
               : 'Visualisez le statut de vos candidatures.'}
           </p>
         </div>
@@ -1064,7 +1064,7 @@ function ApplicationsPage() {
                 onChange={e => setSelectedEventId(e.target.value)}
                 style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
               >
-                <option value="all">Tous les événements</option>
+                <option value="all">Tous les évènements</option>
                 {organizerEvents.map(ev => (
                   <option key={ev.id} value={ev.id}>{ev.title}</option>
                 ))}
@@ -1337,7 +1337,7 @@ function ApplicationsPage() {
                       </div>
                     )}
 
-                    {/* Section centre - Info événement */}
+                    {/* Section centre - Info évènement */}
                     <div style={eventInfoStyle}>
                       <h3 style={eventTitleStyle}>{app.event.title}</h3>
                       <p style={eventDateStyle}>

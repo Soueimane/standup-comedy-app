@@ -25,7 +25,7 @@ interface IUserStats {
   applicationsPending?: number;
   netPromoterScore?: number;
   absences?: number;
-  processedEvents?: string[]; // Array d'IDs des événements déjà traités
+  processedEvents?: string[]; // Array d'IDs des évènements déjà traités
 }
 
 interface IHumoristeProfile {

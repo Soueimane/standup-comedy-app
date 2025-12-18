@@ -212,7 +212,7 @@ function OrganizerDetailsModal({ isOpen, onClose, organizer }: OrganizerDetailsM
             
             {organizer.organizerProfile.eventFrequency && (
               <div style={infoRowStyle}>
-                <span style={infoLabelStyle}>Fréquence des événements:</span>
+                <span style={infoLabelStyle}>Fréquence des évènements:</span>
                 <span style={infoValueStyle}>
                   {getEventFrequencyLabel(organizer.organizerProfile.eventFrequency)}
                 </span>
@@ -235,9 +235,9 @@ function OrganizerDetailsModal({ isOpen, onClose, organizer }: OrganizerDetailsM
             }}>
               {organizer.stats.totalEvents !== undefined && (
                 <div style={infoRowStyle}>
-                  <span style={infoLabelStyle}>📅 Événements organisés:</span>
+                  <span style={infoLabelStyle}>📅 Évènements organisés:</span>
                   <span style={{ ...infoValueStyle, color: '#28a745', fontWeight: 'bold' }}>
-                    {organizer.stats.totalEvents} événement{organizer.stats.totalEvents > 1 ? 's' : ''}
+                    {organizer.stats.totalEvents} évènement{organizer.stats.totalEvents > 1 ? 's' : ''}
                   </span>
                 </div>
               )}

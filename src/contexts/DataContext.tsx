@@ -106,7 +106,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
 
-  // Fonction pour mapper les événements du backend vers le format frontend
+  // Fonction pour mapper les évènements du backend vers le format frontend
   const mapBackendEventToFrontend = (backendEvent: any): Event => {
     return {
       id: backendEvent._id || backendEvent.id,
@@ -175,11 +175,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Mapper les données backend vers le format frontend
       const mappedEvents: Event[] = backendData.map(mapBackendEventToFrontend);
       
-      console.log('🔄 Événements mappés:', mappedEvents.length, mappedEvents);
+      console.log('🔄 Évènements mappés:', mappedEvents.length, mappedEvents);
       
       setEvents(mappedEvents);
     } catch (err: any) {
-      console.error('❌ Erreur lors de la récupération des événements:', err);
+      console.error('❌ Erreur lors de la récupération des évènements:', err);
       setError(err.message || 'Failed to fetch events');
     } finally {
       setIsLoading(false);
@@ -283,11 +283,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error(errorData.message || 'Failed to create event');
       }
       await fetchEvents(); // Re-fetch events after creation
-      toast.success(`Événement '${eventData.title}' créé à ${eventData.location.city} !`);
+      toast.success(`Évènement '${eventData.title}' créé à ${eventData.location.city} !`);
     } catch (err: any) {
       console.error('Error creating event:', err);
       setError(err.message);
-      toast.error("Erreur lors de la création de l'événement.");
+      toast.error("Erreur lors de la création de l'évènement.");
     } finally {
       setIsLoading(false);
     }
@@ -426,7 +426,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     events.filter(event => event.organizerId === organizerId);
 
   const getAvailableEvents = (humoristId: string, city?: string) => {
-    // Retourner TOUS les événements (passés et futurs) pour permettre l'archivage côté frontend
+    // Retourner TOUS les évènements (passés et futurs) pour permettre l'archivage côté frontend
     console.log('🎭 Debug - getAvailableEvents appelée:', {
       humoristId,
       totalEvents: events.length,
@@ -434,7 +434,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     const filteredEvents = events.filter(event => {
-      console.log('🎯 Debug - Évaluation événement:', {
+      console.log('🎯 Debug - Évaluation évènement:', {
         eventId: event.id,
         eventTitle: event.title,
         eventStatus: event.status,
@@ -442,17 +442,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         humoristId: humoristId
       });
 
-      // Inclure TOUS les événements avec statuts visibles aux humoristes (published, completed, cancelled)
+      // Inclure TOUS les évènements avec statuts visibles aux humoristes (published, completed, cancelled)
       if (!['published', 'completed', 'cancelled'].includes(event.status)) {
-        console.log(`❌ Événement ${event.id} (${event.title}): Statut ${event.status} non visible aux humoristes. Ignoré.`);
+        console.log(`❌ Évènement ${event.id} (${event.title}): Statut ${event.status} non visible aux humoristes. Ignoré.`);
         return false;
       }
       
-      console.log(`✅ Événement ${event.id} (${event.title}): Inclus pour classification par date.`);
+      console.log(`✅ Évènement ${event.id} (${event.title}): Inclus pour classification par date.`);
       return true;
     });
     
-    console.log('📋 Debug - Événements filtrés finaux:', filteredEvents.length, filteredEvents);
+    console.log('📋 Debug - Évènements filtrés finaux:', filteredEvents.length, filteredEvents);
     return filteredEvents;
   };
 

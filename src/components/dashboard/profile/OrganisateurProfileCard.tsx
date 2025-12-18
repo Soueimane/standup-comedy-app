@@ -124,7 +124,7 @@ const OrganisateurProfileCard: React.FC<OrganisateurProfileCardProps> = ({ profi
           />
           <TextField
             fullWidth
-            label="Fréquence des événements"
+            label="Fréquence des évènements"
             name="eventFrequency"
             value={formData.eventFrequency}
             onChange={handleChange}
@@ -141,7 +141,7 @@ const OrganisateurProfileCard: React.FC<OrganisateurProfileCardProps> = ({ profi
           <Typography variant="body1">Site web: {profile.website}</Typography>
           <Typography variant="body1">Types de lieux: {profile.venueTypes?.join(', ') || 'Non spécifié'}</Typography>
           <Typography variant="body1">Budget moyen: {profile.averageBudget?.min || 'Non spécifié'} - {profile.averageBudget?.max || 'Non spécifié'}€</Typography>
-          <Typography variant="body1">Fréquence des événements: {profile.eventFrequency || 'Non spécifiée'}</Typography>
+          <Typography variant="body1">Fréquence des évènements: {profile.eventFrequency || 'Non spécifiée'}</Typography>
           <Button onClick={() => setIsEditing(true)} variant="outlined" color="primary">
             Modifier
           </Button>

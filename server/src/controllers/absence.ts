@@ -7,7 +7,7 @@ import { Types } from 'mongoose';
 import { emitAbsenceMarked, emitAbsenceCancelled } from '../services/eventEmitter';
 
 /**
- * Marque un participant comme absent à un événement (protégée - organisateur seulement)
+ * Marque un participant comme absent à un évènement (protégée - organisateur seulement)
  */
 export const markAbsence = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -24,10 +24,10 @@ export const markAbsence = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Vérifier que l'événement existe et que l'utilisateur est l'organisateur
+    // Vérifier que l'évènement existe et que l'utilisateur est l'organisateur
     const event = await EventModel.findById(eventId);
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé.' });
+      res.status(404).json({ message: 'Évènement non trouvé.' });
       return;
     }
 
@@ -36,10 +36,10 @@ export const markAbsence = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Vérifier que le humoriste est bien participant à l'événement
+    // Vérifier que le humoriste est bien participant à l'évènement
     const isParticipant = event.participants.some(p => p.toString() === comedianId);
     if (!isParticipant) {
-      res.status(400).json({ message: 'Ce humoriste n\'est pas participant à cet événement.' });
+      res.status(400).json({ message: 'Ce humoriste n\'est pas participant à cet évènement.' });
       return;
     }
 
@@ -82,7 +82,7 @@ export const markAbsence = async (req: AuthRequest, res: Response): Promise<void
 
     await absence.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitAbsenceMarked(eventId, comedianId);
 
     // Incrémenter les statistiques d'absence du humoriste
@@ -119,10 +119,10 @@ export const deleteAbsence = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Vérifier que l'événement existe et que l'utilisateur est l'organisateur
+    // Vérifier que l'évènement existe et que l'utilisateur est l'organisateur
     const event = await EventModel.findById(eventId);
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé.' });
+      res.status(404).json({ message: 'Évènement non trouvé.' });
       return;
     }
 
@@ -142,7 +142,7 @@ export const deleteAbsence = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitAbsenceCancelled(eventId, comedianId);
 
     // Décrémenter les statistiques d'absence du humoriste
@@ -161,7 +161,7 @@ export const deleteAbsence = async (req: AuthRequest, res: Response): Promise<vo
 };
 
 /**
- * Récupère les absences d'un événement (protégée - organisateur seulement)
+ * Récupère les absences d'un évènement (protégée - organisateur seulement)
  */
 export const getEventAbsences = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -173,10 +173,10 @@ export const getEventAbsences = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Vérifier que l'événement existe et que l'utilisateur est l'organisateur
+    // Vérifier que l'évènement existe et que l'utilisateur est l'organisateur
     const event = await EventModel.findById(eventId);
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé.' });
+      res.status(404).json({ message: 'Évènement non trouvé.' });
       return;
     }
 
@@ -231,16 +231,16 @@ export const getComedianAbsences = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // L'organisateur peut voir les absences d'un humoriste s'il est organisateur d'un événement où ce humoriste est participant
+    // L'organisateur peut voir les absences d'un humoriste s'il est organisateur d'un évènement où ce humoriste est participant
     if (userRole === 'ORGANIZER') {
-      // Vérifier si l'organisateur a des événements où ce humoriste est participant
+      // Vérifier si l'organisateur a des évènements où ce humoriste est participant
       const eventsWithComedian = await EventModel.find({
         organizer: userId,
         participants: comedianId
       });
 
       if (eventsWithComedian.length > 0) {
-        // Récupérer les absences pour ces événements spécifiques
+        // Récupérer les absences pour ces évènements spécifiques
         const eventIds = eventsWithComedian.map(event => event._id);
         const absences = await AbsenceModel.find({
           comedian: comedianId,

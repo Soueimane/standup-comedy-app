@@ -29,9 +29,9 @@ const MyApplicationsPage: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const update = params.get('update');
     if (update === 'kept') {
-      toast({ title: 'Confirmation prise en compte', description: "Vous restez inscrit à l'événement.", duration: 6000 });
+      toast({ title: 'Confirmation prise en compte', description: "Vous restez inscrit à l'évènement.", duration: 6000 });
     } else if (update === 'withdrawn') {
-      toast({ title: 'Désinscription confirmée', description: "Votre candidature a été retirée de l'événement.", duration: 6000 });
+      toast({ title: 'Désinscription confirmée', description: "Votre candidature a été retirée de l'évènement.", duration: 6000 });
     }
   }, [location.search]);
 
@@ -153,7 +153,7 @@ const MyApplicationsPage: React.FC = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Mes candidatures</h1>
-          <p className="text-gray-400">Suivi de toutes tes candidatures aux événements</p>
+          <p className="text-gray-400">Suivi de toutes tes candidatures aux évènements</p>
         </div>
 
         <Tabs defaultValue="all" className="w-full">
@@ -177,7 +177,7 @@ const MyApplicationsPage: React.FC = () => {
               <Card className="p-12 text-center bg-gray-800/50 border-gray-700">
                 <ClockIcon className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucune candidature</h3>
-                <p className="text-gray-500">Commence par candidater à des événements !</p>
+                <p className="text-gray-500">Commence par candidater à des évènements !</p>
               </Card>
             ) : (
               <div className="space-y-4">

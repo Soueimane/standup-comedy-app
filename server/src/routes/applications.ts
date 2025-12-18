@@ -23,7 +23,7 @@ const router = express.Router();
 
 /**
  * GET /respond-update
- * Gère la réponse d'un humoriste après mise à jour d'événement (via lien email)
+ * Gère la réponse d'un humoriste après mise à jour d'évènement (via lien email)
  * Query params: token (JWT), action ('keep' | 'withdraw')
  */
 router.get('/respond-update', respondToEventUpdate);

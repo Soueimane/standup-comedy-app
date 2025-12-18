@@ -20,7 +20,7 @@ const EventApplicationsList: React.FC<EventApplicationsListProps> = ({ eventId }
     return (
       <div className="text-center py-12">
         <h3 className="text-lg font-semibold text-gray-300 mb-2">
-          Événement non trouvé
+          Évènement non trouvé
         </h3>
       </div>
     );

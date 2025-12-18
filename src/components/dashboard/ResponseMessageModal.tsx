@@ -26,8 +26,8 @@ const ResponseMessageModal = ({
   const isAccepted = action === 'accepted';
   
   const defaultMessages = {
-    accepted: `Bonjour ${humoristName},\n\nJ'ai le plaisir de vous informer que votre candidature pour l'événement "${eventTitle}" a été acceptée !\n\nNous sommes ravis de vous compter parmi nous. Je reviendrai vers vous prochainement avec les détails pratiques.\n\nÀ bientôt !`,
-    rejected: `Bonjour ${humoristName},\n\nMerci pour votre candidature pour l'événement "${eventTitle}".\n\nMalheureusement, nous ne pourrons pas donner suite à votre candidature cette fois-ci. Nous espérons avoir l'occasion de collaborer avec vous lors d'un prochain événement.\n\nBonne continuation dans vos projets !`
+    accepted: `Bonjour ${humoristName},\n\nJ'ai le plaisir de vous informer que votre candidature pour l'évènement "${eventTitle}" a été acceptée !\n\nNous sommes ravis de vous compter parmi nous. Je reviendrai vers vous prochainement avec les détails pratiques.\n\nÀ bientôt !`,
+    rejected: `Bonjour ${humoristName},\n\nMerci pour votre candidature pour l'évènement "${eventTitle}".\n\nMalheureusement, nous ne pourrons pas donner suite à votre candidature cette fois-ci. Nous espérons avoir l'occasion de collaborer avec vous lors d'un prochain évènement.\n\nBonne continuation dans vos projets !`
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,7 +134,7 @@ const ResponseMessageModal = ({
                 <p className="text-xs text-gray-400 mb-2">💡 Conseil :</p>
                 <p className="text-sm text-gray-300">
                   {isAccepted 
-                    ? "Un message personnalisé renforcera votre relation professionnelle et donnera une image positive de votre événement."
+                    ? "Un message personnalisé renforcera votre relation professionnelle et donnera une image positive de votre évènement."
                     : "Un message poli et constructif laisse la porte ouverte à de futures collaborations."
                   }
                 </p>

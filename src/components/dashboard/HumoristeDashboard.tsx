@@ -67,7 +67,7 @@ const HumoristeDashboard: React.FC = () => {
   const totalApplications = applications ? applications.length : 0;
   const pendingApplications = applications ? applications.filter((app: any) => app.status === 'PENDING').length : 0;
   
-  // Événements acceptés à venir
+  // Évènements acceptés à venir
   const now = new Date();
   const acceptedUpcomingEvents = applications ? applications.filter((app: any) => {
     return app.status === 'ACCEPTED' && app.event && new Date(app.event.date) >= now;
@@ -84,7 +84,7 @@ const HumoristeDashboard: React.FC = () => {
     { id: 'overview', label: 'Vue d\'ensemble', icon: TrendingUp, fullLabel: 'Vue d\'ensemble' },
     { id: 'opportunities', label: 'Opportunités', icon: MapPin, fullLabel: 'Opportunités' },
     { id: 'applications', label: 'Candidatures', icon: Calendar, fullLabel: 'Mes Candidatures' },
-    { id: 'events', label: 'Événements', icon: Star, fullLabel: 'Mes Événements' },
+    { id: 'events', label: 'Évènements', icon: Star, fullLabel: 'Mes Évènements' },
     { id: 'messages', label: 'Messages', icon: MessageSquare, fullLabel: 'Messages' },
     { id: 'viral-score', label: 'Score Viral', icon: Zap, fullLabel: 'Score Viral' },
     { id: 'stats', label: 'Statistiques', icon: BarChart3, fullLabel: 'Statistiques' },
@@ -164,7 +164,7 @@ const HumoristeDashboard: React.FC = () => {
               <Card className="p-3 md:p-4 bg-gray-800/50 border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs md:text-sm text-gray-400">Événements</p>
+                    <p className="text-xs md:text-sm text-gray-400">Évènements</p>
                     <p className="text-lg md:text-2xl font-bold text-blue-400">{totalEvents}</p>
                   </div>
                   <Star className="w-6 h-6 md:w-8 md:h-8 text-blue-500" />
@@ -184,7 +184,7 @@ const HumoristeDashboard: React.FC = () => {
 
             {/* Quick Actions - Mobile optimized */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Carte Événements à venir avec effet clignotant */}
+              {/* Carte Évènements à venir avec effet clignotant */}
               <Card 
                 className="p-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 cursor-pointer hover:scale-105 transition-transform animate-pulse"
                 onClick={() => setActiveTab('events')}
@@ -194,9 +194,9 @@ const HumoristeDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-white font-semibold mb-1">Événements à venir</h3>
+                    <h3 className="text-white font-semibold mb-1">Évènements à venir</h3>
                     <p className="text-gray-400 text-sm">
-                      {isLoading ? 'Chargement...' : `${acceptedUpcomingEvents} événement${acceptedUpcomingEvents > 1 ? 's' : ''} accepté${acceptedUpcomingEvents > 1 ? 's' : ''}`}
+                      {isLoading ? 'Chargement...' : `${acceptedUpcomingEvents} évènement${acceptedUpcomingEvents > 1 ? 's' : ''} accepté${acceptedUpcomingEvents > 1 ? 's' : ''}`}
                     </p>
                   </div>
                   <Button 

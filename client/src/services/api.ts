@@ -1,13 +1,8 @@
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 // Configuration automatique de l'URL de base selon l'environnement
-const baseURL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'https://connectcomedyclub.com/api'
-    : process.env.NODE_ENV === 'test'
-      ? 'https://test.connectcomedyclub.com/api'
-      : 'http://localhost:3001/api');
+const baseURL = getApiBaseUrl();
 const api = axios.create({
   baseURL,
   headers: {
@@ -73,7 +68,7 @@ export const getComedianAbsences = async (comedianId: string) => {
   return response.data;
 };
 
-// Fonctions pour gérer les favoris d'événements (comédiens)
+// Fonctions pour gérer les favoris d'évènements (comédiens)
 export const addEventFavorite = async (eventId: string) => {
   const response = await api.post('/event-favorites', { eventId });
   return response.data;

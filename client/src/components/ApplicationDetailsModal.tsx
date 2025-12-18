@@ -78,16 +78,16 @@ function ApplicationDetailsModal({ isOpen, onClose, application }: ApplicationDe
       
       <h3 style={sectionTitleStyle}>Informations Générales</h3>
       <p style={cardDetailStyle}>Statut: <span style={statusBadgeStyle(application.status)}>{translateStatus(application.status)}</span></p>
-      <p style={cardDetailStyle}>Date de l'événement: {new Date(application.event.date).toLocaleDateString()}</p>
+      <p style={cardDetailStyle}>Date de l'évènement: {new Date(application.event.date).toLocaleDateString()}</p>
       {application.event.startTime && (
-        <p style={cardDetailStyle}>Heure de l'événement: {application.event.startTime}</p>
+        <p style={cardDetailStyle}>Heure de l'évènement: {application.event.startTime}</p>
       )}
       {application.event.endTime && (
         <p style={cardDetailStyle}>Heure de fin: {application.event.endTime}</p>
       )}
       {application.event.location && <p style={cardDetailStyle}>Lieu: {application.event.location.address}, {application.event.location.city}</p>}
       {application.event.requirements?.duration && (
-        <p style={cardDetailStyle}>Durée de l'événement: {application.event.requirements.duration} min</p>
+        <p style={cardDetailStyle}>Durée de l'évènement: {application.event.requirements.duration} min</p>
       )}
       {application.performanceDetails?.duration && <p style={cardDetailStyle}>Durée de prestation proposée: {application.performanceDetails.duration} min</p>}
 

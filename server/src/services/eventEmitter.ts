@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 
-// Types d'événements SSE
+// Types d'évènements SSE
 export enum SSEEventType {
-  // Événements
+  // Évènements
   EVENT_CREATED = 'EVENT_CREATED',
   EVENT_UPDATED = 'EVENT_UPDATED',
   EVENT_DELETED = 'EVENT_DELETED',
@@ -21,7 +21,7 @@ export enum SSEEventType {
   FAVORITE_COMEDIAN_ADDED = 'FAVORITE_COMEDIAN_ADDED',
   FAVORITE_COMEDIAN_REMOVED = 'FAVORITE_COMEDIAN_REMOVED',
 
-  // Favoris événements
+  // Favoris évènements
   EVENT_FAVORITE_ADDED = 'EVENT_FAVORITE_ADDED',
   EVENT_FAVORITE_REMOVED = 'EVENT_FAVORITE_REMOVED',
 
@@ -31,7 +31,7 @@ export enum SSEEventType {
   PASSWORD_RESET = 'PASSWORD_RESET',
 }
 
-// Interface pour le payload des événements SSE
+// Interface pour le payload des évènements SSE
 export interface SSEEventPayload {
   type: SSEEventType;
   data: {
@@ -47,7 +47,7 @@ export interface SSEEventPayload {
 }
 
 /**
- * Service centralisé d'émission d'événements pour SSE
+ * Service centralisé d'émission d'évènements pour SSE
  * Utilise un singleton EventEmitter pour toute l'application
  */
 class AppEventEmitter extends EventEmitter {
@@ -70,7 +70,7 @@ class AppEventEmitter extends EventEmitter {
   }
 
   /**
-   * Émettre un événement typé avec payload standardisé
+   * Émettre un évènement typé avec payload standardisé
    */
   public emitSSEEvent(type: SSEEventType, data: Record<string, any>): void {
     const payload: SSEEventPayload = {
@@ -80,14 +80,14 @@ class AppEventEmitter extends EventEmitter {
     };
 
     this.emit('sse-event', payload);
-    console.log(`📡 Événement SSE émis: ${type}`, data);
+    console.log(`📡 Évènement SSE émis: ${type}`, data);
   }
 }
 
 // Exporter l'instance singleton
 export const appEventEmitter = AppEventEmitter.getInstance();
 
-// Fonctions helpers typées pour émettre des événements spécifiques
+// Fonctions helpers typées pour émettre des évènements spécifiques
 
 export const emitEventCreated = (id: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.EVENT_CREATED, { id });

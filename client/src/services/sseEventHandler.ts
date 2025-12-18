@@ -2,25 +2,25 @@ import { QueryClient } from '@tanstack/react-query';
 import type { SSEEvent } from '../hooks/useSSE';
 
 /**
- * Handler pour les événements SSE
- * Mappe les types d'événements aux clés de cache React Query à invalider
+ * Handler pour les évènements SSE
+ * Mappe les types d'évènements aux clés de cache React Query à invalider
  *
  * @param queryClient - Instance du QueryClient React Query
- * @param event - Événement SSE reçu
+ * @param event - Évènement SSE reçu
  */
 export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void => {
-  console.log(`🔄 [SSE Handler] Traitement de l'événement: ${event.type}`, event.data);
+  console.log(`🔄 [SSE Handler] Traitement de l'évènement: ${event.type}`, event.data);
 
   switch (event.type) {
-    // === ÉVÉNEMENTS ===
+    // === ÉVÈNEMENTS ===
     case 'EVENT_CREATED':
-      console.log('📅 [SSE] Nouvel événement créé');
+      console.log('📅 [SSE] Nouvel évènement créé');
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
       break;
 
     case 'EVENT_UPDATED':
-      console.log('📅 [SSE] Événement mis à jour:', event.data.id);
+      console.log('📅 [SSE] Évènement mis à jour:', event.data.id);
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
       if (event.data.id) {
@@ -29,7 +29,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       break;
 
     case 'EVENT_DELETED':
-      console.log('🗑️ [SSE] Événement supprimé:', event.data.id);
+      console.log('🗑️ [SSE] Évènement supprimé:', event.data.id);
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
       if (event.data.id) {
@@ -38,7 +38,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       break;
 
     case 'EVENT_COMPLETED':
-      console.log('✅ [SSE] Événement complété:', event.data.id);
+      console.log('✅ [SSE] Évènement complété:', event.data.id);
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
       if (event.data.id) {
@@ -112,16 +112,16 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       queryClient.invalidateQueries({ queryKey: ['organizerFavorites'], exact: false });
       break;
 
-    // === FAVORIS ÉVÉNEMENTS ===
+    // === FAVORIS ÉVÈNEMENTS ===
     case 'EVENT_FAVORITE_ADDED':
-      console.log('⭐ [SSE] Événement ajouté aux favoris:', event.data.eventId);
+      console.log('⭐ [SSE] Évènement ajouté aux favoris:', event.data.eventId);
       queryClient.invalidateQueries({ queryKey: ['event-favorites'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['eventFavorites'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       break;
 
     case 'EVENT_FAVORITE_REMOVED':
-      console.log('⭐ [SSE] Événement retiré des favoris:', event.data.eventId);
+      console.log('⭐ [SSE] Évènement retiré des favoris:', event.data.eventId);
       queryClient.invalidateQueries({ queryKey: ['event-favorites'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['eventFavorites'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
@@ -151,7 +151,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       }
       break;
 
-    // === ÉVÉNEMENT DE CONNEXION ===
+    // === ÉVÈNEMENT DE CONNEXION ===
     case 'CONNECTED':
       console.log('🔌 [SSE] Connexion SSE établie');
       // Rafraîchir toutes les données au moment de la connexion
@@ -159,14 +159,14 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       break;
 
     default:
-      console.warn(`⚠️ [SSE Handler] Type d'événement non géré: ${event.type}`);
+      console.warn(`⚠️ [SSE Handler] Type d'évènement non géré: ${event.type}`);
   }
 };
 
 /**
  * Crée une fonction handler pré-configurée avec le queryClient
  * @param queryClient - Instance du QueryClient
- * @returns Fonction handler pour les événements SSE
+ * @returns Fonction handler pour les évènements SSE
  */
 export const createSSEEventHandler = (queryClient: QueryClient) => {
   return (event: SSEEvent) => handleSSEEvent(queryClient, event);

@@ -32,7 +32,7 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // Sauvegarder les événements dans le localStorage
+  // Sauvegarder les évènements dans le localStorage
   useEffect(() => {
     localStorage.setItem('standup_events', JSON.stringify(events));
   }, [events]);
@@ -40,7 +40,7 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
   const createEvent = async (eventData: Omit<Event, 'id' | 'createdAt' | 'organizerId'>): Promise<Event> => {
     try {
       if (!user || user.userType !== 'organisateur') {
-        throw new Error('Seuls les organisateurs peuvent créer des événements');
+        throw new Error('Seuls les organisateurs peuvent créer des évènements');
       }
 
       const newEvent: Event = {
@@ -54,7 +54,7 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
       setEvents(prev => [...prev, newEvent]);
       return newEvent;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la création de l\'événement');
+      setError(err instanceof Error ? err.message : 'Erreur lors de la création de l\'évènement');
       throw err;
     }
   };
@@ -62,16 +62,16 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
   const updateEvent = async (eventId: string, eventData: Partial<Event>): Promise<Event> => {
     try {
       if (!user || user.userType !== 'organisateur') {
-        throw new Error('Seuls les organisateurs peuvent modifier des événements');
+        throw new Error('Seuls les organisateurs peuvent modifier des évènements');
       }
 
       const eventIndex = events.findIndex(e => e.id === eventId);
       if (eventIndex === -1) {
-        throw new Error('Événement non trouvé');
+        throw new Error('Évènement non trouvé');
       }
 
       if (events[eventIndex].organizerId !== user.id) {
-        throw new Error('Vous n\'êtes pas autorisé à modifier cet événement');
+        throw new Error('Vous n\'êtes pas autorisé à modifier cet évènement');
       }
 
       const updatedEvent = {
@@ -83,7 +83,7 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
       setEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
       return updatedEvent;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la modification de l\'événement');
+      setError(err instanceof Error ? err.message : 'Erreur lors de la modification de l\'évènement');
       throw err;
     }
   };
@@ -91,21 +91,21 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
   const deleteEvent = async (eventId: string): Promise<void> => {
     try {
       if (!user || user.userType !== 'organisateur') {
-        throw new Error('Seuls les organisateurs peuvent supprimer des événements');
+        throw new Error('Seuls les organisateurs peuvent supprimer des évènements');
       }
 
       const event = events.find(e => e.id === eventId);
       if (!event) {
-        throw new Error('Événement non trouvé');
+        throw new Error('Évènement non trouvé');
       }
 
       if (event.organizerId !== user.id) {
-        throw new Error('Vous n\'êtes pas autorisé à supprimer cet événement');
+        throw new Error('Vous n\'êtes pas autorisé à supprimer cet évènement');
       }
 
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression de l\'événement');
+      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression de l\'évènement');
       throw err;
     }
   };
@@ -125,17 +125,17 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
   const applyToEvent = async (eventId: string, humoristId: string): Promise<Application> => {
     try {
       if (!user || user.userType !== 'humoriste') {
-        throw new Error('Seuls les humoristes peuvent postuler à des événements');
+        throw new Error('Seuls les humoristes peuvent postuler à des évènements');
       }
 
       const event = events.find(e => e.id === eventId);
       if (!event) {
-        throw new Error('Événement non trouvé');
+        throw new Error('Évènement non trouvé');
       }
 
       // Vérifier si l'humoriste a déjà postulé
       if (event.applications.some(a => a.humoristId === humoristId)) {
-        throw new Error('Vous avez déjà postulé à cet événement');
+        throw new Error('Vous avez déjà postulé à cet évènement');
       }
 
       const newApplication: Application = {
@@ -178,11 +178,11 @@ export const EventsProvider: React.FC<EventsProviderProps> = ({ children }) => {
 
       const event = events.find(e => e.id === eventId);
       if (!event) {
-        throw new Error('Événement non trouvé');
+        throw new Error('Évènement non trouvé');
       }
 
       if (event.organizerId !== user.id) {
-        throw new Error('Vous n\'êtes pas autorisé à modifier les candidatures de cet événement');
+        throw new Error('Vous n\'êtes pas autorisé à modifier les candidatures de cet évènement');
       }
 
       const updatedApplications = event.applications.map(app =>

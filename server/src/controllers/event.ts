@@ -46,9 +46,9 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
     });
 
     await event.save();
-    console.log('✅ Événement sauvegardé avec succès:', event._id);
+    console.log('✅ Évènement sauvegardé avec succès:', event._id);
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitEventCreated(event._id.toString());
 
     // Récupérer les informations de l'organisateur pour l'email et mise à jour stats
@@ -74,12 +74,12 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       console.log('Total events après incrémentation et sauvegarde:', organizer.stats.totalEvents);
     } catch (statsError) {
       console.error('⚠️ Erreur lors de la mise à jour des stats de l\'organisateur:', statsError);
-      // Ne pas faire échouer la création de l'événement si les stats échouent
+      // Ne pas faire échouer la création de l'évènement si les stats échouent
     }
 
     // Envoyer les notifications par email aux humoristes (en arrière-plan)
     console.log('📧 Démarrage envoi notifications email...');
-    console.log('📋 Données événement pour email:', {
+    console.log('📋 Données évènement pour email:', {
       title: event.title,
       date: event.date,
       location: event.location,
@@ -125,7 +125,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       });
     });
 
-    // Convertir l'événement en objet JSON pour éviter les problèmes de sérialisation
+    // Convertir l'évènement en objet JSON pour éviter les problèmes de sérialisation
     const eventResponse = event.toObject ? event.toObject() : event;
 
     console.log('📤 Envoi de la réponse au client...');
@@ -179,7 +179,7 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
 
     const events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email');
 
-    // Filtrer les événements qui n'ont pas d'organisateur valide
+    // Filtrer les évènements qui n'ont pas d'organisateur valide
     const validEvents = events.filter(event => {
       const hasValidOrganizer = event.organizer &&
         (typeof event.organizer === 'object' ?
@@ -187,15 +187,15 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
           true);
 
       if (!hasValidOrganizer) {
-        console.warn(`⚠️ [WARNING] Événement "${event.title}" (${event._id}) a un organisateur invalide/null - sera exclu des résultats`);
+        console.warn(`⚠️ [WARNING] Évènement "${event.title}" (${event._id}) a un organisateur invalide/null - sera exclu des résultats`);
       }
 
       return hasValidOrganizer;
     });
 
-    // Debug temporaire pour voir quels événements sont retournés
+    // Debug temporaire pour voir quels évènements sont retournés
     console.log(`🔍 [DEBUG] Route GET /api/events - Role: ${userRole}, Query:`, JSON.stringify(query, null, 2));
-    console.log(`📊 [DEBUG] Événements trouvés: ${events.length}, Événements valides (avec organisateur): ${validEvents.length}`);
+    console.log(`📊 [DEBUG] Évènements trouvés: ${events.length}, Évènements valides (avec organisateur): ${validEvents.length}`);
     validEvents.forEach(event => {
       const organizerName = event.organizer && typeof event.organizer === 'object'
         ? `${(event.organizer as any).firstName || ''} ${(event.organizer as any).lastName || ''}`.trim()
@@ -267,13 +267,13 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
       .populate('participants');
 
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé' });
+      res.status(404).json({ message: 'Évènement non trouvé' });
       return;
     }
 
     // Vérifier que l'organisateur est valide
     if (!event.organizer || (typeof event.organizer === 'object' && !(event.organizer as any).firstName)) {
-      console.warn(`⚠️ [WARNING] Événement "${event.title}" (${eventId}) a un organisateur invalide/null`);
+      console.warn(`⚠️ [WARNING] Évènement "${event.title}" (${eventId}) a un organisateur invalide/null`);
     }
 
     res.json(event);
@@ -311,14 +311,14 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       userRole,
     });
 
-    // Pour SUPER_ADMIN, on peut modifier n'importe quel événement
-    // Sinon, on vérifie que l'événement appartient à l'organisateur connecté
+    // Pour SUPER_ADMIN, on peut modifier n'importe quel évènement
+    // Sinon, on vérifie que l'évènement appartient à l'organisateur connecté
     const event = userRole === 'SUPER_ADMIN'
       ? await EventModel.findById(eventId)
       : await EventModel.findOne({ _id: eventId, organizer: organizerId });
 
     if (!event) {
-      console.error('❌ [DEBUG updateEvent] Événement non trouvé ou non autorisé', {
+      console.error('❌ [DEBUG updateEvent] Évènement non trouvé ou non autorisé', {
         eventId,
         organizerId,
         userRole,
@@ -328,7 +328,7 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    console.log('✅ [DEBUG updateEvent] Événement trouvé et autorisé', {
+    console.log('✅ [DEBUG updateEvent] Évènement trouvé et autorisé', {
       eventId: event._id,
       eventOrganizer: event.organizer?.toString?.() || event.organizer,
       requestingOrganizer: organizerId,
@@ -341,29 +341,29 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     );
 
     if (!updatedEvent) {
-      console.error('❌ [DEBUG updateEvent] Échec de la mise à jour - événement non trouvé après update', { eventId });
+      console.error('❌ [DEBUG updateEvent] Échec de la mise à jour - évènement non trouvé après update', { eventId });
       res.status(404).json({ message: 'Event not found after update attempt' });
       return;
     }
 
-    console.log('✅ [DEBUG updateEvent] Événement mis à jour avec succès', {
+    console.log('✅ [DEBUG updateEvent] Évènement mis à jour avec succès', {
       eventId: updatedEvent._id,
       title: updatedEvent.title,
     });
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());
 
-    // Notifier les humoristes ayant postulé si l'événement est futur
+    // Notifier les humoristes ayant postulé si l'évènement est futur
     if (updatedEvent && new Date(updatedEvent.date) >= new Date()) {
-      console.log('📧 [DEBUG] Mise à jour événement futur, préparation envoi emails de mise à jour...');
+      console.log('📧 [DEBUG] Mise à jour évènement futur, préparation envoi emails de mise à jour...');
       const applications = await ApplicationModel.find({ event: updatedEvent._id, status: { $in: ['PENDING', 'ACCEPTED'] } })
         .populate('comedian', 'email firstName lastName');
 
       const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
       console.log(`📧 [DEBUG] Candidatures ciblées: ${applications.length}`);
       if (organizer && applications.length > 0) {
-        // Si l'événement est annulé, informer les candidats ACCEPTED et PENDING
+        // Si l'évènement est annulé, informer les candidats ACCEPTED et PENDING
         if (req.body.status === 'cancelled' || updatedEvent.status === 'cancelled') {
           const affectedApplications = await ApplicationModel.find({
             event: updatedEvent._id,
@@ -379,11 +379,16 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
           }, (req.body as any).cancellationReason);
         } else {
           // Sinon, envoyer une notification de mise à jour classique
-          sendEventUpdatedNotificationToApplicants(applications as any, updatedEvent, {
-            firstName: organizer.firstName,
-            lastName: organizer.lastName,
-            email: organizer.email,
-          }).catch(err => console.error('❌ Erreur envoi emails maj événement:', err));
+          try {
+            await sendEventUpdatedNotificationToApplicants(applications as any, updatedEvent, {
+              firstName: organizer.firstName,
+              lastName: organizer.lastName,
+              email: organizer.email,
+            });
+            console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
+          } catch (err) {
+            console.error('❌ Erreur envoi emails maj évènement:', err);
+          }
         }
       } else {
         console.log('ℹ️ [DEBUG] Aucun destinataire email trouvé ou organisateur introuvable.');
@@ -422,7 +427,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
 
     const event = await EventModel.findById(eventId).populate('organizer', 'firstName lastName email');
 
-    console.log('🔍 DEBUG Suppression événement:', {
+    console.log('🔍 DEBUG Suppression évènement:', {
       eventId,
       userId: organizerId,
       eventOrganizer: event?.organizer,
@@ -431,11 +436,11 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
     });
 
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé' });
+      res.status(404).json({ message: 'Évènement non trouvé' });
       return;
     }
 
-    // Vérifier si l'utilisateur est l'organisateur de l'événement
+    // Vérifier si l'utilisateur est l'organisateur de l'évènement
     const organizerIdFromEvent = (event.organizer as any)._id?.toString() || event.organizer.toString();
     if (organizerIdFromEvent !== organizerId) {
       console.log('❌ Autorisation refusée:', {
@@ -444,7 +449,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
         userId: organizerId,
         match: organizerIdFromEvent === organizerId
       });
-      res.status(403).json({ message: 'Non autorisé à supprimer cet événement' });
+      res.status(403).json({ message: 'Non autorisé à supprimer cet évènement' });
       return;
     }
 
@@ -468,7 +473,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
             lastName: (event.organizer as any).lastName,
             email: (event.organizer as any).email,
           },
-          'Événement supprimé par l\'organisateur (plus de 10 jours avant).'
+          'Évènement supprimé par l\'organisateur (plus de 10 jours avant).'
         );
       }
     } catch (emailErr) {
@@ -480,10 +485,10 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
 
     await EventModel.findByIdAndDelete(eventId);
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitEventDeleted(eventId);
 
-    // Décrémenter le compteur d'événements créés de l'organisateur
+    // Décrémenter le compteur d'évènements créés de l'organisateur
     const organizer = await UserModel.findById(organizerId);
     if (organizer) {
       if (organizer.stats && organizer.stats.totalEvents && organizer.stats.totalEvents > 0) {
@@ -494,7 +499,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
       }
     }
 
-    res.json({ message: 'Événement supprimé avec succès' });
+    res.json({ message: 'Évènement supprimé avec succès' });
   } catch (error) {
     console.error('Delete event error:', error);
     res.status(500).json({ message: 'Error deleting event' });
@@ -548,19 +553,19 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
     if (userRole === 'SUPER_ADMIN') {
       console.log('🔥 Super Admin - Récupération des statistiques globales');
 
-      // Récupérer TOUS les événements de la plateforme avec participants peuplés
+      // Récupérer TOUS les évènements de la plateforme avec participants peuplés
       console.log('🔍 Requête MongoDB: EventModel.find({}).populate("participants")');
       const allEvents = await EventModel.find({}).populate('participants');
-      console.log('📊 Événements trouvés dans la DB:', allEvents.length);
+      console.log('📊 Évènements trouvés dans la DB:', allEvents.length);
 
-      // Log des premiers événements pour debug
+      // Log des premiers évènements pour debug
       if (allEvents.length > 0) {
-        console.log('📅 Détail des événements trouvés:');
+        console.log('📅 Détail des évènements trouvés:');
         allEvents.forEach((event, index) => {
           console.log(`   ${index + 1}. "${event.title}" - ${event.date} - Status: "${event.status}" - Organisateur: ${event.organizer}`);
         });
       } else {
-        console.log('❌ AUCUN événement trouvé dans la base !');
+        console.log('❌ AUCUN évènement trouvé dans la base !');
         // Test direct de connexion MongoDB
         console.log('🔍 Test de connexion MongoDB...');
         try {
@@ -570,7 +575,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
 
             // Test direct sur la collection events
             const rawEvents = await mongoose.connection.db.collection('events').find({}).toArray();
-            console.log('📊 Événements via collection directe:', rawEvents.length);
+            console.log('📊 Évènements via collection directe:', rawEvents.length);
             if (rawEvents.length > 0) {
               rawEvents.slice(0, 2).forEach((event, index) => {
                 console.log(`   RAW ${index + 1}. "${event.title}" - Status: "${event.status}"`);
@@ -598,7 +603,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
       const acceptedApplications = allApplications.filter(app => app.status === 'ACCEPTED').length;
       const rejectedApplications = allApplications.filter(app => app.status === 'REJECTED').length;
 
-      // Calculer les événements à venir non complets
+      // Calculer les évènements à venir non complets
       const upcomingIncompleteEvents = allEvents.filter(event => {
         const eventDate = new Date(event.date);
         const isUpcoming = eventDate >= now;
@@ -610,7 +615,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
         return isUpcoming && isPublished && isIncomplete;
       }).length;
 
-      // Calculer les événements complets (toutes les places prises)
+      // Calculer les évènements complets (toutes les places prises)
       const fullEvents = allEvents.filter(event => {
         const participantsCount = event.participants?.length || 0;
         const maxPerformers = event.requirements?.maxPerformers || 0;
@@ -662,14 +667,14 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
       return res.status(400).json({ message: 'ID organisateur invalide' });
     }
 
-    // Récupérer tous les événements de l'organisateur avec participants peuplés
-    console.log('🔍 Recherche événements pour organisateur:', objectOrganizerId);
+    // Récupérer tous les évènements de l'organisateur avec participants peuplés
+    console.log('🔍 Recherche évènements pour organisateur:', objectOrganizerId);
     const allEvents = await EventModel.find({ organizer: objectOrganizerId }).populate('participants');
-    console.log('📊 Événements trouvés:', allEvents.length);
+    console.log('📊 Évènements trouvés:', allEvents.length);
     const eventIds = allEvents.map(event => event._id);
 
-    // Récupérer toutes les candidatures liées à ces événements (SAUF WITHDRAWN)
-    console.log('🔍 Recherche candidatures pour événements:', eventIds.length);
+    // Récupérer toutes les candidatures liées à ces évènements (SAUF WITHDRAWN)
+    console.log('🔍 Recherche candidatures pour évènements:', eventIds.length);
     const allApplications = await ApplicationModel.find({
       event: { $in: eventIds },
       status: { $ne: 'WITHDRAWN' }
@@ -681,7 +686,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
     const acceptedApplications = allApplications.filter(app => app.status === 'ACCEPTED').length;
     const rejectedApplications = allApplications.filter(app => app.status === 'REJECTED').length;
 
-    // Calculer les événements à venir non complets
+    // Calculer les évènements à venir non complets
     const upcomingIncompleteEvents = allEvents.filter(event => {
       const eventDate = new Date(event.date);
       const isUpcoming = eventDate >= now;
@@ -693,7 +698,7 @@ export const getEventStats = async (req: AuthRequest, res: Response): Promise<an
       return isUpcoming && isPublished && isIncomplete;
     }).length;
 
-    // Calculer les événements complets (toutes les places prises)
+    // Calculer les évènements complets (toutes les places prises)
     const fullEvents = allEvents.filter(event => {
       const participantsCount = event.participants?.length || 0;
       const maxPerformers = event.requirements?.maxPerformers || 0;
@@ -753,22 +758,22 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Récupérer l'événement
+    // Récupérer l'évènement
     const event = await EventModel.findById(eventId)
       .populate('organizer', 'firstName lastName email');
 
     if (!event) {
-      res.status(404).json({ message: 'Événement non trouvé' });
+      res.status(404).json({ message: 'Évènement non trouvé' });
       return;
     }
 
-    // Vérifier que l'utilisateur est bien l'organisateur de l'événement
+    // Vérifier que l'utilisateur est bien l'organisateur de l'évènement
     const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null
       ? (event.organizer as any)._id?.toString()
       : event.organizer?.toString();
 
     if (eventOrganizerId !== organizerId) {
-      res.status(403).json({ message: 'Vous n\'êtes pas autorisé à envoyer des notifications pour cet événement' });
+      res.status(403).json({ message: 'Vous n\'êtes pas autorisé à envoyer des notifications pour cet évènement' });
       return;
     }
 
@@ -779,7 +784,7 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Préparer les données de l'événement pour l'email
+    // Préparer les données de l'évènement pour l'email
     const eventData = {
       _id: event._id,
       title: event.title,
@@ -801,7 +806,7 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
     // Envoyer les notifications en arrière-plan
     sendNewEventNotificationToHumorists(eventData, organizerData)
       .then(() => {
-        console.log(`✅ Notifications envoyées manuellement pour l'événement "${event.title}" par ${organizer.firstName} ${organizer.lastName}`);
+        console.log(`✅ Notifications envoyées manuellement pour l'évènement "${event.title}" par ${organizer.firstName} ${organizer.lastName}`);
       })
       .catch((error) => {
         console.error('❌ Erreur lors de l\'envoi manuel des notifications:', error);
@@ -831,13 +836,13 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
 
     // Vérifier que seul un super admin peut accéder à cette route
     if (req.user?.role !== 'SUPER_ADMIN') {
-      res.status(403).json({ message: 'Accès refusé. Seuls les super-admins peuvent traiter les événements.' });
+      res.status(403).json({ message: 'Accès refusé. Seuls les super-admins peuvent traiter les évènements.' });
       return;
     }
 
     const now = new Date();
 
-    // Trouver tous les événements passés qui ont des participants acceptés
+    // Trouver tous les évènements passés qui ont des participants acceptés
     const pastEvents = await EventModel.find({
       date: { $lt: now },
       status: { $in: ['published', 'completed'] }
@@ -847,7 +852,7 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
     let participationsAdded = 0;
 
     for (const event of pastEvents) {
-      // Pour chaque participant de l'événement
+      // Pour chaque participant de l'évènement
       for (const participantId of event.participants) {
         const participant = await UserModel.findById(participantId);
 
@@ -860,12 +865,12 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
             participant.stats.processedEvents = [];
           }
 
-          // Vérifier si cet événement a déjà été traité pour ce participant
+          // Vérifier si cet évènement a déjà été traité pour ce participant
           const eventIdStr = (event._id as mongoose.Types.ObjectId).toString();
           const alreadyProcessed = participant.stats.processedEvents.includes(eventIdStr);
 
           if (!alreadyProcessed) {
-            // Vérifier si ce humoriste a été marqué absent pour cet événement
+            // Vérifier si ce humoriste a été marqué absent pour cet évènement
             const absence = await AbsenceModel.findOne({
               event: event._id,
               comedian: participantId
@@ -880,16 +885,16 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
               await participant.save();
 
               participationsAdded++;
-              console.log(`✅ Participation ajoutée pour ${participant.firstName} ${participant.lastName} à l'événement "${event.title}"`);
+              console.log(`✅ Participation ajoutée pour ${participant.firstName} ${participant.lastName} à l'évènement "${event.title}"`);
             } else {
               // Marquer comme traité même si absent pour éviter de le retraiter
               participant.stats.processedEvents.push(eventIdStr);
               participant.markModified('stats');
               await participant.save();
-              console.log(`⚠️ ${participant.firstName} ${participant.lastName} était absent à l'événement "${event.title}" - pas de participation ajoutée`);
+              console.log(`⚠️ ${participant.firstName} ${participant.lastName} était absent à l'évènement "${event.title}" - pas de participation ajoutée`);
             }
           } else {
-            console.log(`ℹ️ Événement "${event.title}" déjà traité pour ${participant.firstName} ${participant.lastName}`);
+            console.log(`ℹ️ Évènement "${event.title}" déjà traité pour ${participant.firstName} ${participant.lastName}`);
           }
         }
       }
@@ -897,13 +902,13 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
     }
 
     res.json({
-      message: 'Traitement des événements terminés effectué avec succès',
+      message: 'Traitement des évènements terminés effectué avec succès',
       eventsProcessed: totalProcessed,
       participationsAdded: participationsAdded
     });
   } catch (error) {
-    console.error('Erreur lors du traitement des événements terminés:', error);
-    res.status(500).json({ message: 'Erreur lors du traitement des événements terminés' });
+    console.error('Erreur lors du traitement des évènements terminés:', error);
+    res.status(500).json({ message: 'Erreur lors du traitement des évènements terminés' });
   }
 };
 
@@ -947,10 +952,10 @@ export const resetParticipations = async (req: AuthRequest, res: Response): Prom
 // MARK EVENTS AS COMPLETED - CRON JOB
 // ============================================================================
 /**
- * Marque automatiquement les événements passés comme "completed" - Cron job
+ * Marque automatiquement les évènements passés comme "completed" - Cron job
  *
  * Logique:
- * - Trouve tous les événements qui ne sont pas déjà "completed" ou "cancelled"
+ * - Trouve tous les évènements qui ne sont pas déjà "completed" ou "cancelled"
  * - Vérifie si la date + endTime est passée
  * - Met à jour le statut à "completed"
  */
@@ -964,24 +969,24 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
       return;
     }
 
-    console.log('🔔 Démarrage du job cron: marquage des événements comme completed');
+    console.log('🔔 Démarrage du job cron: marquage des évènements comme completed');
     const now = new Date();
 
-    // Récupérer tous les événements qui ne sont pas déjà completed ou cancelled
+    // Récupérer tous les évènements qui ne sont pas déjà completed ou cancelled
     const events = await EventModel.find({
       status: { $nin: ['completed', 'COMPLETED', 'cancelled', 'CANCELLED'] },
       date: { $lt: now } // Date dans le passé
     });
 
-    console.log(`📊 ${events.length} événements passés trouvés (non-completed, non-cancelled)`);
+    console.log(`📊 ${events.length} évènements passés trouvés (non-completed, non-cancelled)`);
 
     let updatedCount = 0;
     const updatedEvents: string[] = [];
 
-    // Traiter chaque événement
+    // Traiter chaque évènement
     for (const event of events) {
       try {
-        // Construire la date/heure de fin de l'événement
+        // Construire la date/heure de fin de l'évènement
         const eventDate = new Date(event.date);
         let eventEndDateTime: Date;
 
@@ -1010,18 +1015,18 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
           );
         }
 
-        // Vérifier si l'événement est vraiment terminé
+        // Vérifier si l'évènement est vraiment terminé
         if (now > eventEndDateTime) {
           event.status = 'completed';
           await event.save();
           updatedCount++;
           updatedEvents.push(event.title);
-          console.log(`✅ Événement "${event.title}" marqué comme completed`);
+          console.log(`✅ Évènement "${event.title}" marqué comme completed`);
 
-          // Émettre un événement SSE pour notifier tous les clients
+          // Émettre un évènement SSE pour notifier tous les clients
           emitEventCompleted(event._id.toString());
 
-          // Expirer les candidatures en attente pour cet événement
+          // Expirer les candidatures en attente pour cet évènement
           try {
             const expiredCount = await expirePendingApplicationsForEvent(event._id as mongoose.Types.ObjectId);
             if (expiredCount > 0) {
@@ -1034,25 +1039,25 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
         }
 
       } catch (eventError) {
-        console.error(`❌ Erreur lors du traitement de l'événement ${event._id}:`, eventError);
+        console.error(`❌ Erreur lors du traitement de l'évènement ${event._id}:`, eventError);
       }
     }
 
     const response = {
-      message: 'Événements passés marqués comme completed',
+      message: 'Évènements passés marqués comme completed',
       updated: updatedCount,
       totalChecked: events.length,
       updatedEvents: updatedEvents,
       timestamp: new Date().toISOString()
     };
 
-    console.log(`📊 Résumé: ${updatedCount} événements marqués comme completed sur ${events.length} vérifiés`);
+    console.log(`📊 Résumé: ${updatedCount} évènements marqués comme completed sur ${events.length} vérifiés`);
     res.json(response);
 
   } catch (error) {
     console.error('❌ Erreur CRON mark-events-completed:', error);
     res.status(500).json({
-      message: 'Erreur lors du marquage des événements comme completed',
+      message: 'Erreur lors du marquage des évènements comme completed',
       error: error instanceof Error ? error.message : 'Erreur inconnue'
     });
   }

@@ -37,29 +37,29 @@ const asyncHandler = (fn: (req: Request | AuthRequest, res: Response) => Promise
 // EVENT STATISTICS & MANAGEMENT ROUTES
 // ============================================================================
 
-// GET /api/events/stats - Récupérer les statistiques d'événements
+// GET /api/events/stats - Récupérer les statistiques d'évènements
 router.get('/stats', authMiddleware, asyncHandler(getEventStats));
 
 // ============================================================================
 // EVENT CRUD ROUTES
 // ============================================================================
 
-// POST /api/events - Créer un nouvel événement
+// POST /api/events - Créer un nouvel évènement
 router.post('/', authMiddleware, validate(createEventSchema), asyncHandler(createEvent));
 
-// GET /api/events - Récupérer tous les événements (avec filtrage par rôle)
+// GET /api/events - Récupérer tous les évènements (avec filtrage par rôle)
 router.get('/', authMiddleware, asyncHandler(getEventsList));
 
-// GET /api/events/user/my-events - Récupérer les événements de l'organisateur connecté
+// GET /api/events/user/my-events - Récupérer les évènements de l'organisateur connecté
 router.get('/user/my-events', authMiddleware, asyncHandler(getOrganizerEvents));
 
-// GET /api/events/:eventId - Récupérer un événement par son ID
+// GET /api/events/:eventId - Récupérer un évènement par son ID
 router.get('/:eventId', asyncHandler(getEventById));
 
-// PUT /api/events/:eventId - Mettre à jour un événement
+// PUT /api/events/:eventId - Mettre à jour un évènement
 router.put('/:eventId', authMiddleware, validate(updateEventSchema), asyncHandler(updateEvent));
 
-// DELETE /api/events/:eventId - Supprimer un événement
+// DELETE /api/events/:eventId - Supprimer un évènement
 router.delete('/:eventId', authMiddleware, asyncHandler(deleteEvent));
 
 // ============================================================================
@@ -69,7 +69,7 @@ router.delete('/:eventId', authMiddleware, asyncHandler(deleteEvent));
 // POST /api/events/:id/notify - Envoyer des notifications manuelles aux humoristes
 router.post('/:id/notify', authMiddleware, asyncHandler(notifyHumorists));
 
-// POST /api/events/process-completed-events - Traiter automatiquement les événements terminés (SUPER_ADMIN uniquement)
+// POST /api/events/process-completed-events - Traiter automatiquement les évènements terminés (SUPER_ADMIN uniquement)
 router.post('/process-completed-events', authMiddleware, asyncHandler(processCompletedEvents));
 
 // POST /api/events/reset-participations - Réinitialiser les participations (SUPER_ADMIN uniquement)
@@ -79,7 +79,7 @@ router.post('/reset-participations', authMiddleware, asyncHandler(resetParticipa
 // CRON JOB ROUTES
 // ============================================================================
 
-// POST /api/events/jobs/mark-completed - Cron job pour marquer les événements passés comme completed
+// POST /api/events/jobs/mark-completed - Cron job pour marquer les évènements passés comme completed
 router.post('/jobs/mark-completed', asyncHandler(markEventsAsCompletedCron));
 
 export default router;

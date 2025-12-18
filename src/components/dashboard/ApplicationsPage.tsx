@@ -45,8 +45,8 @@ export const ApplicationsPage = () => {
     console.log('Type d\'utilisateur:', user?.userType);
     console.log('Est authentifié:', isAuthenticated);
     console.log('Est organisateur:', isOrganisateur);
-    console.log('Événements chargés dans ApplicationsPage:', events);
-    console.log('Nombre d\'événements chargés:', events?.length);
+    console.log('Évènements chargés dans ApplicationsPage:', events);
+    console.log('Nombre d\'évènements chargés:', events?.length);
     if (events && events.length > 0) {
       console.log('IDs des organisateurs:', events.map(e => e?.organizerId));
     }
@@ -60,9 +60,9 @@ export const ApplicationsPage = () => {
     const params = new URLSearchParams(location.search);
     const update = params.get('update');
     if (update === 'kept') {
-      toast({ title: 'Confirmation prise en compte', description: "Vous restez inscrit à l'événement.", duration: 6000 });
+      toast({ title: 'Confirmation prise en compte', description: "Vous restez inscrit à l'évènement.", duration: 6000 });
     } else if (update === 'withdrawn') {
-      toast({ title: 'Désinscription confirmée', description: "Votre candidature a été retirée de l'événement.", duration: 6000 });
+      toast({ title: 'Désinscription confirmée', description: "Votre candidature a été retirée de l'évènement.", duration: 6000 });
     }
   }, [location.search]);
 
@@ -117,43 +117,43 @@ export const ApplicationsPage = () => {
     );
   }
 
-  // Vérification des événements
+  // Vérification des évènements
   if (!events || events.length === 0) {
-    console.log('Aucun événement trouvé');
+    console.log('Aucun évènement trouvé');
     return (
       <div className="p-6">
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-white mb-2">Candidatures reçues</h1>
-            <p className="text-gray-400">Gérez les candidatures pour vos événements</p>
+            <p className="text-gray-400">Gérez les candidatures pour vos évènements</p>
           </div>
           <Card className="p-12 text-center bg-gray-800/50 border-gray-700">
             <User className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucun événement</h3>
-            <p className="text-gray-500">Créez un événement pour recevoir des candidatures</p>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucun évènement</h3>
+            <p className="text-gray-500">Créez un évènement pour recevoir des candidatures</p>
           </Card>
         </div>
       </div>
     );
   }
 
-  // Récupérer toutes les candidatures pour les événements de l'organisateur
+  // Récupérer toutes les candidatures pour les évènements de l'organisateur
   const myEvents = events.filter(e => e?.organizerId === user.id);
-  console.log('Mes événements:', myEvents);
+  console.log('Mes évènements:', myEvents);
 
   if (myEvents.length === 0) {
-    console.log('Aucun événement pour cet organisateur');
+    console.log('Aucun évènement pour cet organisateur');
     return (
       <div className="p-6">
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-white mb-2">Candidatures reçues</h1>
-            <p className="text-gray-400">Gérez les candidatures pour vos événements</p>
+            <p className="text-gray-400">Gérez les candidatures pour vos évènements</p>
           </div>
           <Card className="p-12 text-center bg-gray-800/50 border-gray-700">
             <User className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucun événement</h3>
-            <p className="text-gray-500">Créez un événement pour recevoir des candidatures</p>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucun évènement</h3>
+            <p className="text-gray-500">Créez un évènement pour recevoir des candidatures</p>
           </Card>
         </div>
       </div>
@@ -183,7 +183,7 @@ export const ApplicationsPage = () => {
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-white mb-2">Candidatures reçues</h1>
-            <p className="text-gray-400">Gérez les candidatures pour vos événements</p>
+            <p className="text-gray-400">Gérez les candidatures pour vos évènements</p>
           </div>
           <Card className="p-12 text-center bg-gray-800/50 border-gray-700">
             <User className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -433,7 +433,7 @@ export const ApplicationsPage = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Candidatures reçues</h1>
-          <p className="text-gray-400">Gérez les candidatures pour vos événements</p>
+          <p className="text-gray-400">Gérez les candidatures pour vos évènements</p>
         </div>
 
         <Tabs defaultValue="all" className="w-full">

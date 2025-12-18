@@ -36,10 +36,10 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Valider l'ID de l'événement
+    // Valider l'ID de l'évènement
     if (!Types.ObjectId.isValid(eventId)) {
       res.status(400).json({
-        message: 'ID d\'événement invalide'
+        message: 'ID d\'évènement invalide'
       });
       return;
     }
@@ -47,11 +47,11 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
     const eventObjectId = new Types.ObjectId(eventId);
     const comedianObjectId = new Types.ObjectId(comedianId);
 
-    // Vérifier si l'événement existe
+    // Vérifier si l'évènement existe
     const event = await EventModel.findById(eventObjectId);
     if (!event) {
       res.status(404).json({
-        message: 'Événement non trouvé'
+        message: 'Évènement non trouvé'
       });
       return;
     }
@@ -64,18 +64,18 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     if (existingApplication) {
       res.status(409).json({
-        message: 'Vous avez déjà postulé pour cet événement'
+        message: 'Vous avez déjà postulé pour cet évènement'
       });
       return;
     }
 
-    // Vérifier si l'humoriste s'est retiré de cet événement
+    // Vérifier si l'humoriste s'est retiré de cet évènement
     const hasWithdrawn = event.withdrawnComedians &&
       event.withdrawnComedians.some(id => id.toString() === comedianObjectId.toString());
 
     if (hasWithdrawn) {
       res.status(409).json({
-        message: 'Vous ne pouvez pas postuler à nouveau après vous être retiré de cet événement'
+        message: 'Vous ne pouvez pas postuler à nouveau après vous être retiré de cet évènement'
       });
       return;
     }
@@ -91,10 +91,10 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     await application.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitApplicationCreated(application._id.toString(), eventId);
 
-    // Ajouter l'application à l'événement
+    // Ajouter l'application à l'évènement
     const eventDoc = event as EventDocument;
     eventDoc.applications.push(application._id as unknown as Types.ObjectId);
     await eventDoc.save();
@@ -147,10 +147,10 @@ export const getEventApplications = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Valider l'ID de l'événement
+    // Valider l'ID de l'évènement
     if (!Types.ObjectId.isValid(eventId)) {
       res.status(400).json({
-        message: 'ID d\'événement invalide'
+        message: 'ID d\'évènement invalide'
       });
       return;
     }
@@ -175,7 +175,7 @@ export const getEventApplications = async (req: AuthRequest, res: Response): Pro
 
     res.json({ applications });
   } catch (error) {
-    console.error('Erreur lors de la récupération des applications de l\'événement:', error);
+    console.error('Erreur lors de la récupération des applications de l\'évènement:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération des applications' });
   }
 };
@@ -191,7 +191,7 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
       return;
     }
 
-    // Vérifier si l'utilisateur est l'organisateur de l'événement
+    // Vérifier si l'utilisateur est l'organisateur de l'évènement
     const isOrganizer = (application.event as IPopulatedEvent).organizer._id.toString() === req.user?.id;
     if (!isOrganizer) {
       res.status(403).json({ message: 'Non autorisé à modifier cette candidature' });
@@ -213,10 +213,10 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
           p => p.toString() === comedianId.toString()
         );
 
-        // Si pas déjà participant et l'événement est complet, rejeter
+        // Si pas déjà participant et l'évènement est complet, rejeter
         if (!isAlreadyParticipant && currentParticipants >= maxPerformers) {
           res.status(409).json({
-            message: `L'événement est complet (${currentParticipants}/${maxPerformers} participants)`
+            message: `L'évènement est complet (${currentParticipants}/${maxPerformers} participants)`
           });
           return;
         }
@@ -237,13 +237,13 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
       { new: true }
     ).populate<{ event: IPopulatedEvent; comedian: IPopulatedUser }>('event').populate('comedian');
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     if (updatedApplication) {
       const eventId = (updatedApplication.event as any)?._id?.toString() || updatedApplication.event?.toString() || '';
       emitApplicationStatusChanged(applicationId, status, eventId);
     }
 
-    // Ajout du participant à l'événement si la candidature est acceptée
+    // Ajout du participant à l'évènement si la candidature est acceptée
     if (status === 'ACCEPTED' && updatedApplication && updatedApplication.event && updatedApplication.comedian) {
       // L'identifiant peut être dans _id ou directement l'objet
       const eventId = (updatedApplication.event as any)._id || updatedApplication.event;
@@ -279,7 +279,7 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
         // Logique pour applicationsAccepted
         if (status === 'ACCEPTED' && oldStatus !== 'ACCEPTED') {
           comedian.stats.applicationsAccepted = (comedian.stats.applicationsAccepted || 0) + 1;
-          // Note: totalEvents sera incrémenté lors de la complétion de l'événement via processCompletedEvents
+          // Note: totalEvents sera incrémenté lors de la complétion de l'évènement via processCompletedEvents
         } else if (status !== 'ACCEPTED' && oldStatus === 'ACCEPTED') {
           comedian.stats.applicationsAccepted = Math.max(0, (comedian.stats.applicationsAccepted || 0) - 1);
           // Note: totalEvents est uniquement géré par processCompletedEvents
@@ -313,7 +313,7 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
 
     // Envoi du mail à l'humoriste lors de l'acceptation ou du refus
     if (updatedApplication && updatedApplication.comedian && updatedApplication.event && (status === 'ACCEPTED' || status === 'REJECTED')) {
-      // Récupère l'id de l'événement de façon robuste
+      // Récupère l'id de l'évènement de façon robuste
       const eventId = (typeof updatedApplication.event === 'object' && updatedApplication.event !== null && '_id' in updatedApplication.event)
         ? (updatedApplication.event as any)._id
         : updatedApplication.event;
@@ -395,7 +395,7 @@ export const getComedianApplications = async (req: AuthRequest, res: Response): 
 };
 
 /**
- * Vérifie si une candidature existe déjà pour un comédien et un événement
+ * Vérifie si une candidature existe déjà pour un comédien et un évènement
  */
 export const checkApplicationExists = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -413,7 +413,7 @@ export const checkApplicationExists = async (req: AuthRequest, res: Response): P
 
 /**
  * Récupère toutes les candidatures visibles par l'utilisateur
- * Filtre selon le rôle: Super Admin voit tout, Comédien voit les siennes, Organisateur voit celles de ses événements
+ * Filtre selon le rôle: Super Admin voit tout, Comédien voit les siennes, Organisateur voit celles de ses évènements
  */
 export const getAllApplications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -447,7 +447,7 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
     const currentUser = await UserModel.findById(userId);
     const isSuperAdmin = currentUser && currentUser.role === 'SUPER_ADMIN';
 
-    // Filtrage JS : l'utilisateur est soit le comédien, soit l'organisateur de l'événement, soit un super admin
+    // Filtrage JS : l'utilisateur est soit le comédien, soit l'organisateur de l'évènement, soit un super admin
     let filteredApplications = applications.filter(app => {
       // Super admin peut voir toutes les candidatures
       if (isSuperAdmin) {
@@ -503,7 +503,7 @@ export const getApplicationById = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    // Vérifier si l'utilisateur est le candidat ou l'organisateur de l'événement
+    // Vérifier si l'utilisateur est le candidat ou l'organisateur de l'évènement
     const isComedian = (application.comedian as IPopulatedUser)._id.toString() === req.user?.id;
     const isOrganizer = (application.event as IPopulatedEvent).organizer._id.toString() === req.user?.id;
 
@@ -533,7 +533,7 @@ export const getApplicationById = async (req: AuthRequest, res: Response): Promi
 };
 
 /**
- * Confirme la participation d'un comédien à un événement
+ * Confirme la participation d'un comédien à un évènement
  */
 export const confirmParticipation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -566,7 +566,7 @@ export const confirmParticipation = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Mettre à jour l'événement
+    // Mettre à jour l'évènement
     const event = await EventModel.findByIdAndUpdate(
       application.event,
       { modifiedByOrganizer: false },
@@ -602,7 +602,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Vérifier si l'utilisateur est le candidat ou l'organisateur de l'événement
+    // Vérifier si l'utilisateur est le candidat ou l'organisateur de l'évènement
     const isComedian = (application.comedian as IPopulatedUser)._id.toString() === req.user?.id;
     const isOrganizer = (application.event as IPopulatedEvent).organizer._id.toString() === req.user?.id;
 
@@ -611,7 +611,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Si la candidature était ACCEPTED, retirer le comédien des participants de l'événement
+    // Si la candidature était ACCEPTED, retirer le comédien des participants de l'évènement
     // ET ajouter le comédien aux withdrawnComedians pour empêcher une nouvelle candidature
     try {
       if (application.event && application.comedian) {
@@ -629,7 +629,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
         });
       }
     } catch (e) {
-      console.error('Erreur lors du retrait du participant de l\'événement:', e);
+      console.error('Erreur lors du retrait du participant de l\'évènement:', e);
     }
 
     // 🎪 MISE À JOUR DES STATS: Décrémenter les compteurs selon le statut actuel
@@ -661,7 +661,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
     // Au lieu de supprimer, changer le statut à WITHDRAWN
     await ApplicationModel.findByIdAndUpdate(applicationId, { status: 'WITHDRAWN' });
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     const eventId = (application.event as any)?._id?.toString() || application.event?.toString() || '';
     emitApplicationWithdrawn(applicationId, eventId);
 
@@ -673,9 +673,9 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
 };
 
 /**
- * Expire toutes les candidatures en attente pour un événement terminé
- * Appelé par le cron job lors du marquage de l'événement comme completed
- * @param eventId - L'ID de l'événement
+ * Expire toutes les candidatures en attente pour un évènement terminé
+ * Appelé par le cron job lors du marquage de l'évènement comme completed
+ * @param eventId - L'ID de l'évènement
  * @returns Le nombre de candidatures expirées
  */
 export const expirePendingApplicationsForEvent = async (eventId: Types.ObjectId): Promise<number> => {
@@ -717,7 +717,7 @@ export const expirePendingApplicationsForEvent = async (eventId: Types.ObjectId)
 };
 
 /**
- * Gère la réponse d'un humoriste après mise à jour d'événement (via lien email avec token JWT)
+ * Gère la réponse d'un humoriste après mise à jour d'évènement (via lien email avec token JWT)
  */
 export const respondToEventUpdate = async (req: Request, res: Response): Promise<void> => {
   try {

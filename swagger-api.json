@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Standup Comedy Connect API",
-    "description": "API pour la plateforme de mise en relation entre humoristes et organisateurs d'événements de stand-up comedy",
+    "description": "API pour la plateforme de mise en relation entre humoristes et organisateurs d'évènements de stand-up comedy",
     "version": "1.0.0",
     "contact": {
       "name": "Support API",
@@ -235,8 +235,8 @@
     "/events": {
       "get": {
         "tags": ["Events"],
-        "summary": "Récupérer tous les événements",
-        "description": "Retourne la liste des événements selon le rôle de l'utilisateur",
+        "summary": "Récupérer tous les évènements",
+        "description": "Retourne la liste des évènements selon le rôle de l'utilisateur",
         "parameters": [
           {
             "name": "organizerId",
@@ -248,7 +248,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Liste des événements",
+            "description": "Liste des évènements",
             "content": {
               "application/json": {
                 "schema": {
@@ -306,8 +306,8 @@
       },
       "post": {
         "tags": ["Events"],
-        "summary": "Créer un nouvel événement",
-        "description": "Permet à un organisateur de créer un nouvel événement",
+        "summary": "Créer un nouvel évènement",
+        "description": "Permet à un organisateur de créer un nouvel évènement",
         "requestBody": {
           "required": true,
           "content": {
@@ -355,7 +355,7 @@
         },
         "responses": {
           "201": {
-            "description": "Événement créé avec succès"
+            "description": "Évènement créé avec succès"
           },
           "400": {
             "description": "Données invalides"
@@ -366,7 +366,7 @@
     "/events/{id}": {
       "get": {
         "tags": ["Events"],
-        "summary": "Récupérer un événement par ID",
+        "summary": "Récupérer un évènement par ID",
         "parameters": [
           {
             "name": "id",
@@ -377,16 +377,16 @@
         ],
         "responses": {
           "200": {
-            "description": "Détails de l'événement"
+            "description": "Détails de l'évènement"
           },
           "404": {
-            "description": "Événement non trouvé"
+            "description": "Évènement non trouvé"
           }
         }
       },
       "put": {
         "tags": ["Events"],
-        "summary": "Modifier un événement",
+        "summary": "Modifier un évènement",
         "parameters": [
           {
             "name": "id",
@@ -419,19 +419,19 @@
         },
         "responses": {
           "200": {
-            "description": "Événement modifié avec succès"
+            "description": "Évènement modifié avec succès"
           },
           "403": {
-            "description": "Non autorisé à modifier cet événement"
+            "description": "Non autorisé à modifier cet évènement"
           },
           "404": {
-            "description": "Événement non trouvé"
+            "description": "Évènement non trouvé"
           }
         }
       },
       "delete": {
         "tags": ["Events"],
-        "summary": "Supprimer un événement",
+        "summary": "Supprimer un évènement",
         "parameters": [
           {
             "name": "id",
@@ -442,13 +442,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Événement supprimé avec succès"
+            "description": "Évènement supprimé avec succès"
           },
           "403": {
-            "description": "Non autorisé à supprimer cet événement"
+            "description": "Non autorisé à supprimer cet évènement"
           },
           "404": {
-            "description": "Événement non trouvé"
+            "description": "Évènement non trouvé"
           }
         }
       }
@@ -506,7 +506,7 @@
       "post": {
         "tags": ["Applications"],
         "summary": "Créer une nouvelle candidature",
-        "description": "Permet à un humoriste de postuler à un événement",
+        "description": "Permet à un humoriste de postuler à un évènement",
         "requestBody": {
           "required": true,
           "content": {
@@ -515,7 +515,7 @@
                 "type": "object",
                 "required": ["event", "performanceDetails"],
                 "properties": {
-                  "event": {"type": "string", "description": "ID de l'événement"},
+                  "event": {"type": "string", "description": "ID de l'évènement"},
                   "performanceDetails": {
                     "type": "object",
                     "required": ["duration", "description"],
@@ -632,7 +632,7 @@
       "patch": {
         "tags": ["Applications"],
         "summary": "Confirmer la participation",
-        "description": "Permet à un humoriste de confirmer sa participation après modification d'événement",
+        "description": "Permet à un humoriste de confirmer sa participation après modification d'évènement",
         "parameters": [
           {
             "name": "applicationId",
@@ -740,7 +740,7 @@
     "/absences/event/{eventId}": {
       "get": {
         "tags": ["Absences"],
-        "summary": "Récupérer les absences d'un événement",
+        "summary": "Récupérer les absences d'un évènement",
         "parameters": [
           {
             "name": "eventId",

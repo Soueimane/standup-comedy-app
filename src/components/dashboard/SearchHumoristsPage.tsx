@@ -67,7 +67,7 @@ const SearchHumoristsPage: React.FC = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Rechercher des humoristes</h1>
-          <p className="text-gray-400">Trouvez les talents qui correspondent à vos événements.</p>
+          <p className="text-gray-400">Trouvez les talents qui correspondent à vos évènements.</p>
         </div>
 
         <div className="relative mb-6">

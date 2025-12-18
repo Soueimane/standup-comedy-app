@@ -75,7 +75,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
   const eventTypes = [
     { value: 'open-mic', label: 'Open Mic', emoji: '🎤' },
     { value: 'show', label: 'Spectacle', emoji: '🎭' },
-    { value: 'private', label: 'Événement privé', emoji: '🏢' },
+    { value: 'private', label: 'Évènement privé', emoji: '🏢' },
     { value: 'festival', label: 'Festival', emoji: '🎪' }
   ];
 
@@ -101,7 +101,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <h2 className="text-2xl font-bold text-white">Créer un événement</h2>
+              <h2 className="text-2xl font-bold text-white">Créer un évènement</h2>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -115,7 +115,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
               {/* Event Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Type d'événement
+                  Type d'évènement
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {eventTypes.map((type) => (
@@ -140,7 +140,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Titre de l'événement
+                    Titre de l'évènement
                   </label>
                   <Input
                     value={formData.title}
@@ -158,7 +158,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Décrivez votre événement..."
+                    placeholder="Décrivez votre évènement..."
                     rows={3}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
@@ -312,7 +312,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose }) 
                   type="submit"
                   className="flex-1 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
                 >
-                  Créer l'événement
+                  Créer l'évènement
                 </Button>
               </div>
             </form>

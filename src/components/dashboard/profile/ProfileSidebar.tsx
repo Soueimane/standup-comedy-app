@@ -120,7 +120,7 @@ const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
         <div className="space-y-3">
           <div className="flex justify-between">
             <span className="text-gray-400">
-              {isHumoriste ? 'Spectacles' : 'Événements créés'}
+              {isHumoriste ? 'Spectacles' : 'Évènements créés'}
             </span>
             <span className="text-white font-semibold">{isHumoriste ? user.stats?.totalEvents || 0 : organizerStats?.totalEvents || 0}</span>
           </div>

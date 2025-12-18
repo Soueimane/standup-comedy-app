@@ -6,7 +6,7 @@ import { Types } from 'mongoose';
 import { emitEventFavoriteAdded, emitEventFavoriteRemoved } from '../services/eventEmitter';
 
 /**
- * Ajoute un événement aux favoris du comédien
+ * Ajoute un évènement aux favoris du comédien
  */
 export const addEventFavorite = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -20,10 +20,10 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Valider l'ID de l'événement
+    // Valider l'ID de l'évènement
     if (!eventId || !Types.ObjectId.isValid(eventId)) {
       res.status(400).json({
-        message: 'ID d\'événement invalide'
+        message: 'ID d\'évènement invalide'
       });
       return;
     }
@@ -35,52 +35,52 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
     const comedian = await UserModel.findById(comedianObjectId);
     if (!comedian || comedian.role !== 'COMEDIAN') {
       res.status(403).json({
-        message: 'Seuls les comédiens peuvent ajouter des événements aux favoris'
+        message: 'Seuls les comédiens peuvent ajouter des évènements aux favoris'
       });
       return;
     }
 
-    // Vérifier que l'événement existe
+    // Vérifier que l'évènement existe
     const event = await EventModel.findById(eventObjectId);
     if (!event) {
       res.status(404).json({
-        message: 'Événement non trouvé'
+        message: 'Évènement non trouvé'
       });
       return;
     }
 
-    // Empêcher un comédien d'ajouter ses propres événements (si jamais il est aussi organizer)
+    // Empêcher un comédien d'ajouter ses propres évènements (si jamais il est aussi organizer)
     if (event.organizer.toString() === comedianObjectId.toString()) {
       res.status(400).json({
-        message: 'Vous ne pouvez pas ajouter vos propres événements aux favoris'
+        message: 'Vous ne pouvez pas ajouter vos propres évènements aux favoris'
       });
       return;
     }
 
-    // Vérifier si l'événement est déjà dans les favoris
+    // Vérifier si l'évènement est déjà dans les favoris
     const alreadyFavorite = comedian.favoriteEvents?.some(
       id => id.toString() === eventObjectId.toString()
     );
 
     if (alreadyFavorite) {
       res.status(409).json({
-        message: 'Cet événement est déjà dans vos favoris'
+        message: 'Cet évènement est déjà dans vos favoris'
       });
       return;
     }
 
-    // Ajouter l'événement aux favoris
+    // Ajouter l'évènement aux favoris
     if (!comedian.favoriteEvents) {
       comedian.favoriteEvents = [];
     }
     comedian.favoriteEvents.push(eventObjectId);
     await comedian.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitEventFavoriteAdded(comedianId, eventId);
 
     res.status(201).json({
-      message: 'Événement ajouté aux favoris avec succès',
+      message: 'Évènement ajouté aux favoris avec succès',
       favoriteEvents: comedian.favoriteEvents
     });
   } catch (error) {
@@ -90,7 +90,7 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
 };
 
 /**
- * Retire un événement des favoris du comédien
+ * Retire un évènement des favoris du comédien
  */
 export const removeEventFavorite = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -104,10 +104,10 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Valider l'ID de l'événement
+    // Valider l'ID de l'évènement
     if (!Types.ObjectId.isValid(eventId)) {
       res.status(400).json({
-        message: 'ID d\'événement invalide'
+        message: 'ID d\'évènement invalide'
       });
       return;
     }
@@ -124,27 +124,27 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Vérifier si l'événement est dans les favoris
+    // Vérifier si l'évènement est dans les favoris
     const favoriteIndex = comedian.favoriteEvents?.findIndex(
       id => id.toString() === eventObjectId.toString()
     );
 
     if (favoriteIndex === undefined || favoriteIndex === -1) {
       res.status(404).json({
-        message: 'Cet événement n\'est pas dans vos favoris'
+        message: 'Cet évènement n\'est pas dans vos favoris'
       });
       return;
     }
 
-    // Retirer l'événement des favoris
+    // Retirer l'évènement des favoris
     comedian.favoriteEvents?.splice(favoriteIndex, 1);
     await comedian.save();
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitEventFavoriteRemoved(comedianId, eventId);
 
     res.json({
-      message: 'Événement retiré des favoris avec succès',
+      message: 'Évènement retiré des favoris avec succès',
       favoriteEvents: comedian.favoriteEvents
     });
   } catch (error) {
@@ -154,7 +154,7 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
 };
 
 /**
- * Récupère la liste des événements favoris du comédien
+ * Récupère la liste des évènements favoris du comédien
  */
 export const getEventFavorites = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -185,7 +185,7 @@ export const getEventFavorites = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    // Filtrer les favoris pour supprimer les références null (événements supprimés)
+    // Filtrer les favoris pour supprimer les références null (évènements supprimés)
     const transformedFavorites = (comedian.favoriteEvents || [])
       .filter((event: any) => event !== null)
       .map((event: any) => {
@@ -203,7 +203,7 @@ export const getEventFavorites = async (req: AuthRequest, res: Response): Promis
 };
 
 /**
- * Vérifie si un événement est dans les favoris du comédien
+ * Vérifie si un évènement est dans les favoris du comédien
  */
 export const checkIsEventFavorite = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -217,10 +217,10 @@ export const checkIsEventFavorite = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Valider l'ID de l'événement
+    // Valider l'ID de l'évènement
     if (!Types.ObjectId.isValid(eventId)) {
       res.status(400).json({
-        message: 'ID d\'événement invalide'
+        message: 'ID d\'évènement invalide'
       });
       return;
     }
@@ -237,7 +237,7 @@ export const checkIsEventFavorite = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Vérifier si l'événement est dans les favoris
+    // Vérifier si l'évènement est dans les favoris
     const isFavorite = comedian.favoriteEvents?.some(
       id => id.toString() === eventObjectId.toString()
     ) || false;

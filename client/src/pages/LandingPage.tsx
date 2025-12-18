@@ -142,7 +142,7 @@ function LandingPage() {
       
       <h1 style={titleStyle}>Connect Comedy Club</h1>
       <p style={subtitleStyle}>
-        La plateforme qui connecte les humoristes et les organisateurs d'événements.
+        La plateforme qui connecte les humoristes et les organisateurs d'évènements.
       </p>
 
       <div style={buttonContainerStyle}>

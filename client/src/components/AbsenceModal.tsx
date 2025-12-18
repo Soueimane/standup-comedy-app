@@ -124,7 +124,7 @@ function AbsenceModal({
             <span style={valueStyle}>{comedianName}</span>
           </div>
           <div>
-            <span style={labelStyle}>Événement:</span>
+            <span style={labelStyle}>Évènement:</span>
             <span style={valueStyle}>{eventTitle}</span>
           </div>
         </div>

@@ -37,7 +37,7 @@ const EventsNearMe: React.FC = () => {
     const names = {
       'open-mic': 'Open Mic',
       'show': 'Spectacle',
-      'private': 'Événement privé',
+      'private': 'Évènement privé',
       'festival': 'Festival'
     };
     return names[type as keyof typeof names] || type;
@@ -50,7 +50,7 @@ const EventsNearMe: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold text-white">Opportunités près de toi</h2>
           <p className="text-gray-400">
-            {availableEvents.length} événement{availableEvents.length !== 1 ? 's' : ''} disponible{availableEvents.length !== 1 ? 's' : ''} dans ta zone
+            {availableEvents.length} évènement{availableEvents.length !== 1 ? 's' : ''} disponible{availableEvents.length !== 1 ? 's' : ''} dans ta zone
           </p>
         </div>
       </div>
@@ -60,10 +60,10 @@ const EventsNearMe: React.FC = () => {
         <Card className="p-12 bg-gray-800/50 border-gray-700 text-center">
           <MapPin className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-300 mb-2">
-            Aucun événement disponible
+            Aucun évènement disponible
           </h3>
           <p className="text-gray-500">
-            Nouveaux événements bientôt disponibles dans ta zone.
+            Nouveaux évènements bientôt disponibles dans ta zone.
             <br />
             Nous t'enverrons une notification dès qu'il y en aura !
           </p>

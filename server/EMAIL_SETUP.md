@@ -1,7 +1,7 @@
 # Configuration Email
 
 ## Problème identifié
-Les emails ne sont pas envoyés aux humoristes lors de la création d'événements car les variables d'environnement email ne sont pas configurées.
+Les emails ne sont pas envoyés aux humoristes lors de la création d'évènements car les variables d'environnement email ne sont pas configurées.
 
 ## Variables d'environnement requises
 
@@ -27,7 +27,7 @@ SMTP_PASS=your-app-password-here
 ## Test de la configuration
 
 Une fois configuré, redéployez le serveur. Les emails devraient être envoyés automatiquement lors de :
-- Création d'événements (notification aux humoristes)
+- Création d'évènements (notification aux humoristes)
 - Candidatures (notification aux organisateurs)
 - Changements de statut (notification aux humoristes)
 

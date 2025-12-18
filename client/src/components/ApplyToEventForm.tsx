@@ -77,7 +77,7 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
     }
 
     if (hasApplied) {
-      alert('Vous avez déjà postulé à cet événement !');
+      alert('Vous avez déjà postulé à cet évènement !');
       return;
     }
 
@@ -219,10 +219,10 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
           
           <div style={{ marginBottom: '24px' }}>
             <p style={{ color: '#ccc', marginBottom: '8px' }}>
-              Vous avez déjà postulé à l'événement: <strong style={{ color: '#ff4b2b' }}>{event.title}</strong>
+              Vous avez déjà postulé à l'évènement: <strong style={{ color: '#ff4b2b' }}>{event.title}</strong>
             </p>
             <p style={{ color: '#aaa', fontSize: '0.875em' }}>
-              Vous ne pouvez postuler qu'une seule fois par événement.
+              Vous ne pouvez postuler qu'une seule fois par évènement.
             </p>
           </div>
 
@@ -243,7 +243,7 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
     <div style={formContainerStyle}>
       <div style={formContentStyle}>
         <div style={headerStyle}>
-          <h3 style={titleStyle}>Postuler à l'événement: {event.title}</h3>
+          <h3 style={titleStyle}>Postuler à l'évènement: {event.title}</h3>
           <button
             onClick={onClose}
             style={closeButtonStyle}
@@ -262,7 +262,7 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
               style={textareaStyle}
-              placeholder="Présentez-vous brièvement et expliquez pourquoi vous souhaitez participer à cet événement..."
+              placeholder="Présentez-vous brièvement et expliquez pourquoi vous souhaitez participer à cet évènement..."
             />
           </div>
 

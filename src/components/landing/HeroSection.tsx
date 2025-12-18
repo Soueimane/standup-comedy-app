@@ -91,7 +91,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onHumoristeClick, onOrganisat
               className="group px-8 py-4 bg-black/50 backdrop-blur-sm text-white font-bold text-lg rounded-full border-2 border-white/30 hover:bg-white hover:text-black transition-all duration-300 flex items-center space-x-3 min-w-[280px]"
             >
               <span className="text-2xl">🎪</span>
-              <span>J'ORGANISE DES ÉVÉNEMENTS</span>
+              <span>J'ORGANISE DES ÉVÈNEMENTS</span>
               <motion.div
                 animate={{ x: [0, 5, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}

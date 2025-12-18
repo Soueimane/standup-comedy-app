@@ -309,7 +309,7 @@ function generateSuccessPage(email: string): string {
         <p>Vous avez été désabonné de tous les emails de <strong>Comedy Connect Club</strong>.</p>
         <p class="email">${email}</p>
         <div class="info">
-            <p><strong>Note:</strong> Vous ne recevrez plus aucun email de notre plateforme, y compris les notifications d'événements, candidatures et mises à jour.</p>
+            <p><strong>Note:</strong> Vous ne recevrez plus aucun email de notre plateforme, y compris les notifications d'évènements, candidatures et mises à jour.</p>
             <p>Pour vous réabonner, connectez-vous à votre compte et mettez à jour vos préférences email.</p>
         </div>
     </div>

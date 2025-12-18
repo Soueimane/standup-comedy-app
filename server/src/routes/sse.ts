@@ -7,7 +7,7 @@ import { config } from '../config/env';
 const router = Router();
 
 /**
- * Endpoint SSE pour établir une connexion de streaming d'événements
+ * Endpoint SSE pour établir une connexion de streaming d'évènements
  * GET /api/sse/stream?token=xxx
  */
 router.get('/stream', async (req: Request, res: Response) => {
@@ -78,7 +78,7 @@ router.get('/stream', async (req: Request, res: Response) => {
     });
 
     // La connexion reste ouverte jusqu'à ce que le client se déconnecte
-    // Le SSEManager gère les événements et heartbeats
+    // Le SSEManager gère les évènements et heartbeats
   } catch (error) {
     console.error('❌ Erreur lors de l\'établissement de la connexion SSE:', error);
     res.status(500).json({

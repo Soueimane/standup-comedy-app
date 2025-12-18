@@ -52,9 +52,9 @@ L'email dans `SMTP_USER` doit être :
 
 ## 📋 Test des emails
 
-### Test 1 : Création d'événement
+### Test 1 : Création d'évènement
 1. Connectez-vous en tant qu'organisateur
-2. Créez un événement
+2. Créez un évènement
 3. Vérifiez les logs Render pour voir :
    - `📬 Service Email: Début de la fonction d'envoi...`
    - `🎭 X humoristes trouvés dans la base`
@@ -63,7 +63,7 @@ L'email dans `SMTP_USER` doit être :
 
 ### Test 2 : Candidature humoriste
 1. Connectez-vous en tant qu'humoriste
-2. Postulez à un événement
+2. Postulez à un évènement
 3. Vérifiez les logs Render pour voir :
    - `📬 Service Email: Notification candidature à l'organisateur...`
    - `📧 Envoi email à l'organisateur:`
@@ -100,7 +100,7 @@ L'email dans `SMTP_USER` doit être :
 - [ ] Email vérifié sur SendGrid Dashboard
 - [ ] Clé API SendGrid active
 - [ ] Logs Render montrent les tentatives d'envoi
-- [ ] Au moins un humoriste dans la base de données (pour test événement)
+- [ ] Au moins un humoriste dans la base de données (pour test évènement)
 - [ ] Au moins un organisateur dans la base de données (pour test candidature)
 
 ## 🚀 Après mise à jour
@@ -108,7 +108,7 @@ L'email dans `SMTP_USER` doit être :
 1. Pousser les modifications sur GitHub
 2. Render détectera automatiquement les changements
 3. Attendre le déploiement
-4. Tester la création d'événement
+4. Tester la création d'évènement
 5. Vérifier les logs Render pour confirmer l'envoi
 
 

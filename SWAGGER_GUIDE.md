@@ -44,15 +44,15 @@ npm install swagger-ui-express swagger-jsdoc
 - `GET /auth/users` - Répertoire des utilisateurs
 
 ### 🎪 **Events**
-- `GET /events` - Liste des événements
-- `POST /events` - Créer un événement
-- `GET /events/{id}` - Détails d'un événement
-- `PUT /events/{id}` - Modifier un événement
-- `DELETE /events/{id}` - Supprimer un événement
+- `GET /events` - Liste des évènements
+- `POST /events` - Créer un évènement
+- `GET /events/{id}` - Détails d'un évènement
+- `PUT /events/{id}` - Modifier un évènement
+- `DELETE /events/{id}` - Supprimer un évènement
 
 ### 📝 **Applications**
 - `GET /applications` - Liste des candidatures
-- `POST /applications` - Postuler à un événement
+- `POST /applications` - Postuler à un évènement
 - `GET /applications/{id}` - Détails d'une candidature
 - `PUT /applications/{id}` - Modifier le statut
 - `DELETE /applications/{id}` - Supprimer une candidature
@@ -64,7 +64,7 @@ npm install swagger-ui-express swagger-jsdoc
 
 ### ❌ **Absences**
 - `POST /absences` - Marquer une absence
-- `GET /absences/event/{eventId}` - Absences d'un événement
+- `GET /absences/event/{eventId}` - Absences d'un évènement
 
 ### 💚 **Health**
 - `GET /health` - État du serveur

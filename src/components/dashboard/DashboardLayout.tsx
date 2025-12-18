@@ -72,7 +72,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       items.push({
         to: "/dashboard/events",
         end: false,
-        label: "Mes Événements",
+        label: "Mes Évènements",
         icon: Calendar,
         show: true
       });

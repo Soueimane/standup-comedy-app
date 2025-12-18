@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 const StatsSection: React.FC = () => {
   const stats = [
     { number: "2.5K+", label: "Humoristes actifs", icon: "🎤" },
-    { number: "850+", label: "Événements organisés", icon: "🎪" },
+    { number: "850+", label: "Évènements organisés", icon: "🎪" },
     { number: "96%", label: "Taux de satisfaction", icon: "⭐" },
     { number: "€45K", label: "Revenus générés/mois", icon: "💰" }
   ];
@@ -85,7 +85,7 @@ const StatsSection: React.FC = () => {
           </div>
           <div className="p-6 bg-gray-800/50 rounded-2xl backdrop-blur-sm">
             <div className="text-2xl font-bold text-yellow-400 mb-2">Note moyenne</div>
-            <div className="text-lg text-gray-300">des événements : 4.8/5</div>
+            <div className="text-lg text-gray-300">des évènements : 4.8/5</div>
           </div>
         </motion.div>
       </div>

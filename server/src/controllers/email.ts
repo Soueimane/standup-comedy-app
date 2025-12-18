@@ -67,9 +67,9 @@ export const testEmailSend = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Créer un événement de test
+    // Créer un évènement de test
     const testEvent = {
-      title: 'Test Email - Événement de test',
+      title: 'Test Email - Évènement de test',
       description: 'Ceci est un email de test pour vérifier la configuration',
       date: new Date(),
       location: { address: 'Adresse test', city: 'Ville test' },
@@ -101,7 +101,7 @@ export const testEmailSend = async (req: Request, res: Response): Promise<void> 
 };
 
 /**
- * Traite les rappels d'événements (J-3, J-1, -2h) - Cron job
+ * Traite les rappels d'évènements (J-3, J-1, -2h) - Cron job
  */
 export const sendRemindersCron = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -175,7 +175,7 @@ export const sendRemindersCron = async (req: Request, res: Response): Promise<vo
 /**
  * Traite les relances automatiques aux organisateurs - Cron job
  *
- * Envoie des rappels aux organisateurs dont les événements n'ont pas atteint
+ * Envoie des rappels aux organisateurs dont les évènements n'ont pas atteint
  * leur quota d'humoristes ou qui ont des candidatures en attente.
  *
  * Délais: J-10, J-7, J-5, J-3, J-2, J-1
@@ -203,7 +203,7 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
       j1: 1 * 24 * 60 * 60 * 1000     // 1 jour
     };
 
-    // Récupérer tous les événements publiés avec date future
+    // Récupérer tous les évènements publiés avec date future
     const events = await EventModel.find({
       status: 'published',
       date: { $gt: now }
@@ -211,19 +211,19 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
       .populate('organizer')
       .populate('applications');
 
-    console.log(`📊 ${events.length} événements publiés trouvés`);
+    console.log(`📊 ${events.length} évènements publiés trouvés`);
 
     let sentCount = 0;
     const processedEvents: string[] = [];
 
-    // Traiter chaque événement
+    // Traiter chaque évènement
     for (const event of events as any[]) {
       try {
         const organizer = event.organizer;
 
         // Vérifier que l'organisateur existe
         if (!organizer || !organizer.email) {
-          console.log(`⚠️ Événement ${event._id}: organisateur manquant ou sans email`);
+          console.log(`⚠️ Évènement ${event._id}: organisateur manquant ou sans email`);
           continue;
         }
 
@@ -248,7 +248,7 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
         const shouldRemind = currentCount < targetCount || pendingCount > 0;
 
         if (!shouldRemind) {
-          continue;  // Événement complet et aucune candidature en attente
+          continue;  // Évènement complet et aucune candidature en attente
         }
 
         // Calculer la différence en JOURS seulement (ignorer les heures)
@@ -378,12 +378,12 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
           await event.save();
           sentCount++;
           processedEvents.push(event.title);
-          console.log(`✅ Relance envoyée pour l'événement "${event.title}"`);
+          console.log(`✅ Relance envoyée pour l'évènement "${event.title}"`);
         }
 
       } catch (eventError) {
-        // Ne pas bloquer le traitement des autres événements en cas d'erreur
-        console.error(`❌ Erreur lors du traitement de l'événement ${event._id}:`, eventError);
+        // Ne pas bloquer le traitement des autres évènements en cas d'erreur
+        console.error(`❌ Erreur lors du traitement de l'évènement ${event._id}:`, eventError);
       }
     }
 
@@ -395,7 +395,7 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
       timestamp: new Date().toISOString()
     };
 
-    console.log(`📊 Résumé: ${sentCount} relances envoyées sur ${events.length} événements`);
+    console.log(`📊 Résumé: ${sentCount} relances envoyées sur ${events.length} évènements`);
     res.json(response);
 
   } catch (error) {

@@ -1,7 +1,7 @@
 # Architecture du Projet Standup Comedy Connect
 
 ## 1. Vue d'ensemble
-Standup Comedy Connect est une plateforme qui connecte les comédiens de stand-up avec les organisateurs d'événements. Le projet est divisé en deux parties principales : le frontend (React + Vite) et le backend (Node.js + Express + MongoDB).
+Standup Comedy Connect est une plateforme qui connecte les comédiens de stand-up avec les organisateurs d'évènements. Le projet est divisé en deux parties principales : le frontend (React + Vite) et le backend (Node.js + Express + MongoDB).
 
 ## 2. Structure du Backend
 
@@ -125,16 +125,16 @@ interface Application {
 - `GET /api/users/performances` - Obtenir les performances
 
 #### Events
-- `GET /api/events` - Lister les événements
-- `POST /api/events` - Créer un événement
-- `GET /api/events/:id` - Obtenir un événement
-- `PUT /api/events/:id` - Mettre à jour un événement
-- `DELETE /api/events/:id` - Supprimer un événement
-- `GET /api/events/organizer` - Événements de l'organisateur
+- `GET /api/events` - Lister les évènements
+- `POST /api/events` - Créer un évènement
+- `GET /api/events/:id` - Obtenir un évènement
+- `PUT /api/events/:id` - Mettre à jour un évènement
+- `DELETE /api/events/:id` - Supprimer un évènement
+- `GET /api/events/organizer` - Évènements de l'organisateur
 
 #### Applications
 - `POST /api/applications` - Soumettre une candidature
-- `GET /api/applications/event/:eventId` - Candidatures d'un événement
+- `GET /api/applications/event/:eventId` - Candidatures d'un évènement
 - `PUT /api/applications/:id/status` - Mettre à jour le statut
 - `GET /api/applications/comedian` - Candidatures du comédien
 
@@ -175,8 +175,8 @@ src/
 - Page d'accueil
 - Page de connexion/inscription
 - Profil utilisateur
-- Liste des événements
-- Détails d'un événement
+- Liste des évènements
+- Détails d'un évènement
 - Gestion des candidatures
 - Dashboard organisateur
 - Dashboard comédien
@@ -184,7 +184,7 @@ src/
 ### 3.3 Fonctionnalités Frontend
 - Authentification
 - Gestion des profils
-- Recherche et filtrage d'événements
+- Recherche et filtrage d'évènements
 - Soumission de candidatures
 - Gestion des performances
 - Notifications en temps réel

@@ -29,7 +29,7 @@ const Dashboard = () => {
     queryFn: async () => {
       const token = localStorage.getItem("token");
       if (!token) {
-        throw new Error("Vous devez être connecté pour voir les statistiques d'événements.");
+        throw new Error("Vous devez être connecté pour voir les statistiques d'évènements.");
       }
       const response = await api.get('/events/stats');
       console.log('📊 Statistiques reçues du serveur:', response.data);
@@ -53,7 +53,7 @@ const Dashboard = () => {
 
   const passwordResetCount = passwordResetData?.count || 0;
 
-  // Fonction pour traiter les événements terminés (Super Admin uniquement)
+  // Fonction pour traiter les évènements terminés (Super Admin uniquement)
   const handleProcessCompletedEvents = async () => {
     if (!user || (user as any)?.role !== 'SUPER_ADMIN') {
       alert('Accès refusé. Seuls les super-admins peuvent effectuer cette action.');
@@ -70,7 +70,7 @@ const Dashboard = () => {
       const response = await api.post('/events/process-completed-events', {});
 
       const result = response.data;
-      alert(`✅ Traitement terminé !\n${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} événements traités.`);
+      alert(`✅ Traitement terminé !\n${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} évènements traités.`);
 
       // Recharger les statistiques après traitement
       await refetchStats();
@@ -273,22 +273,22 @@ const Dashboard = () => {
         <div style={cardsGridStyle}>
           {isSuperAdmin ? (
             <>
-              {renderCard('Événements complets', eventStats?.fullEvents || 0, '✅', {
+              {renderCard('Évènements complets', eventStats?.fullEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=full')
               })}
-              {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
+              {renderCard('Prochains évènements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=upcoming')
               })}
-              {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
+              {renderCard('Évènements annulés', eventStats?.cancelledEvents || 0, '🛑', {
                 style: glowingCardOrangeStyle,
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=cancelled')
               })}
-              {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+              {renderCard('Évènements créés', eventStats?.totalEvents || 0, '🎪', {
                 variant: 'superAdmin',
                 onClick: () => navigate('/events')
               })}
@@ -306,7 +306,7 @@ const Dashboard = () => {
             </>
           ) : (
             <>
-              {renderCard('Événements complets', eventStats?.fullEvents || 0, '✅', {
+              {renderCard('Évènements complets', eventStats?.fullEvents || 0, '✅', {
                 style: glowingCardGreenStyle,
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=full')
@@ -316,7 +316,7 @@ const Dashboard = () => {
                 variant: 'superAdmin',
                 onClick: () => navigate('/applications?status=PENDING')
               })}
-              {renderCard('Prochains événements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
+              {renderCard('Prochains évènements (non complets)', eventStats?.upcomingIncompleteEvents || 0, '✨', {
                 style: glowingCardRedStyle,
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=upcoming')
@@ -339,11 +339,11 @@ const Dashboard = () => {
                 </div>
                 <span style={superAdminCardIconStyle}>👥</span>
               </div>
-              {renderCard('Événements créés', eventStats?.totalEvents || 0, '🎪', {
+              {renderCard('Évènements créés', eventStats?.totalEvents || 0, '🎪', {
                 variant: 'superAdmin',
                 onClick: () => navigate('/events')
               })}
-              {renderCard('Événements annulés', eventStats?.cancelledEvents || 0, '🛑', {
+              {renderCard('Évènements annulés', eventStats?.cancelledEvents || 0, '🛑', {
                 variant: 'superAdmin',
                 onClick: () => navigate('/events?tab=cancelled')
               })}
@@ -388,7 +388,7 @@ const Dashboard = () => {
                     marginBottom: '20px',
                     lineHeight: 1.4
                   }}>
-                    Mettre à jour les participations pour les événements terminés
+                    Mettre à jour les participations pour les évènements terminés
                   </p>
                 </div>
                 <button
@@ -417,7 +417,7 @@ const Dashboard = () => {
                   }}>
                     🔄
                   </span>
-                  {isProcessing ? 'Traitement...' : 'Traiter les événements'}
+                  {isProcessing ? 'Traitement...' : 'Traiter les évènements'}
                 </button>
               </div>
             </div>

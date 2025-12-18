@@ -26,14 +26,14 @@ const OrganisateurDashboard: React.FC = () => {
 
   const tabs = [
     { id: 'overview', label: 'Vue d\'ensemble', icon: TrendingUp, fullLabel: 'Vue d\'ensemble' },
-    { id: 'events', label: 'Événements', icon: Calendar, fullLabel: 'Mes Événements' },
+    { id: 'events', label: 'Évènements', icon: Calendar, fullLabel: 'Mes Évènements' },
     { id: 'applications', label: 'Candidatures', icon: Users, fullLabel: 'Candidatures' },
     { id: 'search', label: 'Rechercher', icon: Users, fullLabel: 'Rechercher Humoristes' },
     { id: 'messages', label: 'Messages', icon: MessageSquare, fullLabel: 'Messages' },
     { id: 'stats', label: 'Statistiques', icon: BarChart3, fullLabel: 'Statistiques' }
   ];
 
-  // Fonction pour traiter les événements terminés
+  // Fonction pour traiter les évènements terminés
   const handleProcessCompletedEvents = async () => {
     if (!user || user.userType !== 'admin') {
       toast.error('Accès refusé');
@@ -60,7 +60,7 @@ const OrganisateurDashboard: React.FC = () => {
 
       const result = response.data;
       toast.success(
-        `✅ Traitement terminé ! ${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} événements traités.`
+        `✅ Traitement terminé ! ${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} évènements traités.`
       );
     } catch (error: any) {
       console.error('Erreur lors du traitement:', error);
@@ -89,15 +89,15 @@ const OrganisateurDashboard: React.FC = () => {
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">Mes Événements</h2>
+              <h2 className="text-xl font-bold text-white">Mes Évènements</h2>
               <Button className="bg-pink-500 hover:bg-pink-600">
                 <Plus className="w-4 h-4 mr-2" />
-                Créer un événement
+                Créer un évènement
               </Button>
             </div>
-            {/* Contenu des événements */}
+            {/* Contenu des évènements */}
             <Card className="p-6 bg-gray-800/50 border-gray-700">
-              <p className="text-gray-400">Liste des événements à implémenter ici</p>
+              <p className="text-gray-400">Liste des évènements à implémenter ici</p>
             </Card>
           </div>
         );
@@ -127,7 +127,7 @@ const OrganisateurDashboard: React.FC = () => {
               <Card className="p-3 md:p-4 bg-gray-800/50 border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs md:text-sm text-gray-400">Événements</p>
+                    <p className="text-xs md:text-sm text-gray-400">Évènements</p>
                     <p className="text-lg md:text-2xl font-bold text-white">{totalEvents}</p>
                   </div>
                   <Calendar className="w-6 h-6 md:w-8 md:h-8 text-blue-500" />
@@ -170,7 +170,7 @@ const OrganisateurDashboard: React.FC = () => {
               <Card className="p-4 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500/30">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-white font-semibold mb-1">Créer un événement</h3>
+                    <h3 className="text-white font-semibold mb-1">Créer un évènement</h3>
                     <p className="text-gray-400 text-sm">Organise ta prochaine soirée</p>
                   </div>
                   <Button 
@@ -222,14 +222,14 @@ const OrganisateurDashboard: React.FC = () => {
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">Traiter les événements</span>
+                        <span className="hidden sm:inline">Traiter les évènements</span>
                         <span className="sm:hidden">Traiter</span>
                       </>
                     )}
                   </Button>
                 </div>
                 <p className="text-xs text-gray-400">
-                  Incrémente automatiquement les participations pour les événements terminés
+                  Incrémente automatiquement les participations pour les évènements terminés
                 </p>
               </Card>
             )}
@@ -265,7 +265,7 @@ const OrganisateurDashboard: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <div>
-                      <p className="text-white text-sm">Événement confirmé</p>
+                      <p className="text-white text-sm">Évènement confirmé</p>
                       <p className="text-gray-400 text-xs">Soirée du Rire - 20 Dec</p>
                     </div>
                   </div>
@@ -295,7 +295,7 @@ const OrganisateurDashboard: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{dashboardTitle}</h1>
         <p className="text-gray-400 text-sm md:text-base">
-          {isSuperAdmin ? 'Contrôle total de la plateforme' : 'Gère tes événements et trouve des talents'}
+          {isSuperAdmin ? 'Contrôle total de la plateforme' : 'Gère tes évènements et trouve des talents'}
         </p>
       </div>
 

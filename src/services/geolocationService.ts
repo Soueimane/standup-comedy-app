@@ -18,7 +18,7 @@ const toRad = (degrees: number): number => {
   return degrees * (Math.PI / 180);
 };
 
-// Fonction pour vérifier si un événement est dans la zone de mobilité d'un humoriste
+// Fonction pour vérifier si un évènement est dans la zone de mobilité d'un humoriste
 export const isEventInMobilityZone = (
   humoristLocation: Location,
   eventLocation: Location,

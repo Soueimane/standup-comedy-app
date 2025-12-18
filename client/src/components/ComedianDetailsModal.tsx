@@ -480,7 +480,7 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
                )}
              </div>
             
-            {/* Section Événements */}
+            {/* Section Évènements */}
             <div style={{ 
               backgroundColor: 'rgba(255, 255, 255, 0.05)', 
               padding: '15px', 
@@ -488,13 +488,13 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
               marginBottom: '15px',
               border: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
-              <h4 style={{ color: '#ff416c', marginBottom: '10px', fontSize: '1.1em' }}>🎭 Événements</h4>
+              <h4 style={{ color: '#ff416c', marginBottom: '10px', fontSize: '1.1em' }}>🎭 Évènements</h4>
               
               {((freshComedianStats?.totalEvents !== undefined) || (comedian.stats.totalEvents !== undefined)) && (
                 <div style={infoRowStyle}>
                   <span style={infoLabelStyle}>🎪 Participations:</span>
                   <span style={{ ...infoValueStyle, color: '#28a745', fontWeight: 'bold' }}>
-                    {(freshComedianStats?.totalEvents || comedian.stats.totalEvents || 0)} événement{(freshComedianStats?.totalEvents || comedian.stats.totalEvents || 0) > 1 ? 's' : ''}
+                    {(freshComedianStats?.totalEvents || comedian.stats.totalEvents || 0)} évènement{(freshComedianStats?.totalEvents || comedian.stats.totalEvents || 0) > 1 ? 's' : ''}
                   </span>
                 </div>
               )}
@@ -502,7 +502,7 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
               <div style={infoRowStyle}>
                 <span style={infoLabelStyle}>🚫 Absences:</span>
                 <span style={{ ...infoValueStyle, color: '#dc3545', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {comedian.stats?.absences || 0} événement{(comedian.stats?.absences || 0) > 1 ? 's' : ''}
+                  {comedian.stats?.absences || 0} évènement{(comedian.stats?.absences || 0) > 1 ? 's' : ''}
                   {absences.length > 0 && absences[0].reason && (
                     <span
                       title={`Dernière raison d'absence : ${absences[0].reason}`}
@@ -550,7 +550,7 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
                       borderLeft: '3px solid #dc3545'
                     }}>
                       <div style={{ fontSize: '0.85em', color: '#ff6b6b', marginBottom: '4px' }}>
-                        <strong>Événement:</strong> {absence.event.title}
+                        <strong>Évènement:</strong> {absence.event.title}
                       </div>
                       <div style={{ fontSize: '0.8em', color: '#aaa', marginBottom: '4px' }}>
                         <strong>Date:</strong> {new Date(absence.event.date).toLocaleDateString('fr-FR')}

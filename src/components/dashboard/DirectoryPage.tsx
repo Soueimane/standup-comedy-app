@@ -141,7 +141,7 @@ const DirectoryPage: React.FC = () => {
     return Math.round((accepted / sent) * 100);
   };
 
-  // Charger le nombre d'événements annulés pour l'organisateur sélectionné
+  // Charger le nombre d'évènements annulés pour l'organisateur sélectionné
   useEffect(() => {
     const fetchCancelledForOrganizer = async () => {
       try {
@@ -154,7 +154,7 @@ const DirectoryPage: React.FC = () => {
         const cancelled = events.filter((e: any) => e.status === 'cancelled' || e.status === 'CANCELLED').length;
         setOrganizerCancelledCount(cancelled);
       } catch (err) {
-        console.error('Erreur récupération événements organisateur:', err);
+        console.error('Erreur récupération évènements organisateur:', err);
         setOrganizerCancelledCount(0);
       }
     };
@@ -428,11 +428,11 @@ const DirectoryPage: React.FC = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Événements totaux */}
+                      {/* Évènements totaux */}
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                           <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-800">Événements</span>
+                          <span className="text-sm font-medium text-blue-800">Évènements</span>
                         </div>
                         <p className="text-2xl font-bold text-blue-600">
                           {selectedUser.stats?.totalEvents || 0}
@@ -571,7 +571,7 @@ const DirectoryPage: React.FC = () => {
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                           <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-800">Événements</span>
+                          <span className="text-sm font-medium text-blue-800">Évènements</span>
                         </div>
                         <p className="text-2xl font-bold text-blue-600">
                           {selectedUser.stats?.totalEvents || 0}
@@ -593,7 +593,7 @@ const DirectoryPage: React.FC = () => {
                       <div className="p-4 bg-red-50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                           <XCircle className="h-4 w-4 text-red-600" />
-                          <span className="text-sm font-medium text-red-800">Événements annulés</span>
+                          <span className="text-sm font-medium text-red-800">Évènements annulés</span>
                         </div>
                         <p className="text-2xl font-bold text-red-600">
                           {organizerCancelledCount}

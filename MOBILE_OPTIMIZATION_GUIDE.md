@@ -105,7 +105,7 @@ Optimiser l'application **Standup Comedy Connect** pour offrir une **expérience
 - ✅ Messages et notifications
 
 #### Organisateurs
-- ✅ Création d'événements
+- ✅ Création d'évènements
 - ✅ Gestion des candidatures
 - ✅ Recherche d'humoristes
 - ✅ Statistiques et analytics
@@ -234,9 +234,9 @@ Redéploie le nouveau `client/dist` avec :
 - [ ] Background sync
 
 ### 📱 **Native Features**
-- [ ] Géolocalisation pour événements proches
+- [ ] Géolocalisation pour évènements proches
 - [ ] Appareil photo pour photos de profil
-- [ ] Partage natif d'événements
+- [ ] Partage natif d'évènements
 - [ ] Vibration feedback
 
 ### 🎨 **UX Avancée**

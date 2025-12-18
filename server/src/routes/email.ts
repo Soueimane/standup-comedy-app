@@ -56,7 +56,7 @@ router.post('/test-send', testEmailSend);
 
 /**
  * POST /jobs/reminders
- * Cron job pour envoyer les rappels d'événements (J-3, J-1, -2h)
+ * Cron job pour envoyer les rappels d'évènements (J-3, J-1, -2h)
  * Header: X-CRON-KEY (authentification)
  */
 router.post('/jobs/reminders', sendRemindersCron);

@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             latitude: 45.7640,
             longitude: 4.8357
           },
-          description: 'Organisatrice d\'événements humoristiques à Lyon',
+          description: 'Organisatrice d\'évènements humoristiques à Lyon',
           venueTypes: ['club', 'theater'],
           eventFrequency: 'weekly'
         },

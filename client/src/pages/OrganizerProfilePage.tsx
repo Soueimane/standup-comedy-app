@@ -167,7 +167,7 @@ function OrganizerProfilePage() {
             {/* Stats rapides */}
             <h4 style={{ color: '#ff4b2b', marginTop: '30px', marginBottom: '15px' }}>Stats rapides</h4>
             <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Événements créés</span>
+              <span style={infoLabelStyle}>Évènements créés</span>
               <span style={statsValueStyle}>{user?.stats?.totalEvents || 0}</span>
             </div>
           </div>
@@ -227,7 +227,7 @@ function OrganizerProfilePage() {
               <span style={infoValueStyle}>{(user?.organizerProfile?.averageBudget?.min !== undefined ? user.organizerProfile.averageBudget.min : 'Non spécifié')} - {(user?.organizerProfile?.averageBudget?.max !== undefined ? user.organizerProfile.averageBudget.max : 'Non spécifié')}€</span>
             </div>
             <div style={infoRowStyle}>
-              <span style={infoLabelStyle}>Fréquence des événements:</span>
+              <span style={infoLabelStyle}>Fréquence des évènements:</span>
               <span style={infoValueStyle}>{user?.organizerProfile?.eventFrequency || 'monthly'}</span>
             </div>
           </div>

@@ -553,7 +553,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
             <input type="text" id="organizerProfile.venueTypes" style={inputStyle} value={formData.organizerProfile.venueTypes} onChange={handleChange} placeholder="Salle de spectacle, Bar, Théâtre" />
           </div>
           <div style={inputGroupStyle}>
-            <label htmlFor="organizerProfile.eventFrequency" style={labelStyle}>Fréquence des événements</label>
+            <label htmlFor="organizerProfile.eventFrequency" style={labelStyle}>Fréquence des évènements</label>
             <select id="organizerProfile.eventFrequency" style={inputStyle} value={formData.organizerProfile.eventFrequency} onChange={handleChange}>
               <option value="weekly">Hebdomadaire</option>
               <option value="monthly">Mensuel</option>

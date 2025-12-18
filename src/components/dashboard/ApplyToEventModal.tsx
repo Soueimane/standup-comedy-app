@@ -94,7 +94,7 @@ const ApplyToEventModal: React.FC<ApplyToEventModalProps> = ({ isOpen, eventId, 
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Présentez-vous et expliquez pourquoi vous souhaitez participer à cet événement..."
+                  placeholder="Présentez-vous et expliquez pourquoi vous souhaitez participer à cet évènement..."
                   rows={4}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
                   required

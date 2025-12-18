@@ -106,9 +106,9 @@ const ProfileChoice: React.FC<ProfileChoiceProps> = ({ onSelect }) => {
             <div className="flex items-center space-x-6">
               <div className="text-5xl">🎪</div>
               <div className="flex-1">
-                <h3 className="text-2xl font-bold mb-2">J'organise des événements</h3>
+                <h3 className="text-2xl font-bold mb-2">J'organise des évènements</h3>
                 <p className={`text-sm ${selectedType === 'organisateur' ? 'text-white/90' : 'text-gray-400'}`}>
-                  Je recherche des humoristes talentueux pour mes événements
+                  Je recherche des humoristes talentueux pour mes évènements
                 </p>
               </div>
               {selectedType === 'organisateur' && (

@@ -22,21 +22,21 @@ export const EventsPage: React.FC = () => {
   console.log('🎭 EventsPage - isLoading:', isLoading);
   console.log('🎭 EventsPage - error:', error);
 
-  // Récupérer TOUS les événements disponibles ET les candidatures de l'humoriste
+  // Récupérer TOUS les évènements disponibles ET les candidatures de l'humoriste
   const availableEvents = user ? getAvailableEvents(user.id, (user.profile as HumoristeProfile).location?.city) : [];
   const myApplications = user ? getApplicationsByHumorist(user.id) : [];
   
   console.log('🎭 EventsPage - Available events:', availableEvents);
   console.log('🎭 EventsPage - My applications:', myApplications);
   
-  // Récupérer les événements liés aux candidatures de l'humoriste
+  // Récupérer les évènements liés aux candidatures de l'humoriste
   const eventsFromApplications = myApplications
     .map(app => events.find(event => event.id === app.eventId))
     .filter(event => event !== undefined);
   
   console.log('🎭 EventsPage - Events from applications:', eventsFromApplications);
   
-  // Combiner tous les événements (disponibles + ceux où on a postulé) sans doublons
+  // Combiner tous les évènements (disponibles + ceux où on a postulé) sans doublons
   const allEventsMap = new Map();
   [...availableEvents, ...eventsFromApplications].forEach(event => {
     if (event) {
@@ -48,7 +48,7 @@ export const EventsPage: React.FC = () => {
   console.log('🎭 EventsPage - All combined events:', allEvents);
   console.log('🎭 EventsPage - All combined events count:', allEvents.length);
 
-  // Séparer les événements par date
+  // Séparer les évènements par date
   const now = new Date();
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
@@ -64,33 +64,33 @@ export const EventsPage: React.FC = () => {
     return eventMidnight < todayMidnight;
   });
 
-  console.log(`🎯 CLASSIFICATION DES ÉVÉNEMENTS:`);
-  console.log(`   • Événements à venir: ${upcomingEvents.length}`);
-  console.log(`   • Événements archivés: ${archivedEvents.length}`);
+  console.log(`🎯 CLASSIFICATION DES ÉVÈNEMENTS:`);
+  console.log(`   • Évènements à venir: ${upcomingEvents.length}`);
+  console.log(`   • Évènements archivés: ${archivedEvents.length}`);
   
-  // Debug détaillé des événements
-  console.log('🔍 ÉVÉNEMENTS ARCHIVÉS DÉTAIL:');
+  // Debug détaillé des évènements
+  console.log('🔍 ÉVÈNEMENTS ARCHIVÉS DÉTAIL:');
   archivedEvents.forEach(event => {
     const hasApplied = event.applications?.some(app => app.humoristId === user?.id);
     console.log(`   - "${event.title}" (${new Date(event.date).toLocaleDateString('fr-FR')}) - A postulé: ${hasApplied}`);
     console.log(`     Applications:`, event.applications);
   });
 
-  // Filtrer les événements selon la ville et l'onglet sélectionné
+  // Filtrer les évènements selon la ville et l'onglet sélectionné
   const filteredUpcomingEvents = upcomingEvents.filter(event => {
     const cityMatch = selectedCity === 'all' || event.location.city?.toLowerCase() === selectedCity.toLowerCase();
     const hasApplied = event.applications?.some(app => app.humoristId === user?.id);
-    return cityMatch && !hasApplied; // Ne montrer que les événements où l'humoriste n'a pas encore postulé
+    return cityMatch && !hasApplied; // Ne montrer que les évènements où l'humoriste n'a pas encore postulé
   });
 
   const filteredArchivedEvents = archivedEvents.filter(event => {
     const cityMatch = selectedCity === 'all' || event.location.city?.toLowerCase() === selectedCity.toLowerCase();
     const myApplication = myApplications.find(app => app.eventId === event.id);
-    // Montrer les événements archivés où l'humoriste a postulé OU tous les événements archivés
-    return cityMatch && myApplication; // Montrer seulement les événements où l'humoriste a postulé
+    // Montrer les évènements archivés où l'humoriste a postulé OU tous les évènements archivés
+    return cityMatch && myApplication; // Montrer seulement les évènements où l'humoriste a postulé
   });
 
-  // Récupérer la liste unique des villes des événements disponibles
+  // Récupérer la liste unique des villes des évènements disponibles
   const cities = Array.from(new Set(
     allEvents
       .map(event => event.location.city)
@@ -104,7 +104,7 @@ export const EventsPage: React.FC = () => {
   const handleApply = async (eventId: string) => {
     if (!user) return;
     try {
-      await applyToEvent(eventId, user.id, 'Je souhaite postuler à cet événement.');
+      await applyToEvent(eventId, user.id, 'Je souhaite postuler à cet évènement.');
     } catch (error) {
       console.error('Erreur lors de la candidature:', error);
       alert('Une erreur est survenue lors de l\'envoi de votre candidature.');
@@ -116,7 +116,7 @@ export const EventsPage: React.FC = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center text-white">
           <Loader2 className="w-8 h-8 animate-spin text-pink-500 mx-auto mb-4" />
-          <p>Chargement des événements...</p>
+          <p>Chargement des évènements...</p>
         </div>
       </div>
     );
@@ -131,7 +131,7 @@ export const EventsPage: React.FC = () => {
       </div>
       
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Événements disponibles</h1>
+        <h1 className="text-2xl font-bold text-white">Évènements disponibles</h1>
         <div className="flex items-center space-x-4">
           <Select
             value={selectedCity}
@@ -159,20 +159,20 @@ export const EventsPage: React.FC = () => {
         </div>
       )}
 
-        {/* Section Événements à venir */}
+        {/* Section Évènements à venir */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Événements à venir</h2>
+          <h2 className="text-xl font-bold text-white mb-4">Évènements à venir</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredUpcomingEvents.length === 0 ? (
             <div className="col-span-full text-center py-12">
               <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-gray-300 mb-2">
-                Aucun événement à venir
+                Aucun évènement à venir
               </h3>
               <p className="text-gray-500">
                 {selectedCity && selectedCity !== 'all'
-                  ? `Aucun événement à venir dans la ville de ${selectedCity}`
-                  : 'Aucun événement à venir pour le moment'}
+                  ? `Aucun évènement à venir dans la ville de ${selectedCity}`
+                  : 'Aucun évènement à venir pour le moment'}
               </p>
               </div>
             ) : (
@@ -208,22 +208,22 @@ export const EventsPage: React.FC = () => {
                     onClick={() => handleApply(event.id)}
                     className="w-full bg-pink-500 hover:bg-pink-600"
                     disabled={
-                      // Événement avec statut fermé
+                      // Évènement avec statut fermé
                       ['full', 'completed', 'cancelled'].includes(event.status) ||
                       // Déjà candidaté
                       event.applications?.some(app => app.humoristId === user?.id) || 
                       // Nombre max de performers atteint
                       (event.requirements?.maxPerformers !== undefined && (event.applications?.filter(app => app.status === 'accepted').length || 0) >= event.requirements.maxPerformers) ||
-                      // Humoriste s'est déjà désinscrit de cet événement
+                      // Humoriste s'est déjà désinscrit de cet évènement
                       event.withdrawnComedians?.includes(user?.id || '')
                     }
                   >
                     {['full', 'completed', 'cancelled'].includes(event.status)
                       ? event.status === 'full' 
-                        ? 'Événement complet' 
+                        ? 'Évènement complet' 
                         : event.status === 'completed'
-                        ? 'Événement terminé'
-                        : 'Événement annulé'
+                        ? 'Évènement terminé'
+                        : 'Évènement annulé'
                       : event.applications?.some(app => app.humoristId === user?.id)
                       ? 'Déjà candidaté'
                       : event.requirements?.maxPerformers !== undefined && (event.applications?.filter(app => app.status === 'accepted').length || 0) >= event.requirements.maxPerformers
@@ -241,20 +241,20 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Section Événements archivés */}
+      {/* Section Évènements archivés */}
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-white mb-4">Événements archivés</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Évènements archivés</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredArchivedEvents.length === 0 ? (
           <div className="col-span-full text-center py-12">
             <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-gray-300 mb-2">
-              Aucun événement archivé
+              Aucun évènement archivé
             </h3>
             <p className="text-gray-500">
               {selectedCity && selectedCity !== 'all'
-                ? `Aucun événement archivé dans la ville de ${selectedCity}`
-                : 'Aucun événement archivé pour le moment'}
+                ? `Aucun évènement archivé dans la ville de ${selectedCity}`
+                : 'Aucun évènement archivé pour le moment'}
             </p>
             </div>
           ) : (
@@ -281,7 +281,7 @@ export const EventsPage: React.FC = () => {
                       <p className="flex items-center"><Tag className="w-4 h-4 mr-2 text-gray-500" /> Type: {event.eventType}</p>
                     )}
                     {event.requirements && (
-                      <p className="flex items-center"><Tag className="w-4 h-4 mr-2 text-gray-500" /> Statut: Événement passé</p>
+                      <p className="flex items-center"><Tag className="w-4 h-4 mr-2 text-gray-500" /> Statut: Évènement passé</p>
                     )}
                 </div>
 
@@ -315,7 +315,7 @@ export const EventsPage: React.FC = () => {
                          className="w-full bg-gray-600 cursor-not-allowed"
                          disabled={true}
                        >
-                         Événement passé
+                         Évènement passé
                        </Button>
                      );
                    })()}

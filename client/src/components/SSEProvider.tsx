@@ -11,7 +11,7 @@ interface SSEProviderProps {
 
 /**
  * Provider SSE qui initialise la connexion Server-Sent Events
- * et gère les événements en temps réel
+ * et gère les évènements en temps réel
  *
  * Ce composant doit être placé après AuthProvider et QueryClientProvider
  * dans l'arborescence des composants.
@@ -23,14 +23,19 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
   const { token } = useAuth();
   const queryClient = useQueryClient();
 
-  // Créer le handler d'événements avec le queryClient
+  // Créer le handler d'évènements avec le queryClient
   const eventHandler = useMemo(
     () => createSSEEventHandler(queryClient),
     [queryClient]
   );
 
-  // Établir la connexion SSE
-  const status = useSSE(token, eventHandler, !!token);
+  // Désactiver SSE sur les pages publiques (login, register, forgot-password, etc.)
+  const currentPath = window.location.pathname;
+  const isPublicPage = ['/login', '/register', '/organisateur', '/forgot-password', '/reset-password', '/'].includes(currentPath);
+  const shouldEnableSSE = !!token && !isPublicPage;
+
+  // Établir la connexion SSE uniquement si nécessaire
+  const status = useSSE(token, eventHandler, shouldEnableSSE);
 
   return (
     <>

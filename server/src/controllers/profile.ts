@@ -194,7 +194,7 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     await user.save();
     console.log('✅ Utilisateur sauvegardé avec succès');
 
-    // Émettre un événement SSE pour notifier tous les clients
+    // Émettre un évènement SSE pour notifier tous les clients
     emitProfileUpdated(userId);
 
     // Retrieve updated user with profiles populated

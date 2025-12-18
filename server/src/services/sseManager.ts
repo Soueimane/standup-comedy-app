@@ -14,7 +14,7 @@ interface SSEClient {
 
 /**
  * Gestionnaire centralisé des connexions Server-Sent Events
- * Gère l'enregistrement, la déconnexion et le broadcast des événements
+ * Gère l'enregistrement, la déconnexion et le broadcast des évènements
  */
 class SSEManager {
   private static instance: SSEManager;
@@ -34,7 +34,7 @@ class SSEManager {
     this.heartbeatInterval = null;
     this.cleanupInterval = null;
 
-    // Écouter les événements de l'EventEmitter
+    // Écouter les évènements de l'EventEmitter
     appEventEmitter.on('sse-event', (payload: SSEEventPayload) => {
       this.broadcast(payload);
     });
@@ -94,7 +94,7 @@ class SSEManager {
     this.clients.set(clientId, client);
     console.log(`✅ Client SSE ajouté: ${clientId} (Utilisateur: ${userId}, Total: ${this.clients.size})`);
 
-    // Envoyer un événement de connexion initiale
+    // Envoyer un évènement de connexion initiale
     this.sendToClient(clientId, {
       type: 'CONNECTED' as any,
       data: { message: 'Connecté au flux SSE', clientId },
@@ -121,7 +121,7 @@ class SSEManager {
   }
 
   /**
-   * Envoyer un événement à un client spécifique
+   * Envoyer un évènement à un client spécifique
    */
   private sendToClient(clientId: string, payload: SSEEventPayload): void {
     const client = this.clients.get(clientId);
@@ -146,12 +146,12 @@ class SSEManager {
   }
 
   /**
-   * Broadcaster un événement à tous les clients connectés
+   * Broadcaster un évènement à tous les clients connectés
    */
   public broadcast(payload: SSEEventPayload): void {
     const clientIds = Array.from(this.clients.keys());
 
-    console.log(`📢 Broadcasting événement ${payload.type} à ${clientIds.length} client(s)`);
+    console.log(`📢 Broadcasting évènement ${payload.type} à ${clientIds.length} client(s)`);
 
     clientIds.forEach(clientId => {
       this.sendToClient(clientId, payload);

@@ -62,7 +62,7 @@ const ApplicationsStatus: React.FC = () => {
           Aucune candidature
         </h3>
         <p className="text-gray-500">
-          Commence par candidater à des événements pour voir tes candidatures ici !
+          Commence par candidater à des évènements pour voir tes candidatures ici !
         </p>
       </div>
     );

@@ -15,7 +15,7 @@ const router = express.Router();
 
 /**
  * POST /
- * Ajoute un événement aux favoris du comédien
+ * Ajoute un évènement aux favoris du comédien
  * Body: { eventId: string }
  * Response: { message: string, favoriteEvents: ObjectId[] }
  */
@@ -23,7 +23,7 @@ router.post('/', authMiddleware, authorizeRoles('COMEDIAN'), addEventFavorite);
 
 /**
  * DELETE /:eventId
- * Retire un événement des favoris du comédien
+ * Retire un évènement des favoris du comédien
  * Params: eventId
  * Response: { message: string, favoriteEvents: ObjectId[] }
  */
@@ -31,14 +31,14 @@ router.delete('/:eventId', authMiddleware, authorizeRoles('COMEDIAN'), removeEve
 
 /**
  * GET /
- * Récupère la liste des événements favoris du comédien
+ * Récupère la liste des évènements favoris du comédien
  * Response: { favorites: Event[] }
  */
 router.get('/', authMiddleware, authorizeRoles('COMEDIAN'), getEventFavorites);
 
 /**
  * GET /check/:eventId
- * Vérifie si un événement est dans les favoris du comédien
+ * Vérifie si un évènement est dans les favoris du comédien
  * Params: eventId
  * Response: { isFavorite: boolean }
  */

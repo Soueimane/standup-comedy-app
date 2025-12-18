@@ -187,7 +187,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     e.preventDefault();
 
     if (!token) {
-      alert("Vous devez être connecté pour modifier un événement.");
+      alert("Vous devez être connecté pour modifier un évènement.");
       return;
     }
 
@@ -195,10 +195,10 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
       return;
     }
 
-    // Validation de l'ID de l'événement
+    // Validation de l'ID de l'évènement
     if (!eventToEdit || !eventToEdit._id) {
-      console.error('❌ [EditEventForm] Événement invalide - pas d\'ID', { eventToEdit });
-      alert('Erreur: Impossible de modifier cet événement. ID manquant.');
+      console.error('❌ [EditEventForm] Évènement invalide - pas d\'ID', { eventToEdit });
+      alert('Erreur: Impossible de modifier cet évènement. ID manquant.');
       return;
     }
 
@@ -257,7 +257,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         },
       };
 
-      console.log('🛠️ [EditEventForm] Envoi de la mise à jour événement', {
+      console.log('🛠️ [EditEventForm] Envoi de la mise à jour évènement', {
         eventId: eventToEdit._id,
         eventIdType: typeof eventToEdit._id,
         eventIdLength: eventToEdit._id?.length,
@@ -268,10 +268,10 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
       
       const response = await api.put(`/events/${eventToEdit._id}`, eventData, config);
       console.log('✅ [EditEventForm] Réponse serveur:', response.data);
-      alert('Événement mis à jour avec succès !');
+      alert('Évènement mis à jour avec succès !');
       onEventUpdated();
     } catch (error: any) {
-      console.error('❌ [EditEventForm] Erreur lors de la mise à jour de l\'événement:', {
+      console.error('❌ [EditEventForm] Erreur lors de la mise à jour de l\'évènement:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
         message: error.response?.data?.message || error.message,
@@ -280,11 +280,11 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         url: error.config?.url,
       });
       
-      let errorMessage = 'Erreur lors de la mise à jour de l\'événement';
+      let errorMessage = 'Erreur lors de la mise à jour de l\'évènement';
       if (error.response?.status === 404) {
-        errorMessage = `Événement non trouvé (ID: ${eventToEdit._id}). Vérifiez que l'événement existe et que vous êtes autorisé à le modifier.`;
+        errorMessage = `Évènement non trouvé (ID: ${eventToEdit._id}). Vérifiez que l'évènement existe et que vous êtes autorisé à le modifier.`;
       } else if (error.response?.status === 403) {
-        errorMessage = 'Vous n\'êtes pas autorisé à modifier cet événement.';
+        errorMessage = 'Vous n\'êtes pas autorisé à modifier cet évènement.';
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -381,10 +381,10 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
 
   return (
     <div style={formContainerStyle}>
-      <h2 style={formTitleStyle}>Modifier l'événement</h2>
+      <h2 style={formTitleStyle}>Modifier l'évènement</h2>
       <form onSubmit={handleSubmit}>
         <div style={inputGroupStyle}>
-          <label htmlFor="title" style={labelStyle}>Titre de l'événement *</label>
+          <label htmlFor="title" style={labelStyle}>Titre de l'évènement *</label>
           <input 
             type="text" 
             id="title" 
@@ -413,7 +413,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
             }} 
             value={formData.description} 
             onChange={handleChange} 
-            placeholder="Décrivez votre événement en détail..."
+            placeholder="Décrivez votre évènement en détail..."
           />
           {errors.description && (
             <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>

@@ -30,7 +30,7 @@ const cronJobs: CronJob[] = [
     enabled: config.cron.enabled
   },
   {
-    name: 'Marquage événements terminés',
+    name: 'Marquage évènements terminés',
     schedule: config.cron.markCompletedSchedule,
     endpoint: '/api/events/jobs/mark-completed',
     enabled: config.cron.enabled

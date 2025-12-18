@@ -68,7 +68,7 @@ function MyEventsPage() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Extraire les IDs des événements favoris
+  // Extraire les IDs des évènements favoris
   useEffect(() => {
     if (eventFavoritesData?.favorites) {
       const favoriteIds = eventFavoritesData.favorites.map(event => event._id);
@@ -210,8 +210,8 @@ useEffect(() => {
           Authorization: `Bearer ${token}`,
         },
       };
-      // Pour les humoristes, récupérer TOUS les événements
-      // Pour les organisateurs, récupérer seulement leurs événements
+      // Pour les humoristes, récupérer TOUS les évènements
+      // Pour les organisateurs, récupérer seulement leurs évènements
       const apiUrl = user?.role === 'ORGANIZER'
         ? `/events?organizerId=${user._id}`
         : `/events`; // Pas de filtre organizerId pour les humoristes
@@ -220,7 +220,7 @@ useEffect(() => {
       try {
         const res = await api.get<IEvent[]>(apiUrl, config);
         const list = Array.isArray(res.data) ? res.data : (Array.isArray((res.data as any)?.events) ? (res.data as any).events : []);
-        console.log("MyEventsPage: Données d'événements reçues par useQuery:", list);
+        console.log("MyEventsPage: Données d'évènements reçues par useQuery:", list);
         console.log("MyEventsPage: User role:", user?.role);
         console.log("📅 DÉTAIL DES DATES RÉCUPÉRÉES:", list.map((e: IEvent) => ({
           title: e.title,
@@ -231,7 +231,7 @@ useEffect(() => {
         })));
         return list as IEvent[];
       } catch (error: any) {
-        console.error("❌ Erreur lors de la récupération des événements:", error);
+        console.error("❌ Erreur lors de la récupération des évènements:", error);
         console.error("❌ Détails de l'erreur:", error.response?.data || error.message);
         throw error;
       }
@@ -270,13 +270,13 @@ useEffect(() => {
     // Délai pour s'assurer que les éléments sont rendus
     const scrollTimeout = setTimeout(() => {
       if (statusFilters.includes('cancelled') && cancelledSectionRef.current) {
-        console.log('🎯 Scroll automatique vers la section "Événements annulés"');
+        console.log('🎯 Scroll automatique vers la section "Évènements annulés"');
         cancelledSectionRef.current.scrollIntoView({ 
           behavior: 'smooth', 
           block: 'start' 
         });
       } else if (statusFilters.includes('completed') && archivedSectionRef.current) {
-        console.log('🎯 Scroll automatique vers la section "Événements archivés"');
+        console.log('🎯 Scroll automatique vers la section "Évènements archivés"');
         archivedSectionRef.current.scrollIntoView({ 
           behavior: 'smooth', 
           block: 'start' 
@@ -417,7 +417,7 @@ useEffect(() => {
     
     const organizersMap = new Map();
     fetchedEvents.forEach((event: IEvent) => {
-      if (!event.organizer) return; // Ignorer les événements sans organisateur
+      if (!event.organizer) return; // Ignorer les évènements sans organisateur
       const organizer = typeof event.organizer === 'object' ? event.organizer : null;
       if (!organizer) return;
       
@@ -463,13 +463,13 @@ useEffect(() => {
         filteredEvents = filteredEvents.filter((event: IEvent) => event.status && statusFilters.includes(event.status));
       }
 
-      // Sécurité supplémentaire côté client : un organisateur ne peut voir que ses propres événements
+      // Sécurité supplémentaire côté client : un organisateur ne peut voir que ses propres évènements
       if (user?.role === 'ORGANIZER' && user?._id) {
         filteredEvents = filteredEvents.filter((event: IEvent) => {
           const organizerId = getOrganizerIdFromEvent(event.organizer);
           const matches = organizerId === user._id;
           if (!matches) {
-            console.warn('🚫 Événement ignoré car il n’appartient pas à cet organisateur:', {
+            console.warn('🚫 Évènement ignoré car il n’appartient pas à cet organisateur:', {
               eventTitle: event.title,
               eventOrganizer: organizerId,
               currentUser: user._id,
@@ -482,14 +482,14 @@ useEffect(() => {
       // Filtre par organisateur (pour super admin)
       if (user?.role === 'SUPER_ADMIN' && organizerFilter) {
         console.log(`🔍 Filtrage par organisateur: "${organizerFilter}"`);
-        console.log(`📊 Événements avant filtrage organisateur: ${filteredEvents.length}`);
+        console.log(`📊 Évènements avant filtrage organisateur: ${filteredEvents.length}`);
         filteredEvents = filteredEvents.filter((event: IEvent) => {
           const eventOrganizerName = getOrganizerName(event.organizer);
           const matches = eventOrganizerName === organizerFilter;
-          console.log(`   - Événement "${event.title}" (organisateur: "${eventOrganizerName}") → ${matches ? 'INCLUS' : 'EXCLU'}`);
+          console.log(`   - Évènement "${event.title}" (organisateur: "${eventOrganizerName}") → ${matches ? 'INCLUS' : 'EXCLU'}`);
           return matches;
         });
-        console.log(`📊 Événements après filtrage organisateur: ${filteredEvents.length}`);
+        console.log(`📊 Évènements après filtrage organisateur: ${filteredEvents.length}`);
       }
 
       // Barre de recherche mots-clés (pour super admin)
@@ -515,10 +515,10 @@ useEffect(() => {
       const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
       console.log(`🔍 DEBUG CLASSIFICATION - Aujourd'hui: ${todayMidnight.toLocaleDateString('fr-FR')}`);
-      console.log(`📊 Total événements récupérés: ${filteredEvents.length}`);
+      console.log(`📊 Total évènements récupérés: ${filteredEvents.length}`);
       
       filteredEvents.forEach((event: IEvent) => {
-        // D'abord, isoler les événements annulés pour qu'ils n'apparaissent pas ailleurs
+        // D'abord, isoler les évènements annulés pour qu'ils n'apparaissent pas ailleurs
         const isCancelled = (event.status === 'CANCELLED' || event.status === 'cancelled');
         if (isCancelled) {
           cancelled.push(event);
@@ -528,8 +528,8 @@ useEffect(() => {
         const eventIsPast = isEventPast(event.date, event.endTime);
         const eventDate = new Date(event.date);
         
-        // Debug logging détaillé pour tracer TOUS les événements
-        console.log(`\n🎭 Événement "${event.title}":`, {
+        // Debug logging détaillé pour tracer TOUS les évènements
+        console.log(`\n🎭 Évènement "${event.title}":`, {
           dateOriginale: event.date,
           dateParsee: eventDate.toLocaleDateString('fr-FR'),
           aujourdhuiMidnight: todayMidnight.toLocaleDateString('fr-FR'),
@@ -538,7 +538,7 @@ useEffect(() => {
           estFutur: !eventIsPast
         });
         
-        // **LOGIQUE UNIVERSELLE** : TOUS les événements passés sont archivés
+        // **LOGIQUE UNIVERSELLE** : TOUS les évènements passés sont archivés
         if (eventIsPast) {
           archived.push(event);
           console.log(`✅ → ARCHIVÉ: ${event.title} (date passée: ${eventDate.toLocaleDateString('fr-FR')})`);
@@ -549,9 +549,9 @@ useEffect(() => {
       });
       
       console.log(`\n📈 RÉSULTAT CLASSIFICATION:`);
-      console.log(`   • Événements à venir: ${upcoming.length}`);
-      console.log(`   • Événements archivés: ${archived.length}`);
-      console.log(`   • Événements annulés: ${cancelled.length}`);
+      console.log(`   • Évènements à venir: ${upcoming.length}`);
+      console.log(`   • Évènements archivés: ${archived.length}`);
+      console.log(`   • Évènements annulés: ${cancelled.length}`);
 
       if (dateFilter === 'upcoming') {
           archived.length = 0;
@@ -583,7 +583,7 @@ useEffect(() => {
     }
   }, [cancelledPage, totalCancelledPages]);
 
-  // Filtrer les événements archivés côté HUMORISTE: afficher uniquement ceux auxquels il a postulé
+  // Filtrer les évènements archivés côté HUMORISTE: afficher uniquement ceux auxquels il a postulé
   const archivedEventsToShow = useMemo(() => {
     if (user?.role === 'COMEDIAN') {
       return archivedEvents.filter(e => appliedEventIds.has(e._id));
@@ -607,8 +607,8 @@ useEffect(() => {
     }
   }, [archivedPage, totalArchivedPages]);
 
-  // Fonction de filtrage pour les événements à venir
-  // Événements ACCEPTÉS (à venir) pour l'humoriste
+  // Fonction de filtrage pour les évènements à venir
+  // Évènements ACCEPTÉS (à venir) pour l'humoriste
   const acceptedUpcomingEvents = useMemo(() => {
     if (user?.role === 'COMEDIAN' && comedianApplications) {
       return upcomingEvents.filter((event) => {
@@ -619,7 +619,7 @@ useEffect(() => {
     return [] as IEvent[];
   }, [user?.role, comedianApplications, upcomingEvents]);
 
-  // Base des événements à venir POUR POSTULER (exclut les acceptés pour l'humoriste)
+  // Base des évènements à venir POUR POSTULER (exclut les acceptés pour l'humoriste)
   const upcomingEventsForApply = useMemo(() => {
     if (user?.role === 'COMEDIAN') {
       const acceptedIds = new Set(acceptedUpcomingEvents.map(e => e._id));
@@ -757,28 +757,28 @@ useEffect(() => {
 
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir (pour postuler)',
-    accepted: 'Événements acceptés',
+    accepted: 'Évènements acceptés',
     favorites: 'Mes favoris',
   };
 
   const organizerTabTitles: Record<OrganizerTab, string> = {
-    upcoming: 'Événements à venir',
-    full: 'Événements complets',
-    archived: 'Événements archivés',
-    cancelled: 'Événements annulés',
+    upcoming: 'Évènements à venir',
+    full: 'Évènements complets',
+    archived: 'Évènements archivés',
+    cancelled: 'Évènements annulés',
   };
 
   const superAdminTabTitles: Record<SuperAdminTab, string> = {
-    full: 'Événements complets',
-    upcoming: 'Événements à venir (non complets)',
-    archived: 'Événements archivés',
-    cancelled: 'Événements annulés',
+    full: 'Évènements complets',
+    upcoming: 'Évènements à venir (non complets)',
+    archived: 'Évènements archivés',
+    cancelled: 'Évènements annulés',
   };
 
   const comedianEmptyStates: Record<ComedianTab, string> = {
     opportunities: 'Aucune opportunité disponible pour le moment.',
-    accepted: 'Aucun événement accepté à venir.',
-    favorites: 'Aucun événement en favori.',
+    accepted: 'Aucun évènement accepté à venir.',
+    favorites: 'Aucun évènement en favori.',
   };
 
   const isOpportunitiesTab = comedianTab === 'opportunities';
@@ -902,7 +902,7 @@ useEffect(() => {
   };
 
   const handleEditClick = (event: IEvent) => {
-    console.log('🔍 [MyEventsPage] handleEditClick - Vérification événement', {
+    console.log('🔍 [MyEventsPage] handleEditClick - Vérification évènement', {
       eventId: event._id,
       eventTitle: event.title,
       eventOrganizer: event.organizer,
@@ -914,8 +914,8 @@ useEffect(() => {
     });
     
     if (!event._id) {
-      console.error('❌ [MyEventsPage] Événement sans ID - impossible de modifier', { event });
-      alert('Erreur: Impossible de modifier cet événement. ID manquant.');
+      console.error('❌ [MyEventsPage] Évènement sans ID - impossible de modifier', { event });
+      alert('Erreur: Impossible de modifier cet évènement. ID manquant.');
       return;
     }
     
@@ -947,7 +947,7 @@ useEffect(() => {
         headers: { Authorization: `Bearer ${token}` },
       };
       await api.delete(`/applications/${app._id}`, config);
-      // alert('Vous avez été désinscrit de cet événement.');
+      // alert('Vous avez été désinscrit de cet évènement.');
       refetch();
       refreshUser();
       queryClient.invalidateQueries({ queryKey: ['comedianApplications'] });
@@ -965,7 +965,7 @@ useEffect(() => {
   };
 
   const handleComedianClick = (comedian: any) => {
-    // Recherche l'objet complet dans la liste des participants de l'événement sélectionné
+    // Recherche l'objet complet dans la liste des participants de l'évènement sélectionné
     const fullComedian = selectedEvent?.participants?.find((p: any) => p._id === comedian._id) || comedian;
     setSelectedComedian(fullComedian);
     setIsComedianModalOpen(true);
@@ -1018,7 +1018,7 @@ useEffect(() => {
       const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
 
       if (diffDays >= 10) {
-        const proceed = window.confirm('Confirmer la suppression de cet événement (plus de 10 jours avant) ?');
+        const proceed = window.confirm('Confirmer la suppression de cet évènement (plus de 10 jours avant) ?');
         if (!proceed) return;
         const config = {
           headers: {
@@ -1026,7 +1026,7 @@ useEffect(() => {
           },
         } as const;
         await api.delete(`/events/${event._id}`, config);
-        alert('Événement supprimé avec succès.');
+        alert('Évènement supprimé avec succès.');
         refetch();
         refreshUser();
         return;
@@ -1036,7 +1036,7 @@ useEffect(() => {
       setCancelReason('');
       setShowCancelModal(true);
     } catch (error: any) {
-      console.error('Erreur lors de la suppression de l\'événement:', error.response?.data || error.message);
+      console.error('Erreur lors de la suppression de l\'évènement:', error.response?.data || error.message);
       alert('Erreur: ' + (error.response?.data?.message || error.message));
     }
   };
@@ -1053,7 +1053,7 @@ useEffect(() => {
 
       // Raison obligatoire si < 10 jours
       if (diffDays < 10 && !cancelReason.trim()) {
-        alert('Veuillez fournir une raison d\'annulation (événement dans moins de 10 jours).');
+        alert('Veuillez fournir une raison d\'annulation (évènement dans moins de 10 jours).');
         return;
       }
 
@@ -1065,14 +1065,14 @@ useEffect(() => {
         };
         // Envoi du statut annulé; la raison est transmise si supportée par l'API
         await api.put(`/events/${eventToCancel._id}`, { status: 'cancelled', cancellationReason: cancelReason }, config);
-        alert('Événement annulé et déplacé vers "Événements annulés".');
+        alert('Évènement annulé et déplacé vers "Évènements annulés".');
         refetch();
         refreshUser();
       } else {
-        alert('Événement non déplacé vers "Événements annulés" (plus de 10 jours avant).');
+        alert('Évènement non déplacé vers "Évènements annulés" (plus de 10 jours avant).');
       }
     } catch (err: any) {
-      console.error("Erreur lors de l'annulation de l'événement:", err.response?.data || err.message);
+      console.error("Erreur lors de l'annulation de l'évènement:", err.response?.data || err.message);
       alert('Erreur: ' + (err.response?.data?.message || err.message));
     } finally {
       setShowCancelModal(false);
@@ -1087,7 +1087,7 @@ useEffect(() => {
       return;
     }
 
-    if (!confirm(`Voulez-vous envoyer une notification par email à tous les humoristes pour l'événement "${event.title}" ?`)) {
+    if (!confirm(`Voulez-vous envoyer une notification par email à tous les humoristes pour l'évènement "${event.title}" ?`)) {
       return;
     }
 
@@ -1115,7 +1115,7 @@ useEffect(() => {
       eventId: event._id,
       eventTitle: event.title 
     });
-    // Charger les absences de cet événement
+    // Charger les absences de cet évènement
     loadEventAbsences(event._id);
     setIsAbsenceModalOpen(true);
   };
@@ -1592,13 +1592,13 @@ useEffect(() => {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
           <div style={spinnerStyle}></div>
           <p style={{ color: '#aaa', marginTop: 20, fontSize: '1.2em' }}>
-            {authIsLoading ? 'Chargement de votre profil...' : 'Chargement des événements...'}
+            {authIsLoading ? 'Chargement de votre profil...' : 'Chargement des évènements...'}
           </p>
         </div>
       ) : eventsError ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '20px' }}>
           <p style={{ color: '#dc3545', fontSize: '1.2em', marginBottom: '20px' }}>
-            Erreur lors du chargement des événements
+            Erreur lors du chargement des évènements
           </p>
           <p style={{ color: '#aaa', fontSize: '1em', marginBottom: '20px', textAlign: 'center' }}>
             {eventsErrorMessage?.message || 'Une erreur inattendue s\'est produite'}
@@ -1630,25 +1630,25 @@ useEffect(() => {
               gap: isMobile ? 12 : 0
             }}>
             <div style={{ textAlign: isMobile ? 'center' : 'left' }}>
-              <h1 style={titleStyle}>Les événements</h1>
+              <h1 style={titleStyle}>Les évènements</h1>
               <p style={{ fontSize: '1.1em', color: '#aaa' }}>
                 {user?.role === 'ORGANIZER' 
-                  ? 'Gérez et visualisez vos événements. Créez de nouveaux événements pour trouver les meilleurs humoristes.'
+                  ? 'Gérez et visualisez vos évènements. Créez de nouveaux évènements pour trouver les meilleurs humoristes.'
                   : user?.role === 'SUPER_ADMIN'
-                  ? 'Supervisez tous les événements de la plateforme. Utilisez les filtres pour affiner votre recherche.'
-                  : 'Découvrez les événements à venir et postulez pour votre prochaine performance.'}
+                  ? 'Supervisez tous les évènements de la plateforme. Utilisez les filtres pour affiner votre recherche.'
+                  : 'Découvrez les évènements à venir et postulez pour votre prochaine performance.'}
               </p>
             </div>
             {user?.role === 'ORGANIZER' && (
               isMobile ? (
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                   <button onClick={() => setShowCreateEventForm(true)} style={buttonStyle}>
-                    Créer un événement
+                    Créer un évènement
                   </button>
                 </div>
               ) : (
                 <button onClick={() => setShowCreateEventForm(true)} style={buttonStyle}>
-                  Créer un événement
+                  Créer un évènement
                 </button>
               )
             )}
@@ -1807,7 +1807,7 @@ useEffect(() => {
                 onClick={() => setComedianTab(tabId)}
               >
                 <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
-                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} événement(s)</span>
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} évènement(s)</span>
               </button>
             ))}
           </div>
@@ -1842,7 +1842,7 @@ useEffect(() => {
               </select>
             )}
           </div>
-          {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+          {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
           {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
           {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
             <p style={emptyStateStyle}>{comedianEmptyStates[comedianTab]}</p>
@@ -1945,7 +1945,7 @@ useEffect(() => {
                         disabled={(event.participants?.length || 0) >= event.requirements.maxPerformers}
                       >
                         {(event.participants?.length || 0) >= event.requirements.maxPerformers
-                          ? 'Événement complet'
+                          ? 'Évènement complet'
                           : 'Postuler'}
                       </button>
                     ) : isWithdrawn ? (
@@ -2033,7 +2033,7 @@ useEffect(() => {
                   marginBottom: '18px'
                 }}
               >
-                <h2 style={sectionTitleStyle}>Événements à venir</h2>
+                <h2 style={sectionTitleStyle}>Évènements à venir</h2>
                 {isOrganizerView && (
                   <select
                     value={completionFilter}
@@ -2055,11 +2055,11 @@ useEffect(() => {
                   </select>
                 )}
               </div>
-              {listIsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
               {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
               {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
                 <p style={emptyStateStyle}>
-                  {isOrganizerView ? 'Aucun événement à venir pour ce filtre.' : 'Aucun événement à venir (non complet).'}
+                  {isOrganizerView ? 'Aucun évènement à venir pour ce filtre.' : 'Aucun évènement à venir (non complet).'}
                 </p>
               )}
               {paginatedUpcomingEvents.map((event) => {
@@ -2132,12 +2132,12 @@ useEffect(() => {
           {showCompletedSection && (
             <div style={sectionStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
-                <h2 style={sectionTitleStyle}>Événements complets</h2>
+                <h2 style={sectionTitleStyle}>Évènements complets</h2>
               </div>
-              {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+              {eventsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
               {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
               {!eventsLoading && !eventsError && completedUpcomingEvents.length === 0 && (
-                <p style={emptyStateStyle}>Aucun événement complet à venir.</p>
+                <p style={emptyStateStyle}>Aucun évènement complet à venir.</p>
               )}
               {paginatedCompletedEvents.map((event) => {
                 const participantsRatio = getParticipantsRatio(event);
@@ -2205,11 +2205,11 @@ useEffect(() => {
 
       {showArchivedSection && (
         <div ref={archivedSectionRef} style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>Événements archivés</h2>
-          {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+          <h2 style={sectionTitleStyle}>Évènements archivés</h2>
+          {eventsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
           {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
           {!eventsLoading && !eventsError && archivedEventsToShow.length === 0 && (
-            <p style={emptyStateStyle}>Aucun événement archivé.</p>
+            <p style={emptyStateStyle}>Aucun évènement archivé.</p>
           )}
           {paginatedArchivedEvents.map((event) => {
             const participantsRatio = getParticipantsRatio(event);
@@ -2239,7 +2239,7 @@ useEffect(() => {
                 <div style={cardStatusBlockStyle}>
                   {renderStatusChip(`Statut: ${statusLabel}`, '#4dd0e1', 'rgba(77, 208, 225, 0.18)')}
                   {renderStatusChip(`Participants: ${participantsRatio}`, '#9b8bff', 'rgba(155, 139, 255, 0.18)')}
-                  {isFutureButArchived && renderStatusChip('Événement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
+                  {isFutureButArchived && renderStatusChip('Évènement futur classé en archive', '#ffc107', 'rgba(255, 193, 7, 0.18)')}
                   {renderOrganizerActions(event, 'archived')}
                 </div>
               </div>
@@ -2269,7 +2269,7 @@ useEffect(() => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Détails de l'événement">
+      <Modal isOpen={isModalOpen} onClose={closeModal} title="Détails de l'évènement">
         {selectedEvent && (
           <div>
             <h2 style={{ fontSize: '1.8em', color: '#ff4b2b', marginBottom: '15px' }}>{selectedEvent.title}</h2>
@@ -2425,7 +2425,7 @@ useEffect(() => {
         )}
       </Modal>
 
-      <Modal isOpen={showEditEventForm} onClose={() => setShowEditEventForm(false)} title="Modifier l'événement">
+      <Modal isOpen={showEditEventForm} onClose={() => setShowEditEventForm(false)} title="Modifier l'évènement">
         {eventToEdit && (
           <EditEventForm
             eventToEdit={eventToEdit}
@@ -2435,7 +2435,7 @@ useEffect(() => {
         )}
       </Modal>
 
-      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => setShowCreateEventForm(false)} title="Créer un événement">
+      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => setShowCreateEventForm(false)} title="Créer un évènement">
         {showCreateEventForm && user?.role === 'ORGANIZER' && (
           <CreateEventForm 
             onClose={() => setShowCreateEventForm(false)} 
@@ -2444,14 +2444,14 @@ useEffect(() => {
         )}
       </Modal>
 
-      {/* Section Événements annulés */}
+      {/* Section Évènements annulés */}
       {showCancelledSection && (
         <div ref={cancelledSectionRef} style={sectionStyle}>
-          <h2 style={sectionTitleStyle}>Événements annulés</h2>
-          {eventsLoading && <p style={emptyStateStyle}>Chargement des événements...</p>}
+          <h2 style={sectionTitleStyle}>Évènements annulés</h2>
+          {eventsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
           {eventsError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {eventsErrorMessage?.message}</p>}
           {!eventsLoading && !eventsError && cancelledEvents.length === 0 && (
-            <p style={emptyStateStyle}>Aucun événement annulé.</p>
+            <p style={emptyStateStyle}>Aucun évènement annulé.</p>
           )}
           {paginatedCancelledEvents.map((event) => {
             const statusLabel = translateEventStatus(event.status);
@@ -2546,8 +2546,8 @@ useEffect(() => {
         onCancelAbsence={handleCancelAbsence}
       />
 
-      {/* Modal d'annulation d'événement avec raison */}
-      <Modal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} title="Annuler l'événement">
+      {/* Modal d'annulation d'évènement avec raison */}
+      <Modal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} title="Annuler l'évènement">
         <div>
           <p style={{ marginBottom: 12, color: '#ddd' }}>
             {(() => {
@@ -2558,7 +2558,7 @@ useEffect(() => {
               const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
               const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
               return diffDays < 10
-                ? "Veuillez indiquer la raison de l'annulation (obligatoire car l'événement est dans moins de 10 jours)."
+                ? "Veuillez indiquer la raison de l'annulation (obligatoire car l'évènement est dans moins de 10 jours)."
                 : "Vous pouvez indiquer une raison (facultatif).";
             })()}
           </p>
@@ -2594,7 +2594,7 @@ useEffect(() => {
               Retirer votre candidature
             </h2>
             <p style={{ color: '#333', fontSize: '1.05em', lineHeight: '1.6', marginBottom: 15 }}>
-              Êtes-vous sûr de vouloir retirer votre candidature pour l'événement <strong>"{eventToWithdraw.title}"</strong> ?
+              Êtes-vous sûr de vouloir retirer votre candidature pour l'évènement <strong>"{eventToWithdraw.title}"</strong> ?
             </p>
             <p style={{ color: '#666', fontSize: '0.95em', marginBottom: 25 }}>
               Cette action est définitive.

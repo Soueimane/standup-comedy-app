@@ -16,7 +16,7 @@ function ComedianDashboardPage() {
     const params = new URLSearchParams(location.search);
     const update = params.get('update');
     if (update === 'kept') {
-      alert("Confirmation prise en compte: vous restez inscrit à l'événement.");
+      alert("Confirmation prise en compte: vous restez inscrit à l'évènement.");
     } else if (update === 'withdrawn') {
       alert("Désinscription confirmée: votre candidature a été retirée.");
     }
@@ -41,7 +41,7 @@ function ComedianDashboardPage() {
   const acceptedCount = applications ? applications.filter((app: any) => app.status === 'ACCEPTED').length : 0;
   const sentCount = applications ? applications.length : 0;
 
-  // Calcule le nombre d'événements acceptés à venir (date >= aujourd'hui 00:00)
+  // Calcule le nombre d'évènements acceptés à venir (date >= aujourd'hui 00:00)
   const todayMidnight = (() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -191,7 +191,7 @@ function ComedianDashboardPage() {
         </div>
 
         <div style={cardsGridStyle}>
-          {/* Carte: Événements à venir (SWAPPED) - Avec effet clignotant vert */}
+          {/* Carte: Évènements à venir (SWAPPED) - Avec effet clignotant vert */}
           <div
             style={blinkingCardStyle}
             onClick={() => navigate('/events?tab=accepted')}
@@ -199,7 +199,7 @@ function ComedianDashboardPage() {
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
             <div>
-              <p style={cardTitleStyle}>Événements à venir</p>
+              <p style={cardTitleStyle}>Évènements à venir</p>
               <p style={cardValueStyle}>{upcomingCount}</p>
             </div>
             <span style={{ fontSize: '2.6em', color: '#ff4b2b' }}>✨</span>

@@ -271,7 +271,7 @@ const DirectoryPage: React.FC = () => {
     setIsStatsModalOpen(true);
   };
 
-  // Charger le nombre d'événements annulés pour l'organisateur sélectionné
+  // Charger le nombre d'évènements annulés pour l'organisateur sélectionné
   useEffect(() => {
     const fetchCancelledForOrganizer = async () => {
       try {
@@ -284,7 +284,7 @@ const DirectoryPage: React.FC = () => {
         const cancelled = events.filter((e: any) => e.status === 'cancelled' || e.status === 'CANCELLED').length;
         setOrganizerCancelledCount(cancelled);
       } catch (err) {
-        console.error('Erreur récupération événements organisateur:', err);
+        console.error('Erreur récupération évènements organisateur:', err);
         setOrganizerCancelledCount(0);
       }
     };
@@ -750,7 +750,7 @@ const DirectoryPage: React.FC = () => {
                     <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2196f3', marginBottom: '5px' }}>
                       {selectedUser.stats?.totalEvents || 0}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#1976d2' }}>Événements participés</div>
+                    <div style={{ fontSize: '12px', color: '#1976d2' }}>Évènements participés</div>
                   </div>
 
                   <div style={{ padding: '20px', backgroundColor: '#f3e5f5', borderRadius: '8px', textAlign: 'center' }}>
@@ -866,7 +866,7 @@ const DirectoryPage: React.FC = () => {
                     <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2196f3', marginBottom: '5px' }}>
                       {selectedUser.stats?.totalEvents || 0}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#1976d2' }}>Événements organisés</div>
+                    <div style={{ fontSize: '12px', color: '#1976d2' }}>Évènements organisés</div>
                   </div>
 
                   <div style={{ padding: '20px', backgroundColor: '#e8f5e8', borderRadius: '8px', textAlign: 'center' }}>
@@ -882,7 +882,7 @@ const DirectoryPage: React.FC = () => {
                     <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#e53935', marginBottom: '5px' }}>
                       {organizerCancelledCount}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#c62828' }}>Événements annulés</div>
+                    <div style={{ fontSize: '12px', color: '#c62828' }}>Évènements annulés</div>
                   </div>
                 </div>
               </div>

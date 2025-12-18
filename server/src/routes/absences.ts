@@ -30,7 +30,7 @@ router.delete('/:eventId/:comedianId', authMiddleware, asyncHandler(deleteAbsenc
 
 /**
  * GET /event/:eventId
- * Récupère les absences d'un événement (protégée - organisateur seulement)
+ * Récupère les absences d'un évènement (protégée - organisateur seulement)
  */
 router.get('/event/:eventId', authMiddleware, asyncHandler(getEventAbsences));
 

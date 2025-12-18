@@ -142,7 +142,7 @@ function LoginOrganisateur() {
        <div style={iconStyle}>🎭</div>  {/* Icône Théâtre */}
           <h2 className="text-2xl font-bold mb-2">Bon retour, organisateur !</h2>
         <p className="text-gray-400 mb-8 text-sm">
-          Connecte-toi pour gérer tes événements et découvrir de nouveaux talents.
+          Connecte-toi pour gérer tes évènements et découvrir de nouveaux talents.
         </p>
         <form onSubmit={handleSubmitLogin} style={{ display: 'flex', flexDirection: 'column' }}>
           <input
@@ -151,6 +151,7 @@ function LoginOrganisateur() {
             placeholder="Email"
             value={loginData.email}
             onChange={handleChangeLogin}
+            autoComplete="email"
             style={{
               ...inputStyle,
               borderColor: loginError ? '#dc3545' : '#444'
@@ -163,6 +164,7 @@ function LoginOrganisateur() {
             placeholder="Mot de passe"
             value={loginData.password}
             onChange={handleChangeLogin}
+            autoComplete="current-password"
             style={{
               ...inputStyle,
               borderColor: loginError ? '#dc3545' : '#444'

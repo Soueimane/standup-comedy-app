@@ -588,7 +588,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     e.preventDefault();
 
     if (!user || !token) {
-      alert('Vous devez être connecté pour créer un événement');
+      alert('Vous devez être connecté pour créer un évènement');
       return;
     }
 
@@ -643,12 +643,12 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
 
       const response = await api.post('/events', eventData, config);
       console.log('✅ Réponse serveur:', response.data);
-      alert('Événement créé avec succès !');
+      alert('Évènement créé avec succès !');
       onEventCreated();
       onClose(); // Fermer la modale après création réussie
     } catch (error: any) {
-      console.error('Erreur lors de la création de l\'événement:', error.response?.data || error.message);
-      alert(`Erreur lors de la création de l'événement: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors de la création de l\'évènement:', error.response?.data || error.message);
+      alert(`Erreur lors de la création de l'évènement: ${error.response?.data?.message || error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -800,7 +800,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
             fontSize: isMobile ? '20px' : '24px',
             fontWeight: '700'
           }}>
-            Créer un nouvel événement
+            Créer un nouvel évènement
           </h2>
           <button
             onClick={onClose}
@@ -828,7 +828,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
               {/* Titre */}
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                  Titre de l'événement *
+                  Titre de l'évènement *
                 </label>
                 <input
                   type="text"
@@ -863,7 +863,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     resize: 'vertical',
                     borderColor: errors.description ? '#ef4444' : '#444'
                   }}
-                  placeholder="Décrivez votre événement en détail..."
+                  placeholder="Décrivez votre évènement en détail..."
                 />
                 {errors.description && (
                   <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
@@ -1058,11 +1058,11 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
               </div>
             </div>
 
-            {/* Section Informations d'événement */}
+            {/* Section Informations d'évènement */}
             <div style={sectionStyle}>
               <div style={sectionTitleStyle}>
                 <Calendar size={20} style={{ color: '#ff416c' }} />
-                <span>Informations d'événement</span>
+                <span>Informations d'évènement</span>
               </div>
               <div style={sectionGridStyle}>
                 {/* Date */}
@@ -1343,7 +1343,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   opacity: isSubmitting ? 0.7 : 1
                 }}
               >
-                {isSubmitting ? 'Création...' : 'Créer l\'événement'}
+                {isSubmitting ? 'Création...' : 'Créer l\'évènement'}
               </button>
             </div>
           </form>
