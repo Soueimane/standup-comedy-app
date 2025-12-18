@@ -109,7 +109,7 @@ const EmailPreferences: React.FC = () => {
             Notifications par email
           </p>
           <p style={{ color: '#aaa', fontSize: '0.9em' }}>
-            Recevez des emails pour les nouvelles candidatures, événements et mises à jour.
+            Recevez des emails pour les nouvelles candidatures, évènements et mises à jour.
           </p>
         </div>
       </div>

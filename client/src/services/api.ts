@@ -1,8 +1,13 @@
 import axios from 'axios';
-import { getApiBaseUrl } from '../utils/apiConfig';
 
 // Configuration automatique de l'URL de base selon l'environnement
-const baseURL = getApiBaseUrl();
+const baseURL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://connectcomedyclub.com/api'
+    : process.env.NODE_ENV === 'test'
+      ? 'https://test.connectcomedyclub.com/api'
+      : 'http://localhost:3001/api');
 const api = axios.create({
   baseURL,
   headers: {

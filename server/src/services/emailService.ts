@@ -316,12 +316,12 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
     <div class="container">
         <div class="header">
             <h1>🎭 Nouvelle Candidature Reçue !</h1>
-            <div class="subtitle">Un humoriste souhaite participer à votre événement</div>
+            <div class="subtitle">Un humoriste souhaite participer à votre évènement</div>
         </div>
         
         <div class="content">
             <p>Bonjour <strong>${organizerData.firstName}</strong>,</p>
-            <p>Excellente nouvelle ! Un humoriste vient de postuler pour votre événement.</p>
+            <p>Excellente nouvelle ! Un humoriste vient de postuler pour votre évènement.</p>
             
             <div class="humorist-card">
                 <div class="humorist-header">
@@ -387,7 +387,7 @@ export const sendApplicationNotificationToOrganizer = async (eventData: any, hum
                 ${humoristData.stats && humoristData.stats.totalEvents ? `
                 <div class="stat-item">
                     <div class="stat-value">${humoristData.stats.totalEvents}</div>
-                    <div class="stat-label">Événements</div>
+                    <div class="stat-label">Évènements</div>
                 </div>
                 ` : ''}
                 ${humoristData.profile.genres && humoristData.profile.genres.length > 0 ? `
@@ -443,13 +443,13 @@ Nouvelle Candidature Reçue !
 
 Bonjour ${organizerData.firstName},
 
-Un humoriste vient de postuler pour votre événement.
+Un humoriste vient de postuler pour votre évènement.
 
 Humoriste: ${humoristData.firstName} ${humoristData.lastName}
 Email: ${humoristData.email}
 ${humoristData.phone ? `Téléphone: ${humoristData.phone}` : ''}
 
-Événement: ${eventData.title}
+Évènement: ${eventData.title}
 Date: ${new Date(eventData.date).toLocaleDateString('fr-FR')}
 Lieu: ${eventData.location.address}, ${eventData.location.city}
 
@@ -541,7 +541,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
 
     // Préparer le contenu de l'email personnalisé avec l'organisateur
     // Sujet optimisé pour éviter les filtres spam (emoji en fin, pas au début)
-    const subject = `Nouvel événement - ${eventData.title} 🎤`;
+    const subject = `Nouvel évènement - ${eventData.title} 🎤`;
     
     const requirementItems: string[] = [];
 
@@ -567,7 +567,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
       ? `
             <tr>
               <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
-                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'événement</strong>
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'évènement</strong>
                 <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
                   ${requirementItems.join('')}
                 </ul>
@@ -600,7 +600,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nouvel événement disponible</title>
+    <title>Nouvel évènement disponible</title>
     <style>
       body {
         margin: 0 !important;
@@ -623,7 +623,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
         <tr>
           <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
-            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">Nouvel événement disponible</p>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">Nouvel évènement disponible</p>
             <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">Une nouvelle opportunité est ouverte sur Comedy Connect Club.</p>
           </td>
         </tr>
@@ -633,7 +633,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
               <tr>
                 <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
                   Bonjour,<br/><br/>
-                  ${organizerData.firstName} ${organizerData.lastName} vient de publier un événement auquel vous pouvez postuler.
+                  ${organizerData.firstName} ${organizerData.lastName} vient de publier un évènement auquel vous pouvez postuler.
                 </td>
               </tr>
               <tr>
@@ -644,7 +644,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
                   <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
                     <tr>
                       <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
-                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Événement</span>
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Évènement</span>
                         <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${eventData.title}</strong>
                       </td>
                     </tr>
@@ -759,7 +759,7 @@ export const sendNewEventNotificationToHumorists = async (eventData: any, organi
     
     // Créer une version texte simple pour améliorer la délivrabilité
     const textContent = `
-Nouvel Événement Disponible !
+Nouvel Évènement Disponible !
 
 Bonjour,
 
@@ -768,7 +768,7 @@ Une nouvelle opportunité vient d'être publiée sur Comedy Connect Club !
 Organisateur: ${organizerData.firstName} ${organizerData.lastName}
 Email: ${organizerData.email}
 
-Événement: ${eventData.title}
+Évènement: ${eventData.title}
 Date: ${new Date(eventData.date).toLocaleDateString('fr-FR')}
 Lieu: ${eventData.location.address}, ${eventData.location.city}
 ${eventData.startTime ? `Heure: ${eventData.startTime}` : ''}
@@ -852,12 +852,12 @@ L'équipe Comedy Connect Club
       `📊 Résumé de l'envoi: ${successCount} succès, ${errorCount} erreurs ` +
       `sur ${subscribedHumorists.length} humoristes abonnés`
     );
-    console.log(`✅ Notifications envoyées à ${successCount} humoristes pour l'événement "${eventData.title}" par ${organizerData.firstName} ${organizerData.lastName}`);
+    console.log(`✅ Notifications envoyées à ${successCount} humoristes pour l'évènement "${eventData.title}" par ${organizerData.firstName} ${organizerData.lastName}`);
     
   } catch (error) {
-    console.error('❌ Erreur lors de l\'envoi des notifications d\'événement:', error);
+    console.error('❌ Erreur lors de l\'envoi des notifications d\'évènement:', error);
     console.error('🔍 Détail de l\'erreur:', error instanceof Error ? error.stack : 'Erreur inconnue');
-    // Ne pas faire échouer la création de l'événement si l'email échoue
+    // Ne pas faire échouer la création de l'évènement si l'email échoue
   }
 };
 
@@ -893,15 +893,15 @@ export const sendApplicationStatusToComedian = async (
       </h2>
       <p style="font-size: 1.1em; text-align: center;">
         ${status === 'ACCEPTED'
-          ? `Votre candidature pour l'événement <b>${event.title}</b> a été <b>acceptée</b> par l'organisateur.`
-          : `Votre candidature pour l'événement <b>${event.title}</b> n'a pas été retenue par l'organisateur.`}
+          ? `Votre candidature pour l'évènement <b>${event.title}</b> a été <b>acceptée</b> par l'organisateur.`
+          : `Votre candidature pour l'évènement <b>${event.title}</b> n'a pas été retenue par l'organisateur.`}
       </p>
       <div style="margin: 24px 0; padding: 18px; background: #f0f0f0; border-radius: 8px;">
         <b>Message de l'organisateur :</b><br/>
         <i>${organizerMessage ? organizerMessage : '(Aucun message personnalisé)'}</i>
       </div>
       <div style="margin: 24px 0; padding: 18px; background: #e3f2fd; border-radius: 8px;">
-        <b>Détails de l'événement :</b><br/>
+        <b>Détails de l'évènement :</b><br/>
         <span>📅 <b>${event.title}</b></span><br/>
         <span>🗓️ ${new Date(event.date).toLocaleDateString('fr-FR')}</span><br/>
         <span>📍 ${event.location.address}, ${event.location.city}</span>
@@ -929,12 +929,12 @@ export const sendApplicationStatusToComedian = async (
 ${status === 'ACCEPTED' ? 'Félicitations !' : 'Candidature non retenue'}
 
 ${status === 'ACCEPTED'
-  ? `Votre candidature pour l'événement "${event.title}" a été acceptée par l'organisateur.`
-  : `Votre candidature pour l'événement "${event.title}" n'a pas été retenue par l'organisateur.`}
+  ? `Votre candidature pour l'évènement "${event.title}" a été acceptée par l'organisateur.`
+  : `Votre candidature pour l'évènement "${event.title}" n'a pas été retenue par l'organisateur.`}
 
 ${organizerMessage ? `Message de l'organisateur: ${organizerMessage}` : ''}
 
-Détails de l'événement:
+Détails de l'évènement:
 - ${event.title}
 - Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
 - Lieu: ${event.location.address}, ${event.location.city}
@@ -968,7 +968,7 @@ L'équipe Comedy Connect Club
   });
 }; 
 
-// Notifier les humoristes ayant déjà postulé quand un événement est modifié
+// Notifier les humoristes ayant déjà postulé quand un évènement est modifié
 export const sendEventUpdatedNotificationToApplicants = async (
   applications: Array<{ _id: string; comedian: any }>,
   event: any,
@@ -976,7 +976,7 @@ export const sendEventUpdatedNotificationToApplicants = async (
 ) => {
   if (!applications || applications.length === 0) return;
 
-  const subject = `✏️ Mise à jour de l'événement "${event.title}"`;
+  const subject = `✏️ Mise à jour de l'évènement "${event.title}"`;
   const frontendBase = config.frontend.url;
 
   const sendAll = applications.map(async (app: any) => {
@@ -996,9 +996,9 @@ export const sendEventUpdatedNotificationToApplicants = async (
     const html = `
     <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 30px;">
       <div style="max-width: 600px; margin: auto; background: white; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 24px;">
-        <h2 style="margin-top:0">✏️ L'organisateur a modifié un événement</h2>
+        <h2 style="margin-top:0">✏️ L'organisateur a modifié un évènement</h2>
         <p>Bonjour ${comedian.firstName || ''},</p>
-        <p>L'événement auquel vous avez postulé a été mis à jour par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
+        <p>L'évènement auquel vous avez postulé a été mis à jour par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
         <div style="margin: 16px 0; padding: 16px; background:#e3f2fd; border-left: 4px solid #2196f3; border-radius: 8px;">
           <div><b>📛 Titre:</b> ${event.title}</div>
           <div><b>📅 Date:</b> ${new Date(event.date).toLocaleDateString('fr-FR')}</div>
@@ -1025,13 +1025,13 @@ export const sendEventUpdatedNotificationToApplicants = async (
 
     // Version texte pour améliorer la délivrabilité
     const textContent = `
-✏️ L'organisateur a modifié un événement
+✏️ L'organisateur a modifié un évènement
 
 Bonjour ${comedian.firstName || ''},
 
-L'événement auquel vous avez postulé a été mis à jour par ${organizer.firstName} ${organizer.lastName}.
+L'évènement auquel vous avez postulé a été mis à jour par ${organizer.firstName} ${organizer.lastName}.
 
-Événement: ${event.title}
+Évènement: ${event.title}
 Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
 Lieu: ${event.location?.address || ''} ${event.location?.city ? `- ${event.location.city}` : ''}
 ${event.startTime ? `Heure: ${event.startTime}` : ''}
@@ -1105,7 +1105,7 @@ export const sendEventReminder = async (
     <div style="max-width: 600px; margin: auto; background: white; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 24px;">
       <h2 style="margin-top:0;">${subjectMap[type]}</h2>
       <p>Bonjour ${comedian.firstName || ''},</p>
-      <p>Vous êtes <b>accepté</b> pour l'événement <b>${event.title}</b>.</p>
+      <p>Vous êtes <b>accepté</b> pour l'évènement <b>${event.title}</b>.</p>
       <div style="margin: 16px 0; padding: 16px; background:#e3f2fd; border-left: 4px solid #2196f3; border-radius: 8px;">
         <div><b>📅 Date:</b> ${new Date(event.date).toLocaleDateString('fr-FR')}</div>
         ${event.startTime ? `<div><b>⏰ Heure:</b> ${event.startTime}</div>` : ''}
@@ -1135,7 +1135,7 @@ ${subjectMap[type]}
 
 Bonjour ${comedian.firstName || ''},
 
-Vous êtes accepté pour l'événement ${event.title}.
+Vous êtes accepté pour l'évènement ${event.title}.
 
 Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
 ${event.startTime ? `Heure: ${event.startTime}` : ''}
@@ -1171,7 +1171,7 @@ L'équipe Comedy Connect Club
   });
 };
 
-// Notifier les participants d'un événement annulé (avec raison)
+// Notifier les participants d'un évènement annulé (avec raison)
 export const sendEventCancellationToParticipants = async (
   participants: Array<{ email: string; firstName?: string; lastName?: string }>,
   event: { title: string; date: Date; location?: any },
@@ -1180,7 +1180,7 @@ export const sendEventCancellationToParticipants = async (
 ) => {
   if (!participants || participants.length === 0) return;
 
-  const subject = `🛑 Événement annulé: "${event.title}"`;
+  const subject = `🛑 Évènement annulé: "${event.title}"`;
 
   const sends = participants
     .filter(p => !!p.email)
@@ -1196,9 +1196,9 @@ export const sendEventCancellationToParticipants = async (
       const html = `
       <div style="font-family: Arial, sans-serif; background:#f8f9fa; padding:24px;">
         <div style="max-width: 600px; margin:auto; background:white; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.06); padding:24px;">
-          <h2 style="margin-top:0;color:#dc3545;">🛑 Événement annulé</h2>
+          <h2 style="margin-top:0;color:#dc3545;">🛑 Évènement annulé</h2>
           <p>Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},</p>
-          <p>L'événement <b>${event.title}</b> prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b> a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
+          <p>L'évènement <b>${event.title}</b> prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b> a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
           ${event.location ? `<p><b>Lieu:</b> ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}</p>` : ''}
           ${cancellationReason ? `<div style="margin:16px 0; padding:12px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:8px;"><b>Raison fournie:</b><br/><i>${cancellationReason}</i></div>` : ''}
           <p>Nous vous remercions pour votre compréhension.</p>
@@ -1218,11 +1218,11 @@ export const sendEventCancellationToParticipants = async (
 
       // Version texte pour améliorer la délivrabilité
       const textContent = `
-🛑 Événement annulé
+🛑 Évènement annulé
 
 Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},
 
-L'événement ${event.title} prévu le ${new Date(event.date).toLocaleDateString('fr-FR')} a été annulé par ${organizer.firstName} ${organizer.lastName}.
+L'évènement ${event.title} prévu le ${new Date(event.date).toLocaleDateString('fr-FR')} a été annulé par ${organizer.firstName} ${organizer.lastName}.
 
 ${event.location ? `Lieu: ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}` : ''}
 ${cancellationReason ? `Raison: ${cancellationReason}` : ''}
@@ -1267,15 +1267,15 @@ L'équipe Comedy Connect Club
 };
 
 /**
- * Envoie une relance automatique à l'organisateur pour un événement incomplet
+ * Envoie une relance automatique à l'organisateur pour un évènement incomplet
  *
  * Cette fonction est appelée par le système de cron pour relancer les organisateurs
- * lorsque leur événement n'a pas atteint le quota d'humoristes ou qu'ils ont des
+ * lorsque leur évènement n'a pas atteint le quota d'humoristes ou qu'ils ont des
  * candidatures en attente de traitement.
  *
  * @param organizer - Données de l'organisateur (email, firstName, lastName)
- * @param event - Données de l'événement concerné
- * @param daysRemaining - Nombre de jours restants avant l'événement
+ * @param event - Données de l'évènement concerné
+ * @param daysRemaining - Nombre de jours restants avant l'évènement
  * @param currentCount - Nombre actuel de participants acceptés
  * @param targetCount - Nombre d'humoristes visé par l'organisateur
  * @param pendingApplicationsCount - Nombre de candidatures en attente
@@ -1295,7 +1295,7 @@ export const sendOrganizerEventReminder = async (
   pendingApplicationsCount: number
 ) => {
   try {
-    console.log(`📬 Envoi relance organisateur: ${organizer.email} pour événement "${event.title}" (J-${daysRemaining})`);
+    console.log(`📬 Envoi relance organisateur: ${organizer.email} pour évènement "${event.title}" (J-${daysRemaining})`);
 
     // ===== VÉRIFICATION ABONNEMENT EMAIL =====
     const organizerId = (organizer as any)._id || (organizer as any).id;
@@ -1330,7 +1330,7 @@ export const sendOrganizerEventReminder = async (
 
     if (pendingApplicationsCount > 0 && currentCount < targetCount) {
       // Cas 1: Candidatures en attente ET quota non atteint
-      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>). De plus, vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
+      mainMessage = `Votre évènement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>). De plus, vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
       actionSuggestions = `
         <li>📋 <b>Consulter les ${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> et faire votre sélection</li>
         <li>✏️ <b>Modifier le nombre d'humoristes souhaité</b> si ${targetCount} est trop ambitieux</li>
@@ -1338,14 +1338,14 @@ export const sendOrganizerEventReminder = async (
       `;
     } else if (pendingApplicationsCount > 0) {
       // Cas 2: Uniquement des candidatures en attente
-      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
+      mainMessage = `Votre évènement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et vous avez <b>${pendingApplicationsCount} candidature${pendingApplicationsCount > 1 ? 's' : ''} en attente</b> de traitement.`;
       actionSuggestions = `
         <li>📋 <b>Consulter les candidatures en attente</b> et faire votre sélection</li>
         <li>✅ <b>Valider les humoristes</b> qui correspondent à vos attentes</li>
       `;
     } else {
       // Cas 3: Uniquement quota non atteint
-      mainMessage = `Votre événement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>).`;
+      mainMessage = `Votre évènement a lieu dans <b>${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}</b> et le quota de <b>${targetCount} humoriste${targetCount > 1 ? 's' : ''}</b> n'est pas atteint (<b>${currentCount}/${targetCount}</b>).`;
       actionSuggestions = `
         <li>✏️ <b>Réduire le nombre d'humoristes souhaité</b> si ${targetCount} est trop ambitieux</li>
         <li>📢 <b>Envoyer un rappel</b> aux humoristes pour attirer de nouveaux candidats</li>
@@ -1366,7 +1366,7 @@ export const sendOrganizerEventReminder = async (
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relance événement</title>
+    <title>Relance évènement</title>
     <style>
         body {
             margin: 0;
@@ -1551,7 +1551,7 @@ export const sendOrganizerEventReminder = async (
     <div class="container">
         <div class="header">
             <h1>⏰ Action Requise</h1>
-            <div class="subtitle">Relance pour votre événement à venir</div>
+            <div class="subtitle">Relance pour votre évènement à venir</div>
         </div>
 
         <div class="content">
@@ -1606,7 +1606,7 @@ export const sendOrganizerEventReminder = async (
                 </a>
                 ` : ''}
                 <a href="${editEventUrl}" class="cta-button btn-secondary">
-                    ✏️ Modifier l'événement
+                    ✏️ Modifier l'évènement
                 </a>
                 <a href="${eventsUrl}" class="cta-button btn-tertiary">
                     📊 Tableau de bord
@@ -1614,7 +1614,7 @@ export const sendOrganizerEventReminder = async (
             </div>
 
             <p style="text-align: center; color: #666; font-size: 14px; margin-top: 25px;">
-                Connectez-vous à votre espace organisateur pour gérer votre événement.
+                Connectez-vous à votre espace organisateur pour gérer votre évènement.
             </p>
         </div>
 
@@ -1639,13 +1639,13 @@ export const sendOrganizerEventReminder = async (
 
     // Version texte pour améliorer la délivrabilité
     const textContent = `
-⏰ Action Requise - Relance pour votre événement
+⏰ Action Requise - Relance pour votre évènement
 
 Bonjour ${organizer.firstName || 'Organisateur'},
 
 ${mainMessage.replace(/<b>/g, '').replace(/<\/b>/g, '')}
 
-Événement: ${event.title}
+Évènement: ${event.title}
 Date: ${new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
 ${event.startTime ? `Heure: ${event.startTime}` : ''}
@@ -1659,7 +1659,7 @@ ${actionSuggestions.replace(/<li>/g, '- ').replace(/<\/li>/g, '').replace(/<b>/g
 
 Liens utiles:
 ${pendingApplicationsCount > 0 ? `- Voir les candidatures: ${applicationsUrl}` : ''}
-- Modifier l'événement: ${editEventUrl}
+- Modifier l'évènement: ${editEventUrl}
 - Tableau de bord: ${eventsUrl}
 
 L'équipe Comedy Connect Club

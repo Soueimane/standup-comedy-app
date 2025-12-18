@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getApiBaseUrl } from '../utils/apiConfig';
 
 // Type pour le statut de la connexion SSE
 export type SSEConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -34,7 +33,6 @@ export const useSSE = (
   const isUnmountingRef = useRef<boolean>(false);
 
   // Constantes de reconnexion
-  const MAX_RECONNECT_ATTEMPTS = 5; // Limiter à 5 tentatives
   const MAX_RECONNECT_DELAY = 30000; // 30 secondes max
   const INITIAL_RECONNECT_DELAY = 1000; // 1 seconde au départ
 
@@ -92,8 +90,14 @@ export const useSSE = (
     console.log('🔌 [SSE] Tentative de connexion...');
     setStatus('connecting');
 
-    // Utiliser la même logique que l'API pour garantir la cohérence
-    const baseUrl = getApiBaseUrl();
+    // Déterminer l'URL de base selon l'environnement (CRA -> process.env)
+    const baseUrl = process.env.REACT_APP_API_URL ||
+      (process.env.NODE_ENV === 'production'
+    ? 'https://connectcomedyclub.com/api'
+    : process.env.NODE_ENV === 'test'
+      ? 'https://test.connectcomedyclub.com/api'
+      : 'http://localhost:3001/api');
+
     const url = `${baseUrl}/sse/stream?token=${encodeURIComponent(token)}`;
 
     try {
@@ -148,16 +152,6 @@ export const useSSE = (
       // Gérer les erreurs
       eventSource.onerror = (error) => {
         console.error('❌ [SSE] Erreur de connexion:', error);
-        
-        // Ne pas essayer de se reconnecter si on a dépassé le nombre max de tentatives
-        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.log(`⏹️ [SSE] Arrêt des tentatives de reconnexion (max atteint: ${MAX_RECONNECT_ATTEMPTS})`);
-          setStatus('disconnected');
-          eventSource.close();
-          eventSourceRef.current = null;
-          return;
-        }
-
         setStatus('error');
         eventSource.close();
         eventSourceRef.current = null;
@@ -166,7 +160,7 @@ export const useSSE = (
         if (!isUnmountingRef.current) {
           reconnectAttemptsRef.current++;
           const delay = getReconnectDelay();
-          console.log(`🔄 [SSE] Reconnexion dans ${delay}ms (tentative ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+          console.log(`🔄 [SSE] Reconnexion dans ${delay}ms (tentative ${reconnectAttemptsRef.current})...`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
