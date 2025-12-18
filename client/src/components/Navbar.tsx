@@ -171,7 +171,7 @@ function Navbar() {
       }}>
         {/* Menu Desktop - Masqué sur mobile */}
         <div style={{ display: 'flex', alignItems: 'center' }} id="desktop-nav">
-          <h2 style={{ margin: '0', color: '#ff4b2b' }}>Comedy Connect Club</h2>
+          <h2 style={{ margin: '0', color: '#ff4b2b' }}>Connect Comedy Club</h2>
           <div style={{ marginLeft: '30px' }}>
             <Link to="/dashboard" style={{ ...navLinkBaseStyle, ...(location.pathname === '/dashboard' ? activeLinkStyle : {}) }}>Accueil</Link>
             <Link to="/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/events' ? activeLinkStyle : {}) }}>
@@ -219,7 +219,7 @@ function Navbar() {
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap'
           }}>
-            Comedy Connect Club
+            Connect Comedy Club
           </h2>
           
         </div>
