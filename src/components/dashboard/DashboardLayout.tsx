@@ -152,7 +152,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <NavLink to="/dashboard" className="text-xl font-bold text-gray-800">
-                  Comedy Connect Club
+                  Connect Comedy Club
                 </NavLink>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -209,7 +209,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               )}
             </button>
             <h1 className="ml-3 text-lg font-bold text-gray-800 truncate">
-              Comedy Connect Club
+              Connect Comedy Club
             </h1>
           </div>
           <div className="flex items-center space-x-2">
