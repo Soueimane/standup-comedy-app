@@ -10,7 +10,11 @@ import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter'
 
 export const register = async (req: Request, res: Response) => {
   try {
+    console.log('📝 [REGISTER] Données reçues:', JSON.stringify(req.body, null, 2));
     const { email, phone, password, firstName, lastName, role, city, profile: profileData } = req.body;
+
+    console.log('📝 [REGISTER] Rôle:', role);
+    console.log('📝 [REGISTER] Profile data:', profileData);
 
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await UserModel.findOne({ email });
@@ -21,16 +25,26 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Créer le profil utilisateur en fonction du rôle
-    const profile = role === 'COMEDIAN' ? {
-      bio: profileData?.bio || '',
-      experience: profileData?.experience || 0,
-      speciality: '',
-      socialLinks: {},
-      performances: [],
-      numberOfScenes: '0-50' as const, // Doit être une string avec enum ['0-50', '50-200', '200+']
-      comedyStyle: [],
-      performanceLanguages: [],
-    } : undefined;
+    let profile;
+    if (role === 'COMEDIAN') {
+      const experienceValue = profileData?.experience !== undefined 
+        ? (typeof profileData.experience === 'string' ? parseInt(profileData.experience, 10) : profileData.experience)
+        : 0;
+      
+      profile = {
+        bio: profileData?.bio || '',
+        experience: experienceValue,
+        speciality: '',
+        socialLinks: {},
+        performances: [],
+        numberOfScenes: '0-50' as const, // Doit être une string avec enum ['0-50', '50-200', '200+']
+        comedyStyle: [],
+        performanceLanguages: [],
+      };
+      console.log('📝 [REGISTER] Profil créé pour COMEDIAN:', profile);
+    } else {
+      profile = undefined;
+    }
 
     const organizerProfile = role === 'ORGANIZER' ? {
       companyName: '',
@@ -48,7 +62,7 @@ export const register = async (req: Request, res: Response) => {
     } : undefined;
 
     // Créer un nouvel utilisateur
-    const user = new UserModel({
+    const userData: any = {
       email,
       phone: phone || '',
       password,
@@ -56,11 +70,29 @@ export const register = async (req: Request, res: Response) => {
       lastName,
       role,
       city: city || '',
-      ...(profile && { profile }),
-      ...(organizerProfile && { organizerProfile }),
-    });
+    };
+    
+    if (profile) {
+      userData.profile = profile;
+    }
+    if (organizerProfile) {
+      userData.organizerProfile = organizerProfile;
+    }
+    
+    console.log('📝 [REGISTER] Données utilisateur à créer:', JSON.stringify({ ...userData, password: '***' }, null, 2));
+    
+    const user = new UserModel(userData);
 
-    await user.save();
+    try {
+      await user.save();
+      console.log('✅ [REGISTER] Utilisateur sauvegardé avec succès:', user._id);
+    } catch (saveError: any) {
+      console.error('❌ [REGISTER] Erreur lors de la sauvegarde:', saveError);
+      if (saveError.errors) {
+        console.error('❌ [REGISTER] Détails des erreurs de validation:', saveError.errors);
+      }
+      throw saveError;
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitUserRegistered(user._id.toString());
@@ -102,13 +134,34 @@ export const register = async (req: Request, res: Response) => {
       user: userResponse
     });
   } catch (error) {
-    console.error('Erreur lors de l\'enregistrement:', error);
+    console.error('❌ [REGISTER] Erreur lors de l\'enregistrement:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error('Détails de l\'erreur:', { errorMessage, errorStack, body: req.body });
+    
+    // Logs détaillés pour le debugging
+    console.error('❌ [REGISTER] Détails de l\'erreur:', { 
+      errorMessage, 
+      errorStack,
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      body: JSON.stringify(req.body, null, 2)
+    });
+    
+    // Si c'est une erreur de validation Mongoose, donner plus de détails
+    if (error && typeof error === 'object' && 'errors' in error) {
+      const mongooseError = error as any;
+      console.error('❌ [REGISTER] Erreurs de validation Mongoose:', mongooseError.errors);
+      return res.status(400).json({ 
+        message: 'Erreur de validation des données',
+        errors: Object.keys(mongooseError.errors || {}).map(key => ({
+          field: key,
+          message: mongooseError.errors[key]?.message || 'Erreur de validation'
+        }))
+      });
+    }
+    
     res.status(500).json({ 
       message: 'Erreur lors de l\'enregistrement de l\'utilisateur',
-      error: errorMessage
+      error: process.env.NODE_ENV === 'production' ? 'Erreur serveur' : errorMessage // Cacher les détails en production
     });
   }
 };
@@ -287,7 +340,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
           ...baseData,
           bio: (user.profile as any).bio || '',
           experience: (user.profile as any).experience || 0,
-          numberOfScenes: (user.profile as any).numberOfScenes || 0,
+          numberOfScenes: (user.profile as any).numberOfScenes || '0-50',
         };
       }
 

@@ -142,7 +142,7 @@ const userProfileSchema = new Schema<UserProfile>({
   bio: { type: String },
   experience: { type: Number },
   speciality: { type: String },
-  numberOfScenes: { type: String, enum: ['0-50', '50-200', '200+'] }, // Nombre de scènes jouées
+  numberOfScenes: { type: String, enum: ['0-50', '50-200', '200+'], default: '0-50' }, // Nombre de scènes jouées
   comedyStyle: [{ 
     type: String, 
     enum: ['stand-up', 'improvisation', 'plateau', 'sketch'] 
@@ -273,8 +273,18 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 // Middleware pour gérer les profils en fonction du userType avant la sauvegarde
 userSchema.pre('save', function(next) {
   if (this.isModified('role') || this.isNew) {
+    // Ne créer un profil par défaut que si aucun profil n'existe déjà
     if (this.role === 'COMEDIAN' && !this.profile) {
-      this.profile = { bio: '', experience: 0, speciality: '' };
+      this.profile = { 
+        bio: '', 
+        experience: 0, 
+        speciality: '',
+        numberOfScenes: '0-50',
+        comedyStyle: [],
+        performanceLanguages: [],
+        socialLinks: {},
+        performances: []
+      };
     }
     if (this.role === 'ORGANIZER' && !this.organizerProfile) {
         this.organizerProfile = { companyName: '', location: { city: '', postalCode: '' }, venueTypes: [] };

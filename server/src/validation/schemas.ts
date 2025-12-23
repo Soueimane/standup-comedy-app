@@ -59,20 +59,37 @@ export const registerSchema = z.object({
     bio: z.string()
       .min(10, 'La biographie doit contenir au moins 10 caractères')
       .max(500, 'La biographie ne peut pas dépasser 500 caractères'),
-    experience: z.union([z.number(), z.string()])
-      .transform((val) => typeof val === 'string' ? parseInt(val, 10) : val)
-      .pipe(z.number()
+    experience: z.preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const parsed = parseInt(val, 10);
+          return isNaN(parsed) ? 0 : parsed;
+        }
+        return typeof val === 'number' ? val : 0;
+      },
+      z.number()
         .min(0, 'L\'expérience doit être un nombre positif')
-        .max(50, 'L\'expérience ne peut pas dépasser 50 ans'))
+        .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
+    )
   }).optional()
 }).refine((data) => {
   // Si le rôle est COMEDIAN, le profile est requis
   if (data.role === 'COMEDIAN') {
-    return data.profile !== undefined && data.profile !== null;
+    if (!data.profile || data.profile === null || data.profile === undefined) {
+      return false;
+    }
+    // Vérifier que bio et experience sont présents
+    if (!data.profile.bio || data.profile.bio.trim().length < 10) {
+      return false;
+    }
+    if (data.profile.experience === undefined || data.profile.experience === null) {
+      return false;
+    }
+    return true;
   }
   return true;
 }, {
-  message: 'Le profil est requis pour les humoristes',
+  message: 'Le profil est requis pour les humoristes avec une biographie d\'au moins 10 caractères et une expérience',
   path: ['profile']
 });
 
