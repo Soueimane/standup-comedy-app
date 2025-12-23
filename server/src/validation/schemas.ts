@@ -54,14 +54,26 @@ export const registerSchema = z.object({
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'),
   role: z.enum(['COMEDIAN', 'ORGANIZER', 'ADMIN']),
+  city: z.string().optional(),
   profile: z.object({
     bio: z.string()
       .min(10, 'La biographie doit contenir au moins 10 caractères')
       .max(500, 'La biographie ne peut pas dépasser 500 caractères'),
-    experience: z.number()
-      .min(0, 'L\'expérience doit être un nombre positif')
-      .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
-  })
+    experience: z.union([z.number(), z.string()])
+      .transform((val) => typeof val === 'string' ? parseInt(val, 10) : val)
+      .pipe(z.number()
+        .min(0, 'L\'expérience doit être un nombre positif')
+        .max(50, 'L\'expérience ne peut pas dépasser 50 ans'))
+  }).optional()
+}).refine((data) => {
+  // Si le rôle est COMEDIAN, le profile est requis
+  if (data.role === 'COMEDIAN') {
+    return data.profile !== undefined && data.profile !== null;
+  }
+  return true;
+}, {
+  message: 'Le profil est requis pour les humoristes',
+  path: ['profile']
 });
 
 export const loginSchema = z.object({

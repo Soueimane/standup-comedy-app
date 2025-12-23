@@ -10,7 +10,7 @@ import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter'
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, phone, password, firstName, lastName, role, city } = req.body;
+    const { email, phone, password, firstName, lastName, role, city, profile: profileData } = req.body;
 
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await UserModel.findOne({ email });
@@ -22,12 +22,12 @@ export const register = async (req: Request, res: Response) => {
 
     // Créer le profil utilisateur en fonction du rôle
     const profile = role === 'COMEDIAN' ? {
-      bio: '',
-      experience: 0,
+      bio: profileData?.bio || '',
+      experience: profileData?.experience || 0,
       speciality: '',
       socialLinks: {},
       performances: [],
-      numberOfScenes: 0,
+      numberOfScenes: '0-50' as const, // Doit être une string avec enum ['0-50', '50-200', '200+']
       comedyStyle: [],
       performanceLanguages: [],
     } : undefined;
@@ -103,7 +103,13 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement:', error);
-    res.status(500).json({ message: 'Erreur lors de l\'enregistrement de l\'utilisateur' });
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Détails de l\'erreur:', { errorMessage, errorStack, body: req.body });
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'enregistrement de l\'utilisateur',
+      error: errorMessage
+    });
   }
 };
 
