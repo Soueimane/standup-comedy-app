@@ -56,6 +56,21 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    // Vérifier le statut de l'évènement
+    if (event.status === 'cancelled') {
+      res.status(400).json({
+        message: 'Impossible de postuler à un évènement annulé'
+      });
+      return;
+    }
+
+    if (event.status === 'completed') {
+      res.status(400).json({
+        message: 'Impossible de postuler à un évènement terminé'
+      });
+      return;
+    }
+
     // Vérifier si l'application existe déjà
     const existingApplication = await ApplicationModel.findOne({
       event: eventObjectId,
@@ -91,28 +106,55 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     await application.save();
 
-    // Émettre un évènement SSE pour notifier tous les clients
-    emitApplicationCreated(application._id.toString(), eventId);
+    // Émettre un évènement SSE pour notifier tous les clients (non-bloquant)
+    try {
+      emitApplicationCreated(application._id.toString(), eventId);
+    } catch (sseError) {
+      console.error('⚠️ Erreur lors de l\'émission SSE (non-bloquant):', sseError);
+      // Ne pas throw, continuer le flux
+    }
 
-    // Ajouter l'application à l'évènement
-    const eventDoc = event as EventDocument;
-    eventDoc.applications.push(application._id as unknown as Types.ObjectId);
-    await eventDoc.save();
+    // Ajouter l'application à l'évènement (mise à jour atomique)
+    // Utilisation de $push pour éviter race conditions et ValidationError
+    try {
+      await EventModel.findByIdAndUpdate(
+        eventObjectId,
+        { $push: { applications: application._id } },
+        { runValidators: false }
+      );
+    } catch (eventUpdateError) {
+      console.error('❌ ERREUR CRITIQUE : Échec de la mise à jour de l\'événement');
+      console.error('🔄 ROLLBACK : Suppression de l\'application créée');
 
-    // Mettre à jour les statistiques de l'humoriste
-    const comedian = await UserModel.findById(comedianId);
-    if (comedian) {
-      if (!comedian.stats) {
-        comedian.stats = {};
+      // ROLLBACK : Supprimer l'application créée
+      try {
+        await ApplicationModel.findByIdAndDelete(application._id);
+        console.log('✅ Rollback réussi : application supprimée');
+      } catch (rollbackError) {
+        console.error('💥 ÉCHEC DU ROLLBACK:', rollbackError);
+        // TODO: Alerter l'équipe technique (Sentry, Slack, etc.)
       }
-      comedian.stats.applicationsSent = (comedian.stats.applicationsSent || 0) + 1;
-      comedian.markModified('stats');
-      await comedian.save();
+
+      throw new Error('Échec de la mise à jour de l\'événement');
+    }
+
+    // Mettre à jour les statistiques de l'humoriste (mise à jour atomique, non-bloquant)
+    // Utilisation de $inc pour éviter les ValidationError sur le document User complet
+    try {
+      await UserModel.findByIdAndUpdate(
+        comedianId,
+        { $inc: { 'stats.applicationsSent': 1 } },
+        { runValidators: false }
+      );
+    } catch (statsError) {
+      console.error('⚠️ Erreur lors de la mise à jour des stats (non-bloquant):', statsError);
+      // Ne pas throw, les stats ne sont pas critiques
     }
 
     // Envoyer une notification à l'organisateur
     try {
       const organizer = await UserModel.findById(event.organizer);
+      const comedian = await UserModel.findById(comedianId);
       if (organizer && comedian) {
         await sendApplicationNotificationToOrganizer(
           event,
