@@ -114,7 +114,33 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       // Ne pas throw, continuer le flux
     }
 
-    // Ajouter l'application à l'évènement (mise à jour atomique)
+    // ========== OPÉRATIONS CRITIQUES AVEC ROLLBACK ==========
+    // L'ordre est important pour maintenir la cohérence des stats
+
+    // 1. Mettre à jour les statistiques du comédien (CRITIQUE - doit réussir)
+    // Utilisation de $inc pour éviter les ValidationError sur le document User complet
+    try {
+      await UserModel.findByIdAndUpdate(
+        comedianId,
+        { $inc: { 'stats.applicationsSent': 1 } },
+        { runValidators: false }
+      );
+    } catch (statsError) {
+      console.error('❌ ERREUR CRITIQUE : Échec de la mise à jour des stats');
+      console.error('🔄 ROLLBACK : Suppression de l\'application créée');
+
+      // ROLLBACK : Supprimer l'application créée
+      try {
+        await ApplicationModel.findByIdAndDelete(application._id);
+        console.log('✅ Rollback réussi : application supprimée');
+      } catch (rollbackError) {
+        console.error('💥 ÉCHEC DU ROLLBACK:', rollbackError);
+      }
+
+      throw new Error('Échec de la mise à jour des statistiques');
+    }
+
+    // 2. Ajouter l'application à l'évènement (CRITIQUE - doit réussir)
     // Utilisation de $push pour éviter race conditions et ValidationError
     try {
       await EventModel.findByIdAndUpdate(
@@ -124,31 +150,23 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       );
     } catch (eventUpdateError) {
       console.error('❌ ERREUR CRITIQUE : Échec de la mise à jour de l\'événement');
-      console.error('🔄 ROLLBACK : Suppression de l\'application créée');
+      console.error('🔄 ROLLBACK : Suppression de l\'application ET décrémentation des stats');
 
-      // ROLLBACK : Supprimer l'application créée
+      // ROLLBACK : Supprimer l'application ET décrémenter les stats
       try {
         await ApplicationModel.findByIdAndDelete(application._id);
-        console.log('✅ Rollback réussi : application supprimée');
+        await UserModel.findByIdAndUpdate(
+          comedianId,
+          { $inc: { 'stats.applicationsSent': -1 } },
+          { runValidators: false }
+        );
+        console.log('✅ Rollback réussi : application supprimée et stats décrémentées');
       } catch (rollbackError) {
         console.error('💥 ÉCHEC DU ROLLBACK:', rollbackError);
         // TODO: Alerter l'équipe technique (Sentry, Slack, etc.)
       }
 
       throw new Error('Échec de la mise à jour de l\'événement');
-    }
-
-    // Mettre à jour les statistiques de l'humoriste (mise à jour atomique, non-bloquant)
-    // Utilisation de $inc pour éviter les ValidationError sur le document User complet
-    try {
-      await UserModel.findByIdAndUpdate(
-        comedianId,
-        { $inc: { 'stats.applicationsSent': 1 } },
-        { runValidators: false }
-      );
-    } catch (statsError) {
-      console.error('⚠️ Erreur lors de la mise à jour des stats (non-bloquant):', statsError);
-      // Ne pas throw, les stats ne sont pas critiques
     }
 
     // Envoyer une notification à l'organisateur
