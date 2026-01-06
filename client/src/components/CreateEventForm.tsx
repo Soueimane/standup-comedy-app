@@ -7,9 +7,23 @@ import api from '../services/api';
 interface CreateEventFormProps {
   onClose: () => void;
   onEventCreated: () => void;
+  initialData?: {
+    title?: string;
+    description?: string;
+    city?: string;
+    postalCode?: string;
+    address?: string;
+    country?: string;
+    date?: string;
+    venue?: string;
+    startTime?: string;
+    endTime?: string;
+    minExperience?: number;
+    maxComedians?: number;
+  };
 }
 
-function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
+function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
   const { user, token } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
 
@@ -36,20 +50,58 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   }, []);
   
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    city: '',
-    postalCode: '',
-    address: '',
-    country: '',
-    date: new Date().toISOString().split('T')[0], // Format YYYY-MM-DD par défaut
-    venue: '',
-    startTime: '',
-    endTime: '',
-    minExperience: '',
-    maxComedians: '',
+    title: initialData?.title || '',
+    description: initialData?.description || '',
+    city: initialData?.city || '',
+    postalCode: initialData?.postalCode || '',
+    address: initialData?.address || '',
+    country: initialData?.country || '',
+    date: initialData?.date || new Date().toISOString().split('T')[0], // Format YYYY-MM-DD par défaut
+    venue: initialData?.venue || '',
+    startTime: initialData?.startTime || '',
+    endTime: initialData?.endTime || '',
+    minExperience: initialData?.minExperience?.toString() || '',
+    maxComedians: initialData?.maxComedians?.toString() || '',
     status: 'PUBLISHED',
   });
+
+  // Réinitialiser le formulaire quand initialData change
+  React.useEffect(() => {
+    if (initialData) {
+      setFormData({
+        title: initialData.title || '',
+        description: initialData.description || '',
+        city: initialData.city || '',
+        postalCode: initialData.postalCode || '',
+        address: initialData.address || '',
+        country: initialData.country || '',
+        date: initialData.date || new Date().toISOString().split('T')[0],
+        venue: initialData.venue || '',
+        startTime: initialData.startTime || '',
+        endTime: initialData.endTime || '',
+        minExperience: initialData.minExperience?.toString() || '',
+        maxComedians: initialData.maxComedians?.toString() || '',
+        status: 'PUBLISHED',
+      });
+    } else {
+      // Réinitialiser à vide si pas de données initiales
+      setFormData({
+        title: '',
+        description: '',
+        city: '',
+        postalCode: '',
+        address: '',
+        country: '',
+        date: new Date().toISOString().split('T')[0],
+        venue: '',
+        startTime: '',
+        endTime: '',
+        minExperience: '',
+        maxComedians: '',
+        status: 'PUBLISHED',
+      });
+    }
+  }, [initialData]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
@@ -468,9 +520,17 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     }
     
     // Validation du code postal avec API
+    // Si c'est une duplication (initialData existe) et que l'adresse/ville sont présentes, 
+    // le code postal peut être optionnel
     if (!formData.postalCode.trim()) {
-      newErrors.postalCode = 'Le code postal est requis';
+      // Si c'est une duplication avec adresse et ville complètes, on permet de continuer
+      if (initialData && formData.address.trim() && formData.city.trim()) {
+        // Code postal optionnel pour duplication, mais on essaie quand même de le valider si fourni
+      } else {
+        newErrors.postalCode = 'Le code postal est requis';
+      }
     } else {
+      // Si un code postal est fourni, on le valide
       const isValid = await validatePostalCode();
       if (!isValid && postalCodeError) {
         newErrors.postalCode = postalCodeError;
@@ -581,18 +641,38 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     }
     
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    console.log('🔍 [CreateEventForm] validateForm terminé:', { isValid, errors: newErrors });
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData });
 
     if (!user || !token) {
       alert('Vous devez être connecté pour créer un évènement');
       return;
     }
 
-    if (!(await validateForm())) {
+    const isValid = await validateForm();
+    console.log('🔍 [CreateEventForm] Validation résultat:', isValid, { errors });
+    if (!isValid) {
+      console.log('❌ [CreateEventForm] Validation échouée, erreurs:', errors);
+      // Afficher un message d'alerte avec les erreurs
+      const errorMessages = Object.values(errors).filter(msg => msg).join('\n');
+      if (errorMessages) {
+        alert('Veuillez corriger les erreurs suivantes :\n\n' + errorMessages);
+      }
+      // Faire défiler vers la première erreur
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        const errorElement = document.getElementById(firstErrorField);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          errorElement.focus();
+        }
+      }
       return;
     }
 

@@ -100,6 +100,7 @@ function MyEventsPage() {
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [eventToWithdraw, setEventToWithdraw] = useState<IEvent | null>(null);
+  const [eventToDuplicate, setEventToDuplicate] = useState<IEvent | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
@@ -843,6 +844,12 @@ useEffect(() => {
           Modifier
         </button>
         <button
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleDuplicateClick(event); }}
+          style={{ ...actionButtonStyleSmall, backgroundColor: '#9c27b0', ...organizerMobileButtonAdjustments }}
+        >
+          Dupliquer
+        </button>
+        <button
           onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
           style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
           disabled={notifyingEventId === event._id}
@@ -985,6 +992,7 @@ useEffect(() => {
 
   const handleEventCreated = () => {
     setShowCreateEventForm(false);
+    setEventToDuplicate(null);
     refetch();
     refreshUser();
   };
@@ -1079,6 +1087,11 @@ useEffect(() => {
       setEventToCancel(null);
       setCancelReason('');
     }
+  };
+
+  const handleDuplicateClick = (event: IEvent) => {
+    setEventToDuplicate(event);
+    setShowCreateEventForm(true);
   };
 
   const handleNotifyHumorists = async (event: IEvent) => {
@@ -2433,11 +2446,25 @@ useEffect(() => {
         )}
       </Modal>
 
-      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => setShowCreateEventForm(false)} title="Créer un évènement">
+      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => { setShowCreateEventForm(false); setEventToDuplicate(null); }} title={eventToDuplicate ? "Dupliquer l'évènement" : "Créer un évènement"}>
         {showCreateEventForm && user?.role === 'ORGANIZER' && (
           <CreateEventForm 
-            onClose={() => setShowCreateEventForm(false)} 
-            onEventCreated={handleEventCreated} 
+            onClose={() => { setShowCreateEventForm(false); setEventToDuplicate(null); }} 
+            onEventCreated={handleEventCreated}
+            initialData={eventToDuplicate ? {
+              title: eventToDuplicate.title,
+              description: eventToDuplicate.description,
+              city: eventToDuplicate.location?.city || '',
+              postalCode: (eventToDuplicate.location as any)?.postalCode || '',
+              address: eventToDuplicate.location?.address || '',
+              country: eventToDuplicate.location?.country || '',
+              date: eventToDuplicate.date,
+              venue: eventToDuplicate.location?.venue || '',
+              startTime: eventToDuplicate.startTime || '',
+              endTime: eventToDuplicate.endTime || '',
+              minExperience: eventToDuplicate.requirements?.minExperience,
+              maxComedians: eventToDuplicate.requirements?.maxPerformers,
+            } : undefined}
           />
         )}
       </Modal>
