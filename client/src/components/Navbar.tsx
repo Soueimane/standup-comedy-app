@@ -244,8 +244,8 @@ function Navbar() {
               <span>{roleStyles.badgeText}</span>
             </div>
           )}
-          {/* Badge de notifications pour les organisateurs */}
-          {user?.role === 'ORGANIZER' && <NotificationDropdown />}
+          {/* Badge de notifications pour les organisateurs et humoristes */}
+          {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN') && <NotificationDropdown />}
           {user ? (
             <span style={userNameStyle}>{`${user.firstName} ${user.lastName}`}</span>
           ) : (
@@ -423,6 +423,18 @@ function Navbar() {
                   </Link>
                 );
               })}
+              
+              {/* Badge de notifications pour les organisateurs et humoristes dans le menu mobile */}
+              {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN') && (
+                <div style={{
+                  padding: '16px 20px',
+                  borderTop: '1px solid #e0e0e0',
+                  borderBottom: '1px solid #e0e0e0',
+                  backgroundColor: '#f8f9fa',
+                }}>
+                  <NotificationDropdown />
+                </div>
+              )}
             </nav>
 
             {/* Bouton Déconnexion */}

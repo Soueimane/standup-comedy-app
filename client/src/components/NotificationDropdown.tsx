@@ -35,6 +35,8 @@ const NotificationDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isOrganizer = user?.role === 'ORGANIZER';
+  const isComedian = user?.role === 'COMEDIAN';
+  const shouldShowNotifications = isOrganizer || isComedian;
 
   // Récupérer les notifications
   const { data: notificationsData, refetch } = useQuery({
@@ -43,7 +45,7 @@ const NotificationDropdown = () => {
       const response = await api.get('/notifications?read=false&limit=10');
       return response.data;
     },
-    enabled: !!user && isOrganizer,
+    enabled: !!user && shouldShowNotifications,
     refetchInterval: 30000, // Rafraîchir toutes les 30 secondes
   });
 
@@ -130,7 +132,7 @@ const NotificationDropdown = () => {
     }
   };
 
-  if (!isOrganizer) {
+  if (!shouldShowNotifications) {
     return null;
   }
 
@@ -345,7 +347,11 @@ const NotificationDropdown = () => {
             }}>
               <button
                 onClick={() => {
-                  navigate('/applications');
+                  if (isOrganizer) {
+                    navigate('/applications');
+                  } else if (isComedian) {
+                    navigate('/applications');
+                  }
                   setIsOpen(false);
                 }}
                 style={{
@@ -360,7 +366,7 @@ const NotificationDropdown = () => {
                   width: '100%',
                 }}
               >
-                Voir toutes les candidatures
+                {isOrganizer ? 'Voir toutes les candidatures' : 'Voir mes candidatures'}
               </button>
             </div>
           )}

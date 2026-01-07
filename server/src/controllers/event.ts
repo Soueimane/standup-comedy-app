@@ -377,6 +377,28 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
             lastName: organizer.lastName,
             email: organizer.email,
           }, (req.body as any).cancellationReason);
+
+          // Créer des notifications in-app pour les humoristes concernés
+          try {
+            const { createNotification } = await import('./notification');
+            for (const app of affectedApplications) {
+              const comedian = app.comedian;
+              if (comedian && (comedian as any).role === 'COMEDIAN') {
+                const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                await createNotification(
+                  comedianId,
+                  'event_cancelled',
+                  'Évènement annulé',
+                  `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été annulé.`,
+                  updatedEvent._id.toString(),
+                  app._id.toString(),
+                  organizer._id?.toString() || organizer.toString()
+                );
+              }
+            }
+          } catch (notificationError) {
+            console.error('Erreur lors de la création des notifications in-app pour l\'annulation:', notificationError);
+          }
         } else {
           // Sinon, envoyer une notification de mise à jour classique
           try {
@@ -386,6 +408,28 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
               email: organizer.email,
             });
             console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
+
+            // Créer des notifications in-app pour les humoristes concernés
+            try {
+              const { createNotification } = await import('./notification');
+              for (const app of applications) {
+                const comedian = app.comedian;
+                if (comedian && (comedian as any).role === 'COMEDIAN') {
+                  const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                  await createNotification(
+                    comedianId,
+                    'event_updated',
+                    'Évènement modifié',
+                    `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été modifié.`,
+                    updatedEvent._id.toString(),
+                    app._id.toString(),
+                    organizer._id?.toString() || organizer.toString()
+                  );
+                }
+              }
+            } catch (notificationError) {
+              console.error('Erreur lors de la création des notifications in-app pour la mise à jour:', notificationError);
+            }
           } catch (err) {
             console.error('❌ Erreur envoi emails maj évènement:', err);
           }

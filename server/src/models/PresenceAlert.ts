@@ -8,7 +8,7 @@ export interface PresenceAlertDocument extends Document {
   alertSentAt: Date; // Date d'envoi de l'alerte
   acknowledgedAt?: Date; // Date de prise en compte par le Super Admin
   acknowledgedBy?: Types.ObjectId; // Super Admin qui a pris en compte l'alerte
-  isActive: boolean; // Si l'alerte est toujours active (score toujours < 50%)
+  isActive: boolean; // Si l'alerte est toujours active (score toujours < 75%)
 }
 
 const presenceAlertSchema = new Schema<PresenceAlertDocument>({

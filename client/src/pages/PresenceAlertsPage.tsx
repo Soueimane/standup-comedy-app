@@ -200,7 +200,7 @@ const PresenceAlertsPage = () => {
           <div>
             <h1 style={titleStyle}>Alertes de Présence</h1>
             <p style={{ color: '#aaa', fontSize: '1.1em' }}>
-              Humoristes avec un score de présence inférieur à 50%
+              Humoristes avec un score de présence inférieur à 75%
             </p>
           </div>
           <button
@@ -227,7 +227,7 @@ const PresenceAlertsPage = () => {
             <div style={emptyStateStyle}>
               <p>✅ Aucune alerte active</p>
               <p style={{ fontSize: '0.9em', marginTop: '10px' }}>
-                Tous les humoristes ont un score de présence supérieur ou égal à 50%
+                Tous les humoristes ont un score de présence supérieur ou égal à 75%
               </p>
             </div>
           )}

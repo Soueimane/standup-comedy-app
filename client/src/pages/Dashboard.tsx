@@ -572,7 +572,7 @@ const Dashboard = () => {
                 variant: 'superAdmin',
                 onClick: () => navigate('/admin/password-resets')
               })}
-              {renderCard('Alertes présence (< 50%)', presenceAlertsCount, '⚠️', {
+              {renderCard('Alertes présence (< 75%)', presenceAlertsCount, '⚠️', {
                 style: presenceAlertsCount > 0 ? glowingCardOrangeStyle : {},
                 variant: 'superAdmin',
                 onClick: () => navigate('/admin/presence-alerts')

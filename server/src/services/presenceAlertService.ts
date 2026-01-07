@@ -84,7 +84,7 @@ export const calculatePresenceScore = async (comedianId: string): Promise<{
 };
 
 /**
- * Vérifie tous les humoristes et crée des alertes pour ceux avec un score < 50%
+ * Vérifie tous les humoristes et crée des alertes pour ceux avec un score < 75%
  * @returns Nombre d'alertes créées
  */
 export const checkAndCreatePresenceAlerts = async (): Promise<number> => {
@@ -112,8 +112,8 @@ export const checkAndCreatePresenceAlerts = async (): Promise<number> => {
 
       const { score, totalEvents, absences } = result;
 
-      // Vérifier si le score est < 50%
-      if (score < 50 && totalEvents + absences >= 3) { // Au moins 3 événements pour avoir une statistique significative
+      // Vérifier si le score est < 75%
+      if (score < 75 && totalEvents + absences >= 3) { // Au moins 3 événements pour avoir une statistique significative
         // Vérifier si une alerte active existe déjà
         const existingAlert = await PresenceAlertModel.findOne({
           comedian: comedian._id,
@@ -155,7 +155,7 @@ export const checkAndCreatePresenceAlerts = async (): Promise<number> => {
           });
         }
       } else {
-        // Si le score est >= 50%, désactiver les alertes actives
+        // Si le score est >= 75%, désactiver les alertes actives
         await PresenceAlertModel.updateMany(
           { comedian: comedian._id, isActive: true },
           { isActive: false }
@@ -209,7 +209,7 @@ const sendPresenceAlertEmailToSuperAdmin = async (
     }
 
     // Préparer le contenu de l'email
-    const subject = `⚠️ Alerte: ${lowPresenceComedians.length} humoriste(s) avec un score de présence < 50%`;
+    const subject = `⚠️ Alerte: ${lowPresenceComedians.length} humoriste(s) avec un score de présence < 75%`;
 
     const comediansList = lowPresenceComedians.map((item, index) => {
       const { comedian, score, totalEvents, absences } = item;
@@ -316,7 +316,7 @@ const sendPresenceAlertEmailToSuperAdmin = async (
         
         <div class="content">
             <div class="alert-box">
-                <h2>${lowPresenceComedians.length} humoriste(s) avec un score de présence < 50%</h2>
+                <h2>${lowPresenceComedians.length} humoriste(s) avec un score de présence < 75%</h2>
                 <p style="margin: 0; color: #856404;">
                     Ces humoristes nécessitent une attention particulière.
                 </p>
@@ -356,7 +356,7 @@ const sendPresenceAlertEmailToSuperAdmin = async (
     const textContent = `
 Alerte Score de Présence
 
-${lowPresenceComedians.length} humoriste(s) avec un score de présence < 50%:
+${lowPresenceComedians.length} humoriste(s) avec un score de présence < 75%:
 
 ${lowPresenceComedians.map(item => {
   const { comedian, score, totalEvents, absences } = item;

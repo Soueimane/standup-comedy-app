@@ -413,6 +413,34 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
           console.error(`[EMAIL] Erreur lors de l'envoi à l'humoriste (${(updatedApplication.comedian as any).email}) :`, err);
         });
       }
+
+      // Créer une notification in-app pour l'humoriste
+      try {
+        const comedianId = (updatedApplication.comedian as any)._id?.toString() || updatedApplication.comedian?.toString();
+        const comedian = await UserModel.findById(comedianId);
+        if (comedian && comedian.role === 'COMEDIAN') {
+          const notificationType = status === 'ACCEPTED' ? 'application_accepted' : 'application_rejected';
+          const notificationTitle = status === 'ACCEPTED' 
+            ? 'Candidature acceptée 🎉'
+            : 'Candidature refusée';
+          const notificationMessage = status === 'ACCEPTED'
+            ? `Votre candidature pour l'évènement "${event.title}" a été acceptée !`
+            : `Votre candidature pour l'évènement "${event.title}" n'a pas été retenue.`;
+          
+          await createNotification(
+            comedianId,
+            notificationType,
+            notificationTitle,
+            notificationMessage,
+            eventId.toString(),
+            updatedApplication._id.toString(),
+            organizer._id?.toString() || organizer.toString()
+          );
+        }
+      } catch (notificationError) {
+        console.error('Erreur lors de la création de la notification in-app pour l\'humoriste:', notificationError);
+        // Ne pas faire échouer l'opération principale
+      }
     }
 
     res.json(updatedApplication);

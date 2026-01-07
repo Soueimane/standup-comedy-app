@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface NotificationDocument extends Document {
-  user: Types.ObjectId; // Utilisateur destinataire (organisateur)
+  user: Types.ObjectId; // Utilisateur destinataire (organisateur ou humoriste)
   type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled';
   title: string; // Titre de la notification
   message: string; // Message détaillé

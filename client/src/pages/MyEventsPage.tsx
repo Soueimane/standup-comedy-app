@@ -6,6 +6,7 @@ import EditEventForm from '../components/EditEventForm';
 import ApplyToEventForm from '../components/ApplyToEventForm';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
+import EventCalendar from '../components/EventCalendar';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { IEvent } from '../types/event';
@@ -16,7 +17,7 @@ import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeE
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites';
-type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled';
+type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
@@ -747,7 +748,8 @@ useEffect(() => {
     full: completedUpcomingEvents.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
-  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+    calendar: upcomingEvents.length + archivedEventsToShow.length + cancelledEvents.length,
+  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents, upcomingEvents]);
 
   const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
     full: completedUpcomingEvents.length,
@@ -767,6 +769,7 @@ useEffect(() => {
     full: 'Évènements complets',
     archived: 'Évènements archivés',
     cancelled: 'Évènements annulés',
+    calendar: 'Calendrier',
   };
 
   const superAdminTabTitles: Record<SuperAdminTab, string> = {
@@ -813,6 +816,7 @@ useEffect(() => {
     (isOrganizerView && organizerTab === 'cancelled') ||
     (isSuperAdminView && superAdminTab === 'cancelled')
   );
+  const showCalendarSection = isOrganizerView && organizerTab === 'calendar';
 
   const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived') => {
     if (user?.role !== 'ORGANIZER') {
@@ -1283,7 +1287,7 @@ useEffect(() => {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites'];
-  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
@@ -2534,6 +2538,17 @@ useEffect(() => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Section Calendrier */}
+      {showCalendarSection && (
+        <div style={sectionStyle}>
+          <h2 style={sectionTitleStyle}>Calendrier des évènements</h2>
+          <EventCalendar
+            events={[...upcomingEvents, ...archivedEventsToShow, ...cancelledEvents]}
+            onEventClick={handleCardClick}
+          />
         </div>
       )}
 
