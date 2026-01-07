@@ -13,6 +13,7 @@ import { IPopulatedUser } from '../types/user';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
 import { emitApplicationCreated, emitApplicationStatusChanged, emitApplicationWithdrawn } from '../services/eventEmitter';
+import { createNotification } from './notification';
 
 // Fonction pour construire avatarUrl à partir de avatar.data
 const buildAvatarDataUrl = (user: any): string | undefined => {
@@ -169,7 +170,7 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       throw new Error('Échec de la mise à jour de l\'événement');
     }
 
-    // Envoyer une notification à l'organisateur
+    // Envoyer une notification email à l'organisateur
     try {
       const organizer = await UserModel.findById(event.organizer);
       const comedian = await UserModel.findById(comedianId);
@@ -183,6 +184,26 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       }
     } catch (emailError) {
       console.error('Erreur lors de l\'envoi de la notification à l\'organisateur:', emailError);
+    }
+
+    // Créer une notification in-app pour l'organisateur
+    try {
+      const organizer = await UserModel.findById(event.organizer);
+      const comedian = await UserModel.findById(comedianId);
+      if (organizer && comedian && organizer.role === 'ORGANIZER') {
+        await createNotification(
+          organizer._id.toString(),
+          'new_application',
+          'Nouvelle candidature',
+          `${comedian.firstName} ${comedian.lastName} a postulé pour l'évènement "${event.title}"`,
+          event._id.toString(),
+          application._id.toString(),
+          comedian._id.toString()
+        );
+      }
+    } catch (notificationError) {
+      console.error('Erreur lors de la création de la notification in-app:', notificationError);
+      // Ne pas faire échouer la création de l'application
     }
 
     res.status(201).json({

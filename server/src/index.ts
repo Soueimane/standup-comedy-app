@@ -15,6 +15,9 @@ import emailRoutes from './routes/email';
 import absencesRoutes from './routes/absences';
 import favoritesRoutes from './routes/favorites';
 import eventFavoritesRoutes from './routes/eventFavorites';
+import presenceAlertsRoutes from './routes/presenceAlerts';
+import comedianReportRoutes from './routes/comedianReport';
+import notificationRoutes from './routes/notification';
 import sseRoutes from './routes/sse';
 import { sseManager } from './services/sseManager';
 
@@ -96,6 +99,9 @@ app.use('/api/email', emailRoutes);
 app.use('/api/absences', absencesRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/event-favorites', eventFavoritesRoutes);
+app.use('/api/presence-alerts', presenceAlertsRoutes);
+app.use('/api/comedian-reports', comedianReportRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/sse', sseRoutes);
 
 // Gestion des erreurs

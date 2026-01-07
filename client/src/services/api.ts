@@ -115,4 +115,78 @@ export const checkIsFavorite = async (comedianId: string) => {
   return response.data;
 };
 
+// Fonctions pour gérer les alertes de présence (Super Admin)
+export const getPresenceAlerts = async () => {
+  const response = await api.get('/presence-alerts');
+  return response.data;
+};
+
+export const getComedianPresenceScore = async (comedianId: string) => {
+  const response = await api.get(`/presence-alerts/${comedianId}`);
+  return response.data;
+};
+
+export const acknowledgePresenceAlert = async (alertId: string) => {
+  const response = await api.post(`/presence-alerts/${alertId}/acknowledge`);
+  return response.data;
+};
+
+export const triggerPresenceCheck = async () => {
+  const response = await api.post('/presence-alerts/check');
+  return response.data;
+};
+
+// Fonctions pour gérer les signalements d'humoristes (Organisateurs)
+export const createComedianReport = async (comedianId: string, reason: string, description?: string) => {
+  const response = await api.post('/comedian-reports', { comedianId, reason, description });
+  return response.data;
+};
+
+export const checkComedianReport = async (comedianId: string) => {
+  const response = await api.get(`/comedian-reports/comedian/${comedianId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les signalements (Super Admin)
+export const getComedianReports = async (status?: string) => {
+  const query = status ? `?status=${status}` : '';
+  const response = await api.get(`/comedian-reports${query}`);
+  return response.data;
+};
+
+export const getComedianReport = async (reportId: string) => {
+  const response = await api.get(`/comedian-reports/${reportId}`);
+  return response.data;
+};
+
+export const updateComedianReport = async (reportId: string, status: string, resolution?: string) => {
+  const response = await api.patch(`/comedian-reports/${reportId}`, { status, resolution });
+  return response.data;
+};
+
+// Fonctions pour gérer les notifications in-app (Organisateurs)
+export const getNotifications = async (read?: boolean, limit?: number) => {
+  const params = new URLSearchParams();
+  if (read !== undefined) params.append('read', read.toString());
+  if (limit !== undefined) params.append('limit', limit.toString());
+  const query = params.toString();
+  const response = await api.get(`/notifications${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
+export const markNotificationAsRead = async (notificationId: string) => {
+  const response = await api.patch(`/notifications/${notificationId}/read`);
+  return response.data;
+};
+
+export const markAllNotificationsAsRead = async () => {
+  const response = await api.patch('/notifications/read-all');
+  return response.data;
+};
+
+export const deleteNotification = async (notificationId: string) => {
+  const response = await api.delete(`/notifications/${notificationId}`);
+  return response.data;
+};
+
 export default api;

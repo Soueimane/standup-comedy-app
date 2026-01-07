@@ -16,6 +16,8 @@ import DirectoryPage from './pages/DirectoryPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import PasswordResetManagementPage from './pages/PasswordResetManagementPage'
+import PresenceAlertsPage from './pages/PresenceAlertsPage'
+import ComedianReportsPage from './pages/ComedianReportsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 // import type { IUserData } from './types/user.ts'
 import LandingPage from './pages/LandingPage'
@@ -47,6 +49,8 @@ const AppRouter: React.FC = () => {
       <Route path="/profile/comedian" element={<ComedianProfilePage />} />
       <Route path="/directory" element={<DirectoryPage />} />
       <Route path="/admin/password-resets" element={<PasswordResetManagementPage />} />
+      <Route path="/admin/presence-alerts" element={<PresenceAlertsPage />} />
+      <Route path="/admin/comedian-reports" element={<ComedianReportsPage />} />
     </Routes>
   );
 };

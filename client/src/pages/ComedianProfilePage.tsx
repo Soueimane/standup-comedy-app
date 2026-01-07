@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditComedianProfileForm from '../components/EditComedianProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
+import ReportComedianModal from '../components/ReportComedianModal';
 import api from '../services/api';
 
 function ComedianProfilePage() {
@@ -14,7 +15,9 @@ function ComedianProfilePage() {
   const navigate = useNavigate();
   const { user: authUser, token, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
+  const isOrganizer = authUser?.role === 'ORGANIZER';
   const searchParams = new URLSearchParams(location.search);
   const fromApplications = searchParams.get('from') === 'applications';
   const applicationIdFromQuery = searchParams.get('applicationId');
@@ -189,6 +192,19 @@ function ComedianProfilePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {isOrganizer && isViewingOtherProfile && user && (
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              style={{
+                ...editButtonStyle,
+                background: 'linear-gradient(to right, #dc3545, #c82333)',
+                marginLeft: 0
+              }}
+            >
+              🚫 Signaler
+            </button>
+          )}
           {fromApplications && (
             <button type="button" style={backButtonStyle} onClick={handleBackToApplication}>
               ← Retour à la candidature
@@ -392,6 +408,16 @@ function ComedianProfilePage() {
         <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
           Chargement du profil...
         </div>
+      )}
+
+      {/* Modal de signalement */}
+      {isOrganizer && isViewingOtherProfile && user && (
+        <ReportComedianModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          comedianId={user._id}
+          comedianName={`${user.firstName} ${user.lastName}`}
+        />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { UserModel } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 import { emitAbsenceMarked, emitAbsenceCancelled } from '../services/eventEmitter';
+import { createNotification } from './notification';
 
 /**
  * Marque un participant comme absent à un évènement (protégée - organisateur seulement)
@@ -95,6 +96,10 @@ export const markAbsence = async (req: AuthRequest, res: Response): Promise<void
       comedian.markModified('stats');
       await comedian.save();
     }
+
+    // Créer une notification in-app pour l'organisateur (lui-même, mais pour l'historique)
+    // Note: L'organisateur marque l'absence, donc pas besoin de notification pour lui
+    // Mais on pourrait notifier si un autre admin le fait
 
     res.status(201).json({
       message: 'Absence marquée avec succès',

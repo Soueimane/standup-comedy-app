@@ -1,6 +1,7 @@
 import { type CSSProperties, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import NotificationDropdown from './NotificationDropdown';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -243,6 +244,8 @@ function Navbar() {
               <span>{roleStyles.badgeText}</span>
             </div>
           )}
+          {/* Badge de notifications pour les organisateurs */}
+          {user?.role === 'ORGANIZER' && <NotificationDropdown />}
           {user ? (
             <span style={userNameStyle}>{`${user.firstName} ${user.lastName}`}</span>
           ) : (

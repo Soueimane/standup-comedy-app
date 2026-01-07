@@ -34,6 +34,12 @@ const cronJobs: CronJob[] = [
     schedule: config.cron.markCompletedSchedule,
     endpoint: '/api/events/jobs/mark-completed',
     enabled: config.cron.enabled
+  },
+  {
+    name: 'Vérification scores de présence',
+    schedule: config.cron.presenceAlertSchedule,
+    endpoint: '/api/presence-alerts/jobs/check',
+    enabled: config.cron.enabled
   }
 ];
 

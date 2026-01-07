@@ -53,6 +53,32 @@ const Dashboard = () => {
 
   const passwordResetCount = passwordResetData?.count || 0;
 
+  // Récupérer les alertes de présence avec React Query (Super Admin uniquement)
+  const { data: presenceAlertsData } = useQuery({
+    queryKey: ['presence-alerts'],
+    queryFn: async () => {
+      const response = await api.get('/presence-alerts');
+      return response.data;
+    },
+    enabled: !!user && isSuperAdmin,
+  });
+
+  const presenceAlertsCount = presenceAlertsData?.count || 0;
+
+  // Récupérer les signalements d'humoristes avec React Query (Super Admin uniquement)
+  const { data: comedianReportsData } = useQuery({
+    queryKey: ['comedian-reports', 'pending'],
+    queryFn: async () => {
+      const response = await api.get('/comedian-reports?status=pending');
+      return response.data;
+    },
+    enabled: !!user && isSuperAdmin,
+  });
+
+  const pendingReportsCount = comedianReportsData?.count || 0;
+  const presenceAlerts = presenceAlertsData?.alerts || [];
+  const comedianReports = comedianReportsData?.reports || [];
+
   // Fonction pour traiter les évènements terminés (Super Admin uniquement)
   const handleProcessCompletedEvents = async () => {
     if (!user || (user as any)?.role !== 'SUPER_ADMIN') {
@@ -270,6 +296,249 @@ const Dashboard = () => {
       <div style={{ marginTop: '80px' }}>
         <h1 style={dashboardHeaderStyle}>{dashboardTitle}</h1>
         
+        {/* Section Notifications pour Super Admin */}
+        {isSuperAdmin && (presenceAlertsCount > 0 || pendingReportsCount > 0) && (
+          <div style={{
+            maxWidth: '1200px',
+            margin: '0 auto 30px auto',
+            padding: '20px',
+            backgroundColor: 'rgba(220, 53, 69, 0.15)',
+            borderRadius: '12px',
+            border: '2px solid rgba(220, 53, 69, 0.3)',
+            boxShadow: '0 4px 12px rgba(220, 53, 69, 0.2)'
+          }}>
+            <h2 style={{
+              color: '#ff416c',
+              fontSize: '1.5em',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              🔔 Notifications importantes
+            </h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {/* Notifications pour les alertes de présence */}
+              {presenceAlertsCount > 0 && presenceAlerts.slice(0, 3).map((alert: any) => (
+                <div
+                  key={alert._id}
+                  onClick={() => navigate('/admin/presence-alerts')}
+                  style={{
+                    padding: '15px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 193, 7, 0.3)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                    e.currentTarget.style.transform = 'translateX(5px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: '250px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                      <span style={{ fontSize: '1.3em' }}>⚠️</span>
+                      <strong style={{ color: '#ffc107', fontSize: '1.1em' }}>
+                        Alerte de présence
+                      </strong>
+                    </div>
+                    <p style={{ color: '#fff', margin: '5px 0', fontSize: '0.95em' }}>
+                      <strong>{alert.comedian?.firstName} {alert.comedian?.lastName}</strong> a un score de présence de <strong style={{ color: '#ffc107' }}>{alert.presenceScore}%</strong>
+                    </p>
+                    <p style={{ color: '#aaa', fontSize: '0.85em', margin: 0 }}>
+                      {alert.totalEvents} présences • {alert.absences} absences
+                    </p>
+                  </div>
+                  <div style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                    color: '#ffc107',
+                    fontWeight: 'bold',
+                    fontSize: '0.9em',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    Vérifier →
+                  </div>
+                </div>
+              ))}
+              
+              {/* Notifications pour les signalements */}
+              {pendingReportsCount > 0 && comedianReports.slice(0, 3).map((report: any) => (
+                <div
+                  key={report._id}
+                  onClick={() => navigate('/admin/comedian-reports')}
+                  style={{
+                    padding: '15px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(220, 53, 69, 0.3)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                    e.currentTarget.style.transform = 'translateX(5px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: '250px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                      <span style={{ fontSize: '1.3em' }}>🚫</span>
+                      <strong style={{ color: '#dc3545', fontSize: '1.1em' }}>
+                        Compte signalé
+                      </strong>
+                    </div>
+                    <p style={{ color: '#fff', margin: '5px 0', fontSize: '0.95em' }}>
+                      <strong>{report.comedian?.firstName} {report.comedian?.lastName}</strong> signalé par <strong>{report.reporter?.firstName} {report.reporter?.lastName}</strong>
+                    </p>
+                    <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0' }}>
+                      Raison: <strong style={{ color: '#ffc107' }}>
+                        {report.reason === 'troll' ? 'Troll / Comportement inapproprié' :
+                         report.reason === 'fake_account' ? 'Faux compte' :
+                         report.reason === 'inappropriate_content' ? 'Contenu inapproprié' :
+                         report.reason === 'spam' ? 'Spam / Publicité non autorisée' :
+                         'Autre'}
+                      </strong>
+                    </p>
+                    {report.description && (
+                      <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0', fontStyle: 'italic' }}>
+                        "{report.description.substring(0, 100)}{report.description.length > 100 ? '...' : ''}"
+                      </p>
+                    )}
+                  </div>
+                  <div style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                    color: '#dc3545',
+                    fontWeight: 'bold',
+                    fontSize: '0.9em',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    Examiner →
+                  </div>
+                </div>
+              ))}
+              
+              {/* Lien vers toutes les notifications */}
+              {(presenceAlertsCount > 3 || pendingReportsCount > 3) && (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '10px',
+                  marginTop: '10px'
+                }}>
+                  <button
+                    onClick={() => {
+                      // Naviguer vers la page avec le plus de notifications
+                      if (presenceAlertsCount >= pendingReportsCount) {
+                        navigate('/admin/presence-alerts');
+                      } else {
+                        navigate('/admin/comedian-reports');
+                      }
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      background: 'rgba(255, 65, 108, 0.2)',
+                      color: '#ff416c',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.95em',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 65, 108, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 65, 108, 0.2)';
+                    }}
+                  >
+                    Voir toutes les notifications ({presenceAlertsCount + pendingReportsCount})
+                  </button>
+                </div>
+              )}
+              
+              {/* Liens rapides vers les pages de gestion */}
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                marginTop: '15px',
+                flexWrap: 'wrap'
+              }}>
+                {presenceAlertsCount > 0 && (
+                  <button
+                    onClick={() => navigate('/admin/presence-alerts')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 193, 7, 0.3)',
+                      background: 'rgba(255, 193, 7, 0.1)',
+                      color: '#ffc107',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.85em',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 193, 7, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 193, 7, 0.1)';
+                    }}
+                  >
+                    Voir toutes les alertes de présence ({presenceAlertsCount})
+                  </button>
+                )}
+                {pendingReportsCount > 0 && (
+                  <button
+                    onClick={() => navigate('/admin/comedian-reports')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(220, 53, 69, 0.3)',
+                      background: 'rgba(220, 53, 69, 0.1)',
+                      color: '#dc3545',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.85em',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(220, 53, 69, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(220, 53, 69, 0.1)';
+                    }}
+                  >
+                    Voir tous les signalements ({pendingReportsCount})
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div style={cardsGridStyle}>
           {isSuperAdmin ? (
             <>
@@ -302,6 +571,16 @@ const Dashboard = () => {
                 style: passwordResetCount > 0 ? glowingCardOrangeStyle : {},
                 variant: 'superAdmin',
                 onClick: () => navigate('/admin/password-resets')
+              })}
+              {renderCard('Alertes présence (< 50%)', presenceAlertsCount, '⚠️', {
+                style: presenceAlertsCount > 0 ? glowingCardOrangeStyle : {},
+                variant: 'superAdmin',
+                onClick: () => navigate('/admin/presence-alerts')
+              })}
+              {renderCard('Signalements humoristes', pendingReportsCount, '🚫', {
+                style: pendingReportsCount > 0 ? glowingCardOrangeStyle : {},
+                variant: 'superAdmin',
+                onClick: () => navigate('/admin/comedian-reports')
               })}
             </>
           ) : (
