@@ -4,6 +4,14 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import type { IUserData } from '../types/user';
 import axios from 'axios';
+import {
+  loginWithKeycloak as oauthLogin,
+  storeOAuthTokens,
+  clearOAuthTokens,
+  checkOAuthStatus,
+  logoutFromKeycloak,
+  getStoredOAuthTokens,
+} from '../services/oauth';
 
 interface AuthContextType {
   token: string | null;
@@ -15,6 +23,9 @@ interface AuthContextType {
   logout: () => void;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
+  loginWithKeycloak: (provider?: string) => Promise<void>;
+  isOAuthEnabled: boolean;
+  isOAuthLoading: boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,13 +39,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<IUserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOAuthEnabled, setIsOAuthEnabled] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = useCallback(async () => {
+    // Get Keycloak tokens before clearing
+    const { id_token } = getStoredOAuthTokens();
+
+    // Clear all tokens
+    clearOAuthTokens();
     setToken(null);
     setUser(null);
+
+    // Logout from Keycloak if we had a Keycloak session
+    if (id_token) {
+      try {
+        await logoutFromKeycloak(id_token, false);
+      } catch (error) {
+        console.error('Keycloak logout error:', error);
+      }
+    }
+
     navigate('/');
+  }, [navigate]);
+
+  // Login with Keycloak OAuth
+  const loginWithKeycloak = useCallback(async (provider?: string) => {
+    setIsOAuthLoading(true);
+    try {
+      const tokens = await oauthLogin(provider);
+
+      // Store tokens
+      storeOAuthTokens(tokens);
+      setToken(tokens.token);
+
+      // Fetch user data
+      const response = await api.get<IUserData>('/profile/me', {
+        headers: {
+          Authorization: `Bearer ${tokens.token}`,
+        },
+      });
+
+      localStorage.setItem('user', JSON.stringify(response.data));
+      setUser(response.data);
+
+      // Redirect based on role
+      if (response.data.role === 'ORGANIZER') {
+        navigate('/dashboard');
+      } else if (response.data.role === 'COMEDIAN') {
+        navigate('/profile/comedian');
+      } else if (response.data.role === 'SUPER_ADMIN') {
+        navigate('/dashboard');
+      } else {
+        navigate('/');
+      }
+    } catch (error: any) {
+      console.error('Keycloak login error:', error);
+      throw error;
+    } finally {
+      setIsOAuthLoading(false);
+    }
   }, [navigate]);
 
   const refreshUser = useCallback(async () => {
@@ -112,6 +176,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
+    // Check OAuth status
+    checkOAuthStatus().then((status) => {
+      if (isMounted) {
+        setIsOAuthEnabled(status.enabled);
+      }
+    });
+
     return () => {
       isMounted = false;
     };
@@ -181,6 +252,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     refreshUser,
     isLoading,
+    loginWithKeycloak,
+    isOAuthEnabled,
+    isOAuthLoading,
   };
 
   return (

@@ -16,6 +16,7 @@ import absencesRoutes from './routes/absences';
 import favoritesRoutes from './routes/favorites';
 import eventFavoritesRoutes from './routes/eventFavorites';
 import sseRoutes from './routes/sse';
+import oauthRoutes from './routes/oauth';
 import { sseManager } from './services/sseManager';
 
 const app = express();
@@ -97,6 +98,7 @@ app.use('/api/absences', absencesRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/event-favorites', eventFavoritesRoutes);
 app.use('/api/sse', sseRoutes);
+app.use('/api/auth/oauth', oauthRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

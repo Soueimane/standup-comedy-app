@@ -52,7 +52,7 @@ export interface User {
   firstName: string;
   lastName: string;
   city?: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN';
   profile?: UserProfile;
   organizerProfile?: IOrganisateurProfile;
   stats?: any;
@@ -77,6 +77,7 @@ export interface User {
     unsubscribedAt?: Date;
     unsubscribeToken?: string;
   };
+  keycloakId?: string;
 }
 
 // Interface for a user document after being populated
@@ -85,7 +86,7 @@ export interface IPopulatedUser {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN';
   // Add other fields that might be populated and needed, e.g., companyName, city
   companyName?: string;
   city?: string;

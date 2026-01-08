@@ -218,7 +218,7 @@ const userSchema = new Schema<UserDocument>({
   },
   role: {
     type: String,
-    enum: ['COMEDIAN', 'ORGANIZER', 'ADMIN', 'SUPER_ADMIN'],
+    enum: ['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN'],
     required: true
   },
   profile: {
@@ -245,6 +245,11 @@ const userSchema = new Schema<UserDocument>({
   emailSubscriptions: {
     type: EmailSubscriptionsSchema,
     default: () => ({ globalSubscribed: true })
+  },
+  keycloakId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allow null values while maintaining uniqueness
   },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },

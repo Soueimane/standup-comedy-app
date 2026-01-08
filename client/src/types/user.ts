@@ -27,7 +27,7 @@ export interface IUserData {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN';
   // Fields from User model that might be directly on the user object
   companyName?: string; // If companyName is directly on User for Organizers
   city?: string; // If city is directly on User for Organizers
