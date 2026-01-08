@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addFavorite, removeFavorite, getFavorites } from '../services/api';
+import { checkGeographicCompatibility } from '../utils/geographicMatching';
 
 export interface IUser {
   _id: string;
@@ -14,7 +15,12 @@ export interface IUser {
   email: string;
   phone?: string;
   avatarUrl?: string | null;
-  profile?: { bio?: string; experience?: number; speciality?: string; }; // Ajoutez d'autres champs si nécessaires
+  profile?: { 
+    bio?: string; 
+    experience?: number; 
+    speciality?: string;
+    mobilityZone?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>;
+  };
 }
 
 export interface IEventPopulated {
@@ -45,6 +51,87 @@ export interface IApplication {
 
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
 type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
+
+// Composant pour afficher l'indicateur de compatibilité géographique
+function GeographicCompatibilityBadge({ 
+  eventCity, 
+  mobilityZones 
+}: { 
+  eventCity: string; 
+  mobilityZones?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }> 
+}) {
+  const [isCompatible, setIsCompatible] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    // Log pour déboguer
+    console.log('📍 GeographicCompatibilityBadge - Données reçues:', {
+      eventCity,
+      mobilityZones,
+      hasMobilityZones: !!mobilityZones,
+      mobilityZonesLength: mobilityZones?.length || 0
+    });
+
+    const checkCompatibility = async () => {
+      setIsChecking(true);
+      try {
+        console.log('🔍 Vérification compatibilité géographique:', { eventCity, mobilityZones });
+        const result = await checkGeographicCompatibility(eventCity, mobilityZones);
+        console.log('✅ Résultat compatibilité:', result);
+        setIsCompatible(result.isCompatible);
+      } catch (error) {
+        console.error('Erreur lors de la vérification de compatibilité:', error);
+        setIsCompatible(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    if (eventCity && mobilityZones && mobilityZones.length > 0) {
+      checkCompatibility();
+    } else {
+      console.log('⚠️ Pas de zones de mobilité ou ville manquante:', { eventCity, mobilityZones });
+      setIsCompatible(false);
+      setIsChecking(false);
+    }
+  }, [eventCity, mobilityZones]);
+
+  if (isChecking) {
+    return (
+      <span style={{ 
+        fontSize: '0.75em', 
+        color: '#aaa',
+        marginTop: '4px',
+        display: 'block'
+      }}>
+        🔍 Vérification...
+      </span>
+    );
+  }
+
+  // Si pas de zones de mobilité, ne rien afficher
+  if (!mobilityZones || mobilityZones.length === 0) {
+    return null;
+  }
+
+  // Si compatible, afficher le badge
+  if (isCompatible === true) {
+    return (
+      <span style={{ 
+        fontSize: '0.75em', 
+        color: '#4caf50',
+        marginTop: '4px',
+        display: 'block',
+        fontWeight: 'bold'
+      }}>
+        ✅ Zone compatible
+      </span>
+    );
+  }
+
+  // Si pas compatible, ne rien afficher (ou afficher un message d'incompatibilité si besoin)
+  return null;
+}
 
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
@@ -100,6 +187,18 @@ function ApplicationsPage() {
       const list = Array.isArray(res.data)
         ? res.data
         : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
+      
+      // Log pour déboguer les zones de mobilité
+      console.log('📋 Applications chargées:', list.length);
+      list.forEach((app: IApplication, idx: number) => {
+        if (app.comedian?.profile?.mobilityZone) {
+          console.log(`  Application ${idx + 1} - Humoriste: ${app.comedian.firstName} ${app.comedian.lastName}`, {
+            mobilityZones: app.comedian.profile.mobilityZone,
+            eventCity: app.event.location.city
+          });
+        }
+      });
+      
       return list as IApplication[];
     },
     enabled: !!token && !!user,
@@ -1324,6 +1423,10 @@ function ApplicationsPage() {
                         <div style={comedianDetailsStyle}>
                           <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
                           <p style={comedianRoleTextStyle}>Humoriste</p>
+                          <GeographicCompatibilityBadge 
+                            eventCity={app.event.location.city} 
+                            mobilityZones={app.comedian.profile?.mobilityZone}
+                          />
                         </div>
                         <button 
                           style={viewProfileInlineButtonStyle}

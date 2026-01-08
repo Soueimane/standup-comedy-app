@@ -226,7 +226,8 @@ function Navbar() {
         </div>
 
         {/* Info utilisateur Desktop - Masqué sur mobile */}
-        <div id="desktop-user" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div id="desktop-user" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          {/* Ligne du rôle et nom */}
           {user && (
             <div style={{
               display: 'flex',
@@ -242,16 +243,17 @@ function Navbar() {
             }}>
               <span style={{ fontSize: '1rem' }}>{roleStyles.badgeIcon}</span>
               <span>{roleStyles.badgeText}</span>
+              <span style={{ color: '#aaa', margin: '0 4px' }}>|</span>
+              <span style={{ color: '#ffffff' }}>{`${user.firstName} ${user.lastName}`}</span>
             </div>
           )}
-          {/* Badge de notifications pour les organisateurs et humoristes */}
-          {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN') && <NotificationDropdown />}
-          {user ? (
-            <span style={userNameStyle}>{`${user.firstName} ${user.lastName}`}</span>
-          ) : (
-            <span style={userNameStyle}>Invité</span>
-          )}
-          <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
+          {/* Ligne avec cloche et déconnexion */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Badge de notifications pour les organisateurs et humoristes */}
+            {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN') && <NotificationDropdown />}
+            {!user && <span style={userNameStyle}>Invité</span>}
+            <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
+          </div>
         </div>
       </nav>
 

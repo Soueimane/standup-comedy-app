@@ -16,6 +16,11 @@ export interface Performance {
   feedback?: string;
 }
 
+export interface MobilityZone {
+  type: 'ville' | 'departement' | 'region';
+  value: string; // Nom de la ville, département ou région
+}
+
 export interface UserProfile {
   bio?: string;
   experience?: number;
@@ -23,6 +28,7 @@ export interface UserProfile {
   numberOfScenes?: '0-50' | '50-200' | '200+';
   comedyStyle?: ('stand-up' | 'improvisation' | 'plateau' | 'sketch')[];
   performanceLanguages?: ('francais' | 'arabe' | 'anglais' | 'italien' | 'espagnol')[];
+  mobilityZone?: MobilityZone[]; // Zone de mobilité : villes, départements ou régions
   socialLinks?: {
     youtube?: string;
     instagram?: string;

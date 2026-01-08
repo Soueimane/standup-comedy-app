@@ -340,6 +340,10 @@ export const updateProfileSchema = z.object({
     numberOfScenes: z.enum(['0-50', '50-200', '200+']).optional(),
     comedyStyle: z.array(z.enum(['stand-up', 'improvisation', 'plateau', 'sketch'])).optional(),
     performanceLanguages: z.array(z.enum(['francais', 'arabe', 'anglais', 'italien', 'espagnol'])).optional(),
+    mobilityZone: z.array(z.object({
+      type: z.enum(['ville', 'departement', 'region']),
+      value: z.string().min(1, { message: 'La valeur de la zone ne peut pas être vide' }),
+    })).optional(),
     socialLinks: z.object({
       youtube: z.string().url().optional().or(z.string().length(0)),
       instagram: z.string().url().optional().or(z.string().length(0)),

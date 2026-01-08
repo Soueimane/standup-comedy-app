@@ -138,6 +138,11 @@ const performanceSchema = new Schema<Performance>({
   feedback: { type: String }
 });
 
+const MobilityZoneSchema = new Schema({
+  type: { type: String, enum: ['ville', 'departement', 'region'], required: true },
+  value: { type: String, required: true, trim: true }
+}, { _id: false });
+
 const userProfileSchema = new Schema<UserProfile>({
   bio: { type: String },
   experience: { type: Number },
@@ -151,6 +156,7 @@ const userProfileSchema = new Schema<UserProfile>({
     type: String, 
     enum: ['francais', 'arabe', 'anglais', 'italien', 'espagnol'] 
   }], // Langues du spectacle
+  mobilityZone: [MobilityZoneSchema], // Zone de mobilité : villes, départements ou régions
   socialLinks: {
     youtube: { type: String },
     instagram: { type: String },

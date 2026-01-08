@@ -103,6 +103,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
             numberOfScenes: formData.profile?.numberOfScenes || undefined,
             comedyStyle: formData.profile?.comedyStyle || undefined,
             performanceLanguages: formData.profile?.performanceLanguages || undefined,
+            mobilityZone: formData.profile?.mobilityZone || undefined,
             socialLinks: {
               youtube: formData.profile?.socialLinks?.youtube || undefined,
               instagram: formData.profile?.socialLinks?.instagram || undefined,
@@ -401,6 +402,121 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
               <span>{lang.label}</span>
             </label>
           ))}
+        </div>
+        
+        <h3 style={{ color: '#ff4b2b', marginTop: '20px', marginBottom: '15px', fontSize: '1.1em' }}>Zone de mobilité</h3>
+        <p style={{ fontSize: '0.85em', color: '#aaa', marginBottom: '15px' }}>
+          Indiquez les villes, départements ou régions où vous êtes disponible pour des événements.
+        </p>
+        <div style={{ marginBottom: '20px' }}>
+          {(formData.profile?.mobilityZone || []).map((zone, index) => (
+            <div key={index} style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '10px', 
+              marginBottom: '10px',
+              padding: '10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '5px'
+            }}>
+              <select
+                value={zone.type}
+                onChange={(e) => {
+                  const updatedZones = [...(formData.profile?.mobilityZone || [])];
+                  updatedZones[index] = { ...updatedZones[index], type: e.target.value as 'ville' | 'departement' | 'region' };
+                  setFormData(prev => ({
+                    ...prev,
+                    profile: {
+                      ...prev.profile,
+                      mobilityZone: updatedZones,
+                    },
+                  }));
+                }}
+                style={{
+                  ...inputStyle,
+                  width: 'auto',
+                  minWidth: '150px',
+                  marginBottom: 0,
+                }}
+              >
+                <option value="ville">Ville</option>
+                <option value="departement">Département</option>
+                <option value="region">Région</option>
+              </select>
+              <input
+                type="text"
+                value={zone.value}
+                onChange={(e) => {
+                  const updatedZones = [...(formData.profile?.mobilityZone || [])];
+                  updatedZones[index] = { ...updatedZones[index], value: e.target.value };
+                  setFormData(prev => ({
+                    ...prev,
+                    profile: {
+                      ...prev.profile,
+                      mobilityZone: updatedZones,
+                    },
+                  }));
+                }}
+                placeholder={zone.type === 'ville' ? 'Ex: Paris' : zone.type === 'departement' ? 'Ex: 75, 13, 69' : 'Ex: Île-de-France'}
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  marginBottom: 0,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const updatedZones = (formData.profile?.mobilityZone || []).filter((_, i) => i !== index);
+                  setFormData(prev => ({
+                    ...prev,
+                    profile: {
+                      ...prev.profile,
+                      mobilityZone: updatedZones,
+                    },
+                  }));
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '5px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                  color: '#ffb3b3',
+                  cursor: 'pointer',
+                  fontSize: '0.9em',
+                }}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData(prev => ({
+                ...prev,
+                profile: {
+                  ...prev.profile,
+                  mobilityZone: [
+                    ...(prev.profile?.mobilityZone || []),
+                    { type: 'ville' as const, value: '' }
+                  ],
+                },
+              }));
+            }}
+            style={{
+              padding: '10px 15px',
+              borderRadius: '5px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              backgroundColor: 'rgba(255, 65, 108, 0.15)',
+              color: '#ff416c',
+              cursor: 'pointer',
+              fontSize: '0.9em',
+              fontWeight: 'bold',
+            }}
+          >
+            + Ajouter une zone
+          </button>
         </div>
         
         <h3 style={{ color: '#ff4b2b', marginTop: '20px', marginBottom: '15px', fontSize: '1.1em' }}>Réseaux sociaux</h3>

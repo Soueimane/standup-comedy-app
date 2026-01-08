@@ -139,31 +139,31 @@ const NotificationDropdown = () => {
   const badgeStyle: CSSProperties = {
     position: 'relative',
     cursor: 'pointer',
-    padding: '6px 8px',
-    borderRadius: '6px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    padding: '4px',
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    transition: 'all 0.2s ease',
+    justifyContent: 'center',
+    transition: 'opacity 0.2s ease',
+    width: '32px',
+    height: '32px',
   };
 
   const badgeCountStyle: CSSProperties = {
     position: 'absolute',
-    top: '-4px',
-    right: '-4px',
+    top: '0px',
+    right: '0px',
     backgroundColor: '#dc3545',
     color: '#fff',
     borderRadius: '50%',
-    width: '18px',
-    height: '18px',
+    width: '16px',
+    height: '16px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '0.65em',
+    fontSize: '0.6em',
     fontWeight: 'bold',
-    border: '2px solid rgba(0, 0, 0, 0.4)',
+    border: '2px solid #1a1a2e',
+    minWidth: '16px',
   };
 
   const dropdownStyle: CSSProperties = {
@@ -200,13 +200,37 @@ const NotificationDropdown = () => {
         style={badgeStyle}
         onClick={() => setIsOpen(!isOpen)}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+          e.currentTarget.style.opacity = '0.8';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          e.currentTarget.style.opacity = '1';
         }}
       >
-        <span style={{ fontSize: '1.1em' }}>🔔</span>
+        <svg 
+          width="20" 
+          height="20" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ color: '#3b82f6' }}
+        >
+          <path 
+            d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <path 
+            d="M13.73 21a2 2 0 0 1-3.46 0" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
         {unreadCount > 0 && (
           <span style={badgeCountStyle}>
             {unreadCount > 9 ? '9+' : unreadCount}

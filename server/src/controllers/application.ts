@@ -550,7 +550,10 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
           select: 'firstName lastName email'
         }
       })
-      .populate('comedian');
+      .populate({
+        path: 'comedian',
+        select: 'firstName lastName email phone avatarUrl profile'
+      });
 
     // Récupérer les informations de l'utilisateur pour vérifier son rôle
     const currentUser = await UserModel.findById(userId);

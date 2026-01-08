@@ -42,6 +42,10 @@ export interface IUserData {
     numberOfScenes?: '0-50' | '50-200' | '200+';
     comedyStyle?: ('stand-up' | 'improvisation' | 'plateau' | 'sketch')[];
     performanceLanguages?: ('francais' | 'arabe' | 'anglais' | 'italien' | 'espagnol')[];
+    mobilityZone?: Array<{
+      type: 'ville' | 'departement' | 'region';
+      value: string;
+    }>;
     socialLinks?: {
       youtube?: string;
       instagram?: string;

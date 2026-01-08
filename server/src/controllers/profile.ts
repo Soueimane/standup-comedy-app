@@ -155,6 +155,7 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
         if (updateData.profile.numberOfScenes !== undefined) user.profile.numberOfScenes = updateData.profile.numberOfScenes;
         if (updateData.profile.comedyStyle !== undefined) user.profile.comedyStyle = updateData.profile.comedyStyle;
         if (updateData.profile.performanceLanguages !== undefined) user.profile.performanceLanguages = updateData.profile.performanceLanguages;
+        if (updateData.profile.mobilityZone !== undefined) user.profile.mobilityZone = updateData.profile.mobilityZone;
         if (updateData.profile.socialLinks) {
           if (!user.profile.socialLinks) user.profile.socialLinks = {};
           if (updateData.profile.socialLinks.youtube !== undefined) user.profile.socialLinks.youtube = updateData.profile.socialLinks.youtube || undefined;
