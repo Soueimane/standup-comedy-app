@@ -139,42 +139,42 @@ const NotificationDropdown = () => {
   const badgeStyle: CSSProperties = {
     position: 'relative',
     cursor: 'pointer',
-    padding: '8px 12px',
-    borderRadius: '8px',
+    padding: '6px 8px',
+    borderRadius: '6px',
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '4px',
     transition: 'all 0.2s ease',
   };
 
   const badgeCountStyle: CSSProperties = {
     position: 'absolute',
-    top: '-6px',
-    right: '-6px',
+    top: '-4px',
+    right: '-4px',
     backgroundColor: '#dc3545',
     color: '#fff',
     borderRadius: '50%',
-    width: '20px',
-    height: '20px',
+    width: '18px',
+    height: '18px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '0.7em',
+    fontSize: '0.65em',
     fontWeight: 'bold',
     border: '2px solid rgba(0, 0, 0, 0.4)',
   };
 
   const dropdownStyle: CSSProperties = {
     position: 'absolute',
-    top: 'calc(100% + 10px)',
+    top: 'calc(100% + 6px)',
     right: 0,
-    width: '380px',
+    width: '320px',
     maxWidth: '90vw',
-    maxHeight: '500px',
+    maxHeight: '450px',
     backgroundColor: '#1a1a2e',
-    borderRadius: '12px',
+    borderRadius: '8px',
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',
@@ -184,13 +184,13 @@ const NotificationDropdown = () => {
   };
 
   const notificationItemStyle: CSSProperties = {
-    padding: '12px 16px',
+    padding: '10px 12px',
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
     cursor: 'pointer',
     transition: 'background 0.2s ease',
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '12px',
+    gap: '10px',
     position: 'relative',
   };
 
@@ -206,7 +206,7 @@ const NotificationDropdown = () => {
           e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
         }}
       >
-        <span style={{ fontSize: '1.2em' }}>🔔</span>
+        <span style={{ fontSize: '1.1em' }}>🔔</span>
         {unreadCount > 0 && (
           <span style={badgeCountStyle}>
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -218,31 +218,31 @@ const NotificationDropdown = () => {
         <div style={dropdownStyle}>
           {/* En-tête */}
           <div style={{
-            padding: '16px',
+            padding: '12px 14px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             backgroundColor: 'rgba(0, 0, 0, 0.2)',
           }}>
-            <h3 style={{ margin: 0, color: '#ff416c', fontSize: '1.1em' }}>
+            <h3 style={{ margin: 0, color: '#ff416c', fontSize: '0.95em', fontWeight: 'bold' }}>
               Notifications {unreadCount > 0 && `(${unreadCount})`}
             </h3>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   background: 'rgba(255, 65, 108, 0.2)',
                   color: '#ff416c',
-                  fontSize: '0.85em',
+                  fontSize: '0.75em',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                 }}
               >
-                Tout marquer comme lu
+                Tout lu
               </button>
             )}
           </div>
@@ -250,15 +250,15 @@ const NotificationDropdown = () => {
           {/* Liste des notifications */}
           <div style={{
             overflowY: 'auto',
-            maxHeight: '400px',
+            maxHeight: '360px',
           }}>
             {notifications.length === 0 ? (
               <div style={{
-                padding: '40px 20px',
+                padding: '30px 16px',
                 textAlign: 'center',
                 color: '#aaa',
               }}>
-                <p style={{ margin: 0 }}>Aucune notification</p>
+                <p style={{ margin: 0, fontSize: '0.9em' }}>Aucune notification</p>
               </div>
             ) : (
               notifications.map((notification) => (
@@ -277,7 +277,7 @@ const NotificationDropdown = () => {
                     e.currentTarget.style.backgroundColor = notification.read ? 'transparent' : 'rgba(255, 65, 108, 0.1)';
                   }}
                 >
-                  <span style={{ fontSize: '1.5em', flexShrink: 0 }}>
+                  <span style={{ fontSize: '1.3em', flexShrink: 0 }}>
                     {getNotificationIcon(notification.type)}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -285,23 +285,24 @@ const NotificationDropdown = () => {
                       margin: 0,
                       color: '#fff',
                       fontWeight: notification.read ? 'normal' : 'bold',
-                      fontSize: '0.95em',
-                      marginBottom: '4px',
+                      fontSize: '0.9em',
+                      marginBottom: '3px',
+                      lineHeight: '1.3',
                     }}>
                       {notification.title}
                     </p>
                     <p style={{
                       margin: 0,
                       color: '#aaa',
-                      fontSize: '0.85em',
-                      lineHeight: '1.4',
+                      fontSize: '0.8em',
+                      lineHeight: '1.3',
                     }}>
                       {notification.message}
                     </p>
                     <p style={{
-                      margin: '4px 0 0 0',
+                      margin: '3px 0 0 0',
                       color: '#666',
-                      fontSize: '0.75em',
+                      fontSize: '0.7em',
                     }}>
                       {new Date(notification.createdAt).toLocaleDateString('fr-FR', {
                         day: 'numeric',
@@ -314,14 +315,19 @@ const NotificationDropdown = () => {
                   <button
                     onClick={(e) => handleDeleteNotification(e, notification._id)}
                     style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
+                      padding: '3px 6px',
+                      borderRadius: '3px',
                       border: 'none',
                       background: 'rgba(220, 53, 69, 0.2)',
                       color: '#dc3545',
                       cursor: 'pointer',
-                      fontSize: '0.8em',
+                      fontSize: '0.75em',
                       flexShrink: 0,
+                      minWidth: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = 'rgba(220, 53, 69, 0.3)';
@@ -340,7 +346,7 @@ const NotificationDropdown = () => {
           {/* Footer */}
           {notifications.length > 0 && (
             <div style={{
-              padding: '12px 16px',
+              padding: '10px 12px',
               borderTop: '1px solid rgba(255, 255, 255, 0.1)',
               textAlign: 'center',
               backgroundColor: 'rgba(0, 0, 0, 0.2)',
@@ -355,12 +361,12 @@ const NotificationDropdown = () => {
                   setIsOpen(false);
                 }}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   background: 'rgba(255, 65, 108, 0.2)',
                   color: '#ff416c',
-                  fontSize: '0.9em',
+                  fontSize: '0.85em',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   width: '100%',

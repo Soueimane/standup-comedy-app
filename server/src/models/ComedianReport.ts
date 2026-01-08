@@ -5,10 +5,9 @@ export interface ComedianReportDocument extends Document {
   reporter: Types.ObjectId; // Organisateur qui signale
   reason: 'troll' | 'fake_account' | 'inappropriate_content' | 'spam' | 'other'; // Raison du signalement
   description?: string; // Description détaillée (optionnel)
-  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed'; // Statut du signalement
+  status: 'pending' | 'validated' | 'rejected'; // Statut du signalement
   reviewedBy?: Types.ObjectId; // Super Admin qui a examiné
   reviewedAt?: Date; // Date d'examen
-  resolution?: string; // Résolution/action prise
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,7 +37,7 @@ const comedianReportSchema = new Schema<ComedianReportDocument>({
   },
   status: {
     type: String,
-    enum: ['pending', 'reviewed', 'resolved', 'dismissed'],
+    enum: ['pending', 'validated', 'rejected'],
     default: 'pending',
     index: true
   },
@@ -48,11 +47,6 @@ const comedianReportSchema = new Schema<ComedianReportDocument>({
   },
   reviewedAt: {
     type: Date
-  },
-  resolution: {
-    type: String,
-    trim: true,
-    maxlength: 500
   }
 }, {
   timestamps: true

@@ -100,7 +100,7 @@ export const getComedianReports = async (req: AuthRequest, res: Response): Promi
     const { status } = req.query;
     const query: any = {};
     
-    if (status && ['pending', 'reviewed', 'resolved', 'dismissed'].includes(status as string)) {
+    if (status && ['pending', 'validated', 'rejected'].includes(status as string)) {
       query.status = status;
     }
 
@@ -162,7 +162,7 @@ export const updateComedianReport = async (req: AuthRequest, res: Response): Pro
     }
 
     const { reportId } = req.params;
-    const { status, resolution } = req.body;
+    const { status } = req.body;
 
     const report = await ComedianReportModel.findById(reportId);
 
@@ -172,7 +172,7 @@ export const updateComedianReport = async (req: AuthRequest, res: Response): Pro
     }
 
     // Valider le statut
-    const validStatuses = ['pending', 'reviewed', 'resolved', 'dismissed'];
+    const validStatuses = ['pending', 'validated', 'rejected'];
     if (status && !validStatuses.includes(status)) {
       res.status(400).json({ message: 'Statut invalide' });
       return;
@@ -182,15 +182,11 @@ export const updateComedianReport = async (req: AuthRequest, res: Response): Pro
     if (status) {
       report.status = status as any;
       
-      // Si le statut change vers reviewed, resolved ou dismissed, enregistrer qui a examiné
+      // Si le statut change vers validated ou rejected, enregistrer qui a examiné
       if (status !== 'pending' && !report.reviewedAt) {
         report.reviewedBy = new Types.ObjectId(req.user.id);
         report.reviewedAt = new Date();
       }
-    }
-
-    if (resolution !== undefined) {
-      report.resolution = resolution;
     }
 
     await report.save();

@@ -23,7 +23,7 @@ interface ComedianReport {
   };
   reason: 'troll' | 'fake_account' | 'inappropriate_content' | 'spam' | 'other';
   description?: string;
-  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  status: 'pending' | 'validated' | 'rejected';
   reviewedBy?: {
     _id: string;
     firstName: string;
@@ -31,7 +31,6 @@ interface ComedianReport {
     email: string;
   };
   reviewedAt?: string;
-  resolution?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +42,6 @@ const ComedianReportsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedReport, setSelectedReport] = useState<ComedianReport | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [resolution, setResolution] = useState('');
   const [newStatus, setNewStatus] = useState<string>('');
 
   const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
@@ -72,22 +70,19 @@ const ComedianReportsPage = () => {
 
   const statusLabels: Record<string, string> = {
     pending: 'En attente',
-    reviewed: 'Examiné',
-    resolved: 'Résolu',
-    dismissed: 'Rejeté'
+    validated: 'Validé',
+    rejected: 'Rejeté'
   };
 
   const statusColors: Record<string, string> = {
     pending: '#ffc107',
-    reviewed: '#17a2b8',
-    resolved: '#28a745',
-    dismissed: '#6c757d'
+    validated: '#28a745',
+    rejected: '#dc3545'
   };
 
   const handleOpenModal = (report: ComedianReport) => {
     setSelectedReport(report);
     setNewStatus(report.status);
-    setResolution(report.resolution || '');
     setIsModalOpen(true);
   };
 
@@ -95,7 +90,7 @@ const ComedianReportsPage = () => {
     if (!selectedReport) return;
 
     try {
-      await updateComedianReport(selectedReport._id, newStatus, resolution || undefined);
+      await updateComedianReport(selectedReport._id, newStatus);
       alert('✅ Signalement mis à jour avec succès');
       setIsModalOpen(false);
       setSelectedReport(null);
@@ -208,9 +203,8 @@ const ComedianReportsPage = () => {
             >
               <option value="all">Tous</option>
               <option value="pending">En attente</option>
-              <option value="reviewed">Examiné</option>
-              <option value="resolved">Résolu</option>
-              <option value="dismissed">Rejeté</option>
+              <option value="validated">Validé</option>
+              <option value="rejected">Rejeté</option>
             </select>
             <span style={{ color: '#aaa', marginLeft: 'auto' }}>
               {reportsCount} signalement(s)
@@ -375,30 +369,6 @@ const ComedianReportsPage = () => {
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', color: '#fff', marginBottom: '10px', fontWeight: 'bold' }}>
-                Résolution / Action prise (optionnel)
-              </label>
-              <textarea
-                value={resolution}
-                onChange={(e) => setResolution(e.target.value)}
-                placeholder="Décrivez l'action prise..."
-                rows={4}
-                maxLength={500}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '6px',
-                  border: '1px solid #555',
-                  background: '#222',
-                  color: '#fff',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
             </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>

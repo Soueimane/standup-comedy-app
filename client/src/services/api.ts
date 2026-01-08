@@ -159,8 +159,8 @@ export const getComedianReport = async (reportId: string) => {
   return response.data;
 };
 
-export const updateComedianReport = async (reportId: string, status: string, resolution?: string) => {
-  const response = await api.patch(`/comedian-reports/${reportId}`, { status, resolution });
+export const updateComedianReport = async (reportId: string, status: string) => {
+  const response = await api.patch(`/comedian-reports/${reportId}`, { status });
   return response.data;
 };
 
