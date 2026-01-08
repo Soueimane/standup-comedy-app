@@ -19,6 +19,7 @@ import presenceAlertsRoutes from './routes/presenceAlerts';
 import comedianReportRoutes from './routes/comedianReport';
 import notificationRoutes from './routes/notification';
 import sseRoutes from './routes/sse';
+import oauthRoutes from './routes/oauth';
 import { sseManager } from './services/sseManager';
 
 const app = express();
@@ -103,6 +104,7 @@ app.use('/api/presence-alerts', presenceAlertsRoutes);
 app.use('/api/comedian-reports', comedianReportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sse', sseRoutes);
+app.use('/api/auth/oauth', oauthRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

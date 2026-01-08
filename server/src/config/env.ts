@@ -41,6 +41,14 @@ export const config = {
 
   api: {
     url: process.env.API_URL || 'http://localhost:3001',
+  },
+
+  keycloak: {
+    url: process.env.KEYCLOAK_URL || 'http://localhost:8080',
+    realm: process.env.KEYCLOAK_REALM || 'standup-comedy',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'standup-app',
+    clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || '',
+    enabled: process.env.KEYCLOAK_ENABLED === 'true',
   }
 };
 

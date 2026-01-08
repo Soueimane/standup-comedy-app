@@ -21,6 +21,7 @@ import ComedianReportsPage from './pages/ComedianReportsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 // import type { IUserData } from './types/user.ts'
 import LandingPage from './pages/LandingPage'
+import OAuthCallback from './pages/OAuthCallback'
 import { SSEProvider } from './components/SSEProvider'
 
 const queryClient = new QueryClient({
@@ -41,6 +42,7 @@ const AppRouter: React.FC = () => {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/auth/callback" element={<OAuthCallback />} />
       <Route path="/dashboard" element={<DashboardRouter />} />
       <Route path="/events" element={<MyEventsPage />} />
       <Route path="/profile/organizer" element={<OrganizerProfilePage />} />
