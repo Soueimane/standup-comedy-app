@@ -7,20 +7,21 @@ import api from '../services/api';
 interface CreateEventFormProps {
   onClose: () => void;
   onEventCreated: () => void;
-  initialData?: {
-    title?: string;
-    description?: string;
-    city?: string;
-    postalCode?: string;
-    address?: string;
-    country?: string;
-    date?: string;
-    venue?: string;
-    startTime?: string;
-    endTime?: string;
-    minExperience?: number;
-    maxComedians?: number;
-  };
+    initialData?: {
+      title?: string;
+      description?: string;
+      city?: string;
+      postalCode?: string;
+      address?: string;
+      country?: string;
+      date?: string;
+      venue?: string;
+      startTime?: string;
+      endTime?: string;
+      minExperience?: number;
+      maxComedians?: number;
+      requiredExperienceLevel?: 'all' | '0-50' | '50-200' | '200+';
+    };
 }
 
 function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
@@ -62,6 +63,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     endTime: initialData?.endTime || '',
     minExperience: initialData?.minExperience?.toString() || '',
     maxComedians: initialData?.maxComedians?.toString() || '',
+    requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
     status: 'PUBLISHED',
   });
 
@@ -81,6 +83,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         endTime: initialData.endTime || '',
         minExperience: initialData.minExperience?.toString() || '',
         maxComedians: initialData.maxComedians?.toString() || '',
+        requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
         status: 'PUBLISHED',
       });
     } else {
@@ -98,6 +101,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         endTime: '',
         minExperience: '',
         maxComedians: '',
+        requiredExperienceLevel: 'all',
         status: 'PUBLISHED',
       });
     }
@@ -708,6 +712,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           minExperience: Number(formData.minExperience),
           maxPerformers: Number(formData.maxComedians),
           duration: durationInMinutes, // Durée calculée automatiquement
+          requiredExperienceLevel: formData.requiredExperienceLevel,
         },
         status: formData.status,
         startTime: formData.startTime,
@@ -1386,6 +1391,32 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   {errors.maxComedians && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                       {errors.maxComedians}
+                    </p>
+                  )}
+                </div>
+
+                {/* Niveau d'expérience requis */}
+                <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Niveau d'expérience requis
+                  </label>
+                  <select
+                    id="requiredExperienceLevel"
+                    value={formData.requiredExperienceLevel}
+                    onChange={handleChange}
+                    style={{
+                      ...selectStyle,
+                      borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#444'
+                    }}
+                  >
+                    <option value="all">Tous les niveaux</option>
+                    <option value="0-50">Débutant (0-50 scènes)</option>
+                    <option value="50-200">Expérimenté (50-200 scènes)</option>
+                    <option value="200+">Pro (200+ scènes)</option>
+                  </select>
+                  {errors.requiredExperienceLevel && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.requiredExperienceLevel}
                     </p>
                   )}
                 </div>

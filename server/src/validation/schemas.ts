@@ -147,7 +147,8 @@ export const requirementsSchema = z.object({
   duration: z.number()
     .min(1, { message: 'Invalid event requirements' })
     .max(480, { message: 'Invalid event requirements' })
-    .optional()
+    .optional(),
+  requiredExperienceLevel: z.enum(['all', '0-50', '50-200', '200+']).optional()
 });
 
 export const createEventSchema = z.object({

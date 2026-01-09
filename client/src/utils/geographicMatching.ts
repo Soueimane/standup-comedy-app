@@ -37,7 +37,7 @@ Object.entries(FRENCH_REGIONS).forEach(([region, departments]) => {
 });
 
 // Normaliser les noms de régions (enlever accents, mettre en minuscules)
-const normalizeString = (str: string): string => {
+export const normalizeString = (str: string): string => {
   if (!str) return '';
   return str
     .toLowerCase()
@@ -46,7 +46,7 @@ const normalizeString = (str: string): string => {
     .trim();
 };
 
-// Exporter pour le débogage
+// Exporter pour le débogage (alias)
 export const normalizeStringForDebug = normalizeString;
 
 // Normaliser les numéros de départements (enlever les zéros initiaux si nécessaire)

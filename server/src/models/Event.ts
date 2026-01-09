@@ -44,7 +44,13 @@ const locationSchema = new Schema<Location>({
 const requirementsSchema = new Schema<EventRequirements>({
   minExperience: { type: Number, required: true },
   maxPerformers: { type: Number, required: false },
-  duration: { type: Number, required: true }
+  duration: { type: Number, required: true },
+  requiredExperienceLevel: { 
+    type: String, 
+    enum: ['all', '0-50', '50-200', '200+'],
+    required: false,
+    default: 'all'
+  }
 });
 
 const eventSchema = new Schema<EventDocument>({

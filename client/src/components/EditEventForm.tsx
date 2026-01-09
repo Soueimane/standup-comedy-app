@@ -23,6 +23,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     endTime: '',
     minExperience: '',
     maxPerformers: '',
+    requiredExperienceLevel: 'all' as 'all' | '0-50' | '50-200' | '200+',
     status: 'PUBLISHED',
   });
 
@@ -46,6 +47,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         endTime: eventToEdit.endTime || '',
         minExperience: eventToEdit.requirements.minExperience.toString(),
         maxPerformers: eventToEdit.requirements.maxPerformers?.toString() || '',
+        requiredExperienceLevel: eventToEdit.requirements.requiredExperienceLevel || 'all',
         status: eventToEdit.status,
       });
     }
@@ -244,6 +246,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
           minExperience: Number(formData.minExperience),
           maxPerformers: Number(formData.maxPerformers),
           duration: durationInMinutes,
+          requiredExperienceLevel: formData.requiredExperienceLevel,
         },
         status: formData.status.toUpperCase(),
         startTime: formData.startTime,
@@ -606,6 +609,29 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
               </p>
             )}
           </div>
+        </div>
+
+        <div style={inputGroupStyle}>
+          <label htmlFor="requiredExperienceLevel" style={labelStyle}>Niveau d'expérience requis</label>
+          <select
+            id="requiredExperienceLevel"
+            value={formData.requiredExperienceLevel}
+            onChange={handleChange}
+            style={{
+              ...inputStyle,
+              borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#555'
+            }}
+          >
+            <option value="all">Tous les niveaux</option>
+            <option value="0-50">Débutant (0-50 scènes)</option>
+            <option value="50-200">Expérimenté (50-200 scènes)</option>
+            <option value="200+">Pro (200+ scènes)</option>
+          </select>
+          {errors.requiredExperienceLevel && (
+            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+              {errors.requiredExperienceLevel}
+            </p>
+          )}
         </div>
 
         <div style={buttonContainerStyle}>

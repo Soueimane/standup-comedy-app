@@ -7,6 +7,7 @@ import ApplyToEventForm from '../components/ApplyToEventForm';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
 import EventCalendar from '../components/EventCalendar';
+import { matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { IEvent } from '../types/event';
@@ -103,6 +104,13 @@ function MyEventsPage() {
   const [eventToWithdraw, setEventToWithdraw] = useState<IEvent | null>(null);
   const [eventToDuplicate, setEventToDuplicate] = useState<IEvent | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [locationSearch, setLocationSearch] = useState(''); // Recherche par lieu pour les humoristes
+  const [experienceFilter, setExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all'); // Filtre par niveau d'expérience
+  // États pour les filtres organisateur
+  const [organizerEventZoneSearch, setOrganizerEventZoneSearch] = useState(''); // Recherche par zone d'événement pour les organisateurs
+  const [organizerEventExperienceFilter, setOrganizerEventExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all'); // Filtre par niveau d'expérience pour les organisateurs
+  // État pour la recherche d'humoriste par zone d'événement dans le modal
+  const [participantZoneSearch, setParticipantZoneSearch] = useState('');
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
@@ -613,13 +621,43 @@ useEffect(() => {
   // Évènements ACCEPTÉS (à venir) pour l'humoriste
   const acceptedUpcomingEvents = useMemo(() => {
     if (user?.role === 'COMEDIAN' && comedianApplications) {
-      return upcomingEvents.filter((event) => {
+      let filtered = upcomingEvents.filter((event) => {
         const app = comedianApplications.find(a => a.event && a.event._id === event._id);
         return app && app.status === 'ACCEPTED';
       });
+      
+      // Filtre 1 : par lieu (recherche dans city, address, venue)
+      if (locationSearch.trim()) {
+        const searchLower = locationSearch.toLowerCase().trim();
+        filtered = filtered.filter(event => {
+          const location = event.location;
+          if (!location || typeof location !== 'object') return false;
+          const city = (location.city || '').toLowerCase();
+          const address = (location.address || '').toLowerCase();
+          const venue = (location.venue || '').toLowerCase();
+          return city.includes(searchLower) || address.includes(searchLower) || venue.includes(searchLower);
+        });
+      }
+      
+      // Filtre 2 : par niveau d'expérience requis de l'événement
+      // Ce filtre est appliqué sur les résultats déjà filtrés par lieu
+      if (experienceFilter !== 'all') {
+        filtered = filtered.filter(event => {
+          const eventRequiredLevel = event.requirements?.requiredExperienceLevel || 'all';
+          // Si l'événement accepte tous les niveaux, on l'affiche
+          if (eventRequiredLevel === 'all') {
+            return true;
+          }
+          // Sinon, on vérifie si le niveau requis correspond au filtre sélectionné
+          return eventRequiredLevel === experienceFilter;
+        });
+      }
+      
+      // Retourne les événements acceptés qui satisfont les deux filtres (si les deux sont actifs)
+      return filtered;
     }
     return [] as IEvent[];
-  }, [user?.role, comedianApplications, upcomingEvents]);
+  }, [user?.role, comedianApplications, upcomingEvents, locationSearch, experienceFilter]);
 
   // Base des évènements à venir POUR POSTULER (exclut les acceptés pour l'humoriste)
   const upcomingEventsForApply = useMemo(() => {
@@ -668,24 +706,86 @@ useEffect(() => {
   const favoriteEvents = useMemo(() => {
     if (!isComedianView || favoriteEventIds.length === 0) return [] as IEvent[];
     const favoriteSet = favoriteIdsSet;
-    return comedianVisibleEvents.filter(event => favoriteSet.has(event._id));
-  }, [isComedianView, favoriteEventIds, favoriteIdsSet, comedianVisibleEvents]);
+    let filtered = comedianVisibleEvents.filter(event => favoriteSet.has(event._id));
+    
+    // Filtre 1 : par lieu (recherche dans city, address, venue)
+    if (locationSearch.trim()) {
+      const searchLower = locationSearch.toLowerCase().trim();
+      filtered = filtered.filter(event => {
+        const location = event.location;
+        if (!location || typeof location !== 'object') return false;
+        const city = (location.city || '').toLowerCase();
+        const address = (location.address || '').toLowerCase();
+        const venue = (location.venue || '').toLowerCase();
+        return city.includes(searchLower) || address.includes(searchLower) || venue.includes(searchLower);
+      });
+    }
+    
+    // Filtre 2 : par niveau d'expérience requis de l'événement
+    // Ce filtre est appliqué sur les résultats déjà filtrés par lieu
+    if (experienceFilter !== 'all') {
+      filtered = filtered.filter(event => {
+        const eventRequiredLevel = event.requirements?.requiredExperienceLevel || 'all';
+        // Si l'événement accepte tous les niveaux, on l'affiche
+        if (eventRequiredLevel === 'all') {
+          return true;
+        }
+        // Sinon, on vérifie si le niveau requis correspond au filtre sélectionné
+        return eventRequiredLevel === experienceFilter;
+      });
+    }
+    
+    // Retourne les événements favoris qui satisfont les deux filtres (si les deux sont actifs)
+    return filtered;
+  }, [isComedianView, favoriteEventIds, favoriteIdsSet, comedianVisibleEvents, locationSearch, experienceFilter]);
 
+  // Fonction de filtrage pour les humoristes (par lieu ET niveau d'expérience)
+  // Les deux filtres sont appliqués ensemble : un événement doit satisfaire les deux conditions
   const getFilteredUpcomingEvents = () => {
-    const base = upcomingEventsForApply;
-    if (completionFilter === 'all') return base;
+    let base = upcomingEventsForApply;
+    
+    // Filtre 1 : par lieu (recherche dans city, address, venue)
+    if (locationSearch.trim()) {
+      const searchLower = locationSearch.toLowerCase().trim();
+      base = base.filter(event => {
+        const location = event.location;
+        if (!location || typeof location !== 'object') return false;
+        const city = (location.city || '').toLowerCase();
+        const address = (location.address || '').toLowerCase();
+        const venue = (location.venue || '').toLowerCase();
+        return city.includes(searchLower) || address.includes(searchLower) || venue.includes(searchLower);
+      });
+    }
+    
+    // Filtre 2 : par niveau d'expérience requis de l'événement
+    // Ce filtre est appliqué sur les résultats déjà filtrés par lieu
+    if (experienceFilter !== 'all') {
+      base = base.filter(event => {
+        const eventRequiredLevel = event.requirements?.requiredExperienceLevel || 'all';
+        // Si l'événement accepte tous les niveaux, on l'affiche
+        if (eventRequiredLevel === 'all') {
+          return true;
+        }
+        // Sinon, on vérifie si le niveau requis correspond au filtre sélectionné
+        return eventRequiredLevel === experienceFilter;
+      });
+    }
+    
+    // Filtre par complétion
     if (completionFilter === 'complete') {
       return base.filter(event => (event.participants?.length || 0) >= (event.requirements?.maxPerformers || 0));
     }
     if (completionFilter === 'incomplete') {
       return base.filter(event => (event.participants?.length || 0) < (event.requirements?.maxPerformers || 0));
     }
+    
+    // Retourne les événements qui satisfont les deux filtres (si les deux sont actifs)
     return base;
   };
 
   const filteredUpcomingEvents = useMemo(
     () => getFilteredUpcomingEvents(),
-    [completionFilter, upcomingEventsForApply]
+    [completionFilter, upcomingEventsForApply, locationSearch, experienceFilter, user?.profile?.numberOfScenes]
   );
 
   const completedUpcomingEvents = useMemo(() => {
@@ -695,6 +795,71 @@ useEffect(() => {
   const incompleteUpcomingEvents = useMemo(() => {
     return upcomingEvents.filter(event => !isEventComplete(event));
   }, [upcomingEvents]);
+
+  // Fonction de filtrage pour les organisateurs (par zone d'événement ET niveau d'expérience)
+  // Les deux filtres sont appliqués ensemble : un événement doit satisfaire les deux conditions
+  const getFilteredOrganizerEvents = (events: IEvent[]): IEvent[] => {
+    let filtered = [...events];
+    
+    // Filtre 1 : par zone d'événement (recherche dans city, address, venue)
+    if (organizerEventZoneSearch.trim()) {
+      const searchLower = organizerEventZoneSearch.toLowerCase().trim();
+      filtered = filtered.filter(event => {
+        const location = event.location;
+        if (!location || typeof location !== 'object') return false;
+        const city = (location.city || '').toLowerCase();
+        const address = (location.address || '').toLowerCase();
+        const venue = (location.venue || '').toLowerCase();
+        return city.includes(searchLower) || address.includes(searchLower) || venue.includes(searchLower);
+      });
+    }
+    
+    // Filtre 2 : par niveau d'expérience requis de l'événement
+    // Ce filtre est appliqué sur les résultats déjà filtrés par zone
+    if (organizerEventExperienceFilter !== 'all') {
+      filtered = filtered.filter(event => {
+        const eventRequiredLevel = event.requirements?.requiredExperienceLevel || 'all';
+        // Si l'événement accepte tous les niveaux, on l'affiche
+        if (eventRequiredLevel === 'all') {
+          return true;
+        }
+        // Sinon, on vérifie si le niveau requis correspond au filtre
+        return eventRequiredLevel === organizerEventExperienceFilter;
+      });
+    }
+    
+    // Retourne les événements qui satisfont les deux filtres (si les deux sont actifs)
+    return filtered;
+  };
+
+  // Appliquer les filtres aux événements organisateur
+  const filteredOrganizerUpcomingEvents = useMemo(() => {
+    if (!isOrganizerView) return upcomingEvents;
+    let base = upcomingEvents;
+    // Appliquer le filtre par complétion si nécessaire
+    if (completionFilter === 'complete') {
+      base = base.filter(event => isEventComplete(event));
+    } else if (completionFilter === 'incomplete') {
+      base = base.filter(event => !isEventComplete(event));
+    }
+    return getFilteredOrganizerEvents(base);
+  }, [isOrganizerView, upcomingEvents, completionFilter, organizerEventZoneSearch, organizerEventExperienceFilter]);
+
+  const filteredOrganizerCompletedEvents = useMemo(() => {
+    if (!isOrganizerView) return completedUpcomingEvents;
+    return getFilteredOrganizerEvents(completedUpcomingEvents);
+  }, [isOrganizerView, completedUpcomingEvents, organizerEventZoneSearch, organizerEventExperienceFilter]);
+
+  const filteredOrganizerArchivedEvents = useMemo(() => {
+    if (!isOrganizerView) return archivedEventsToShow;
+    return getFilteredOrganizerEvents(archivedEventsToShow);
+  }, [isOrganizerView, archivedEventsToShow, organizerEventZoneSearch, organizerEventExperienceFilter]);
+
+  const filteredOrganizerCancelledEvents = useMemo(() => {
+    if (!isOrganizerView) return cancelledEvents;
+    return getFilteredOrganizerEvents(cancelledEvents);
+  }, [isOrganizerView, cancelledEvents, organizerEventZoneSearch, organizerEventExperienceFilter]);
+
   const eventsToDisplay = useMemo(() => {
     if (isComedianView) {
       switch (comedianTab) {
@@ -704,6 +869,23 @@ useEffect(() => {
           return favoriteEvents;
         default:
           return filteredUpcomingEvents;
+      }
+    }
+
+    if (isOrganizerView) {
+      switch (organizerTab) {
+        case 'upcoming':
+          return filteredOrganizerUpcomingEvents;
+        case 'full':
+          return filteredOrganizerCompletedEvents;
+        case 'archived':
+          return filteredOrganizerArchivedEvents;
+        case 'cancelled':
+          return filteredOrganizerCancelledEvents;
+        case 'calendar':
+          return upcomingEvents; // Le calendrier n'a pas besoin de filtres
+        default:
+          return filteredOrganizerUpcomingEvents;
       }
     }
 
@@ -725,16 +907,23 @@ useEffect(() => {
     return filteredUpcomingEvents;
   }, [
     isComedianView,
+    isOrganizerView,
     isSuperAdminView,
     superAdminTab,
+    organizerTab,
     comedianTab,
     filteredUpcomingEvents,
+    filteredOrganizerUpcomingEvents,
+    filteredOrganizerCompletedEvents,
+    filteredOrganizerArchivedEvents,
+    filteredOrganizerCancelledEvents,
     acceptedUpcomingEvents,
     favoriteEvents,
     incompleteUpcomingEvents,
     completedUpcomingEvents,
     archivedEventsToShow,
     cancelledEvents,
+    upcomingEvents,
   ]);
 
   const comedianTabCounts: Record<ComedianTab, number> = useMemo(() => ({
@@ -905,6 +1094,7 @@ useEffect(() => {
   const handleCardClick = (event: IEvent, shouldFocusParticipants = false) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
+    setParticipantZoneSearch(''); // Réinitialiser la recherche lors de l'ouverture d'un nouvel événement
     setFocusParticipantsSection(shouldFocusParticipants);
     // Charger les absences si l'utilisateur est organisateur
     if (user?.role === 'ORGANIZER') {
@@ -973,6 +1163,7 @@ useEffect(() => {
     setIsModalOpen(false);
     setSelectedEvent(null);
     setFocusParticipantsSection(false);
+    setParticipantZoneSearch(''); // Réinitialiser la recherche lors de la fermeture du modal
   };
 
   const handleComedianClick = (comedian: any) => {
@@ -1857,6 +2048,112 @@ useEffect(() => {
               </select>
             )}
           </div>
+          
+          {/* Barre de recherche par lieu et filtre par niveau d'expérience pour les humoristes */}
+          <div
+            style={{
+              marginBottom: '20px',
+              padding: '15px',
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '8px',
+              border: '1px solid #444'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: '15px',
+                alignItems: isMobile ? 'stretch' : 'flex-end'
+              }}
+            >
+              {/* Recherche par lieu */}
+              <div style={{ flex: isMobile ? undefined : 1, width: isMobile ? '100%' : undefined }}>
+                <label
+                  style={{
+                    display: 'block',
+                    color: '#ffffff',
+                    marginBottom: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Recherche par lieu
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ville, adresse, lieu..."
+                  value={locationSearch}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocationSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              
+              {/* Filtre par niveau d'expérience */}
+              <div style={{ width: isMobile ? '100%' : '200px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    color: '#ffffff',
+                    marginBottom: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Niveau d'expérience
+                </label>
+                <select
+                  value={experienceFilter}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExperienceFilter(e.target.value as 'all' | '0-50' | '50-200' | '200+')}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="all">Tous les niveaux</option>
+                  <option value="0-50">Débutant (0-50 scènes)</option>
+                  <option value="50-200">Expérimenté (50-200 scènes)</option>
+                  <option value="200+">Pro (200+ scènes)</option>
+                </select>
+              </div>
+              
+              {/* Bouton réinitialiser */}
+              {(locationSearch.trim() || experienceFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setLocationSearch('');
+                    setExperienceFilter('all');
+                  }}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    whiteSpace: 'nowrap',
+                    height: 'fit-content'
+                  }}
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          </div>
           {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
           {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
           {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
@@ -2006,20 +2303,136 @@ useEffect(() => {
       ) : (
         <>
           {isOrganizerView && (
-            <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
-              <div style={organizerTabsContainerStyle}>
-                {organizerTabs.map(tabId => (
-                  <button
-                    key={tabId}
-                    style={organizerTabButtonStyle(organizerTab === tabId)}
-                    onClick={() => setOrganizerTab(tabId)}
-                  >
-                    <span>{organizerTabTitles[tabId]}</span>
-                    <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
-                  </button>
-                ))}
+            <>
+              <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
+                <div style={organizerTabsContainerStyle}>
+                  {organizerTabs.map(tabId => (
+                    <button
+                      key={tabId}
+                      style={organizerTabButtonStyle(organizerTab === tabId)}
+                      onClick={() => setOrganizerTab(tabId)}
+                    >
+                      <span>{organizerTabTitles[tabId]}</span>
+                      <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+              
+              {/* Barre de recherche par zone d'événement et filtre par niveau d'expérience (organisateur) */}
+              <div
+                style={{
+                  maxWidth: '1200px',
+                  margin: '0 auto 20px auto',
+                  padding: '0 20px'
+                }}
+              >
+                <div
+                  style={{
+                    marginBottom: '20px',
+                    padding: '15px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid #444'
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: '15px',
+                      alignItems: isMobile ? 'stretch' : 'flex-end'
+                    }}
+                  >
+                    {/* Recherche par zone d'événement */}
+                    <div style={{ flex: isMobile ? undefined : 1, width: isMobile ? '100%' : undefined }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          color: '#ffffff',
+                          marginBottom: '8px',
+                          fontWeight: 'bold',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Recherche par zone d'événement
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ville, département, région de l'événement..."
+                        value={organizerEventZoneSearch}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganizerEventZoneSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '6px',
+                          border: '1px solid #555',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          color: '#ffffff',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Filtre par niveau d'expérience */}
+                    <div style={{ width: isMobile ? '100%' : '200px' }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          color: '#ffffff',
+                          marginBottom: '8px',
+                          fontWeight: 'bold',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Niveau d'expérience
+                      </label>
+                      <select
+                        value={organizerEventExperienceFilter}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrganizerEventExperienceFilter(e.target.value as 'all' | '0-50' | '50-200' | '200+')}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '6px',
+                          border: '1px solid #555',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          color: '#ffffff',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <option value="all">Tous les niveaux</option>
+                        <option value="0-50">Débutant (0-50 scènes)</option>
+                        <option value="50-200">Expérimenté (50-200 scènes)</option>
+                        <option value="200+">Pro (200+ scènes)</option>
+                      </select>
+                    </div>
+                    
+                    {/* Bouton réinitialiser */}
+                    {(organizerEventZoneSearch.trim() || organizerEventExperienceFilter !== 'all') && (
+                      <button
+                        onClick={() => {
+                          setOrganizerEventZoneSearch('');
+                          setOrganizerEventExperienceFilter('all');
+                        }}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: '6px',
+                          border: '1px solid #555',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          color: '#ffffff',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          whiteSpace: 'nowrap',
+                          height: 'fit-content'
+                        }}
+                      >
+                        Réinitialiser
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
           {isSuperAdminView && (
             <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
@@ -2315,6 +2728,16 @@ useEffect(() => {
             
             <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>Exigences:</h3>
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Expérience Minimale:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.minExperience ?? 'Non spécifié'} ans</span></p>
+            <p style={modalDetailStyle}><span style={modalLabelStyle}>Niveau d'expérience:</span> <span style={modalValueStyle}>
+              {(() => {
+                const level = selectedEvent.requirements?.requiredExperienceLevel;
+                if (!level || level === 'all') return 'Tous les niveaux';
+                if (level === '0-50') return 'Débutant (0-50 scènes)';
+                if (level === '50-200') return 'Expérimenté (50-200 scènes)';
+                if (level === '200+') return 'Pro (200+ scènes)';
+                return 'Non spécifié';
+              })()}
+            </span></p>
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Nombre Max. Performers:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.maxPerformers ?? 'Non spécifié'}</span></p>
             <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.duration ?? 'Non spécifié'} min</span></p>
 
@@ -2323,13 +2746,122 @@ useEffect(() => {
                 <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                   Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
                 </h3>
+                
+                {/* Barre de recherche d'humoriste par zone d'événement */}
+                {selectedEvent.participants && selectedEvent.participants.length > 0 && (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        color: '#ffffff',
+                        marginBottom: '8px',
+                        fontWeight: 'bold',
+                        fontSize: '14px'
+                      }}
+                    >
+                      Recherche d'humoriste par zone d'événement
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ville, département, région de l'événement..."
+                      value={participantZoneSearch}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParticipantZoneSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        border: '1px solid #555',
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        color: '#ffffff',
+                        fontSize: '14px'
+                      }}
+                    />
+                    {participantZoneSearch.trim() && (
+                      <button
+                        onClick={() => setParticipantZoneSearch('')}
+                        style={{
+                          marginTop: '8px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #555',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          color: '#ffffff',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        Réinitialiser
+                      </button>
+                    )}
+                  </div>
+                )}
+                
                 {selectedEvent.participants && selectedEvent.participants.length > 0 ? (
                   <div>
-                    {selectedEvent.participants.map((participant, index) => {
-                      const isAbsent = isParticipantAbsent((participant as any)._id);
-                      const absence = eventAbsences.find(absence => absence.comedian._id === (participant as any)._id);
+                    {(() => {
+                      // Filtrer les participants par zone d'événement
+                      let filteredParticipants = selectedEvent.participants;
                       
-                      return (
+                      if (participantZoneSearch.trim()) {
+                        const searchTerm = participantZoneSearch.trim();
+                        const searchNormalized = normalizeString(searchTerm);
+                        const eventCity = selectedEvent.location?.city || '';
+                        
+                        // Déterminer le type de recherche (ville, département ou région)
+                        let searchType: 'ville' | 'departement' | 'region' = 'ville';
+                        
+                        // Si c'est un numéro à 2 chiffres (ou 2A, 2B), c'est probablement un département
+                        if (/^\d{1,2}[AB]?$/.test(searchTerm.toUpperCase())) {
+                          searchType = 'departement';
+                        } else {
+                          // Vérifier si c'est une région connue
+                          const knownRegions = [
+                            'Auvergne-Rhône-Alpes', 'Bourgogne-Franche-Comté', 'Bretagne',
+                            'Centre-Val de Loire', 'Corse', 'Grand Est', 'Hauts-de-France',
+                            'Île-de-France', 'Normandie', 'Nouvelle-Aquitaine', 'Occitanie',
+                            'Pays de la Loire', "Provence-Alpes-Côte d'Azur"
+                          ];
+                          const isRegion = knownRegions.some(region => 
+                            normalizeString(region) === searchNormalized
+                          );
+                          if (isRegion) {
+                            searchType = 'region';
+                          }
+                        }
+                        
+                        const searchZone = { type: searchType, value: searchTerm };
+                        
+                        filteredParticipants = selectedEvent.participants.filter((participant: any) => {
+                          const mobilityZones = participant.profile?.mobilityZone;
+                          
+                          // Si l'humoriste n'a pas de zones de mobilité, on ne l'affiche pas
+                          if (!mobilityZones || mobilityZones.length === 0) {
+                            return false;
+                          }
+                          
+                          // Vérifier si la recherche correspond à une zone de mobilité de l'humoriste
+                          const matches = matchesMobilityZones(searchZone, mobilityZones);
+                          
+                          if (matches) {
+                            return true;
+                          }
+                          
+                          // Vérifier aussi si la recherche correspond directement à une zone de mobilité
+                          // (match partiel dans le nom)
+                          const directMatch = mobilityZones.some((zone: any) => {
+                            const zoneNormalized = normalizeString(zone.value);
+                            return zoneNormalized.includes(searchNormalized) || searchNormalized.includes(zoneNormalized);
+                          });
+                          
+                          return directMatch;
+                        });
+                      }
+                      
+                      return filteredParticipants.map((participant: any, index: number) => {
+                        const isAbsent = isParticipantAbsent(participant._id);
+                        const absence = eventAbsences.find(absence => absence.comedian._id === participant._id);
+                        
+                        return (
                         <div key={index} style={{
                           marginBottom: '12px',
                           padding: '10px',
@@ -2358,7 +2890,7 @@ useEffect(() => {
                                 }}
                                 onClick={() => handleComedianClick(participant)}
                               >
-                                {(participant as any).firstName} {(participant as any).lastName}
+                                {participant.firstName} {participant.lastName}
                               </span>
                               {isAbsent && (
                                 <span style={{ 
@@ -2424,8 +2956,9 @@ useEffect(() => {
                             </div>
                           )}
                         </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 ) : (
                   <p style={modalValueStyle}>Aucun participant pour l'instant.</p>
