@@ -1,8 +1,10 @@
 /**
  * Service de matching géographique pour la zone de mobilité
- * Permet de vérifier si une zone de recherche (ville/département/région) 
+ * Permet de vérifier si une zone de recherche (ville/département/région)
  * correspond à une zone de mobilité d'un humoriste en tenant compte des hiérarchies
  */
+
+import { getCityDepartment, getCityGeoInfo } from './cityMapping';
 
 // Mapping des régions françaises avec leurs départements
 export const FRENCH_REGIONS: Record<string, string[]> = {
@@ -143,4 +145,116 @@ export const matchesMobilityZones = (
   }
 
   return mobilityZones.some(zone => isGeographicMatch(searchZone, zone));
+};
+
+/**
+ * Vérifie si un événement (par sa ville) match avec les zones de mobilité d'un humoriste
+ * Matching ASCENDANT: ville de l'événement → département → région
+ *
+ * Exemple: événement à "Paris" matche avec:
+ *   - mobilityZone ville: "Paris"
+ *   - mobilityZone département: "75"
+ *   - mobilityZone région: "Île-de-France"
+ *
+ * @param eventCity - La ville où se déroule l'événement
+ * @param mobilityZones - Les zones de mobilité de l'humoriste
+ * @returns true si l'événement est dans une zone de mobilité de l'humoriste
+ */
+export const eventMatchesMobilityZones = (
+  eventCity: string,
+  mobilityZones: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>
+): boolean => {
+  if (!eventCity || !mobilityZones || mobilityZones.length === 0) {
+    return false;
+  }
+
+  const normalizedEventCity = normalizeString(eventCity);
+
+  // Obtenir le département de la ville de l'événement
+  const eventDepartment = getCityDepartment(eventCity);
+
+  // Obtenir la région à partir du département
+  const eventRegion = eventDepartment ? DEPARTMENT_TO_REGION[eventDepartment] : null;
+
+  return mobilityZones.some(zone => {
+    const normalizedZoneValue = normalizeString(zone.value);
+
+    switch (zone.type) {
+      case 'ville':
+        // Match exact sur la ville
+        return normalizedEventCity === normalizedZoneValue;
+
+      case 'departement':
+        // Match si le département de la ville de l'événement correspond
+        if (!eventDepartment) {
+          // Si la ville n'est pas dans notre mapping, on ne peut pas matcher par département
+          return false;
+        }
+        const normalizedDept = normalizeDepartment(zone.value);
+        return eventDepartment === normalizedDept;
+
+      case 'region':
+        // Match si la région de la ville de l'événement correspond
+        if (!eventRegion) {
+          // Si la ville n'est pas dans notre mapping, on ne peut pas matcher par région
+          return false;
+        }
+        return normalizeString(eventRegion) === normalizedZoneValue;
+
+      default:
+        return false;
+    }
+  });
+};
+
+/**
+ * Version ASYNC de eventMatchesMobilityZones
+ * Utilise l'API Geo Gouv pour récupérer le département et la région de la ville
+ *
+ * @param eventCity - La ville où se déroule l'événement
+ * @param mobilityZones - Les zones de mobilité de l'humoriste
+ * @returns true si l'événement est dans une zone de mobilité de l'humoriste
+ */
+export const eventMatchesMobilityZonesAsync = async (
+  eventCity: string,
+  mobilityZones: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>
+): Promise<boolean> => {
+  if (!eventCity || !mobilityZones || mobilityZones.length === 0) {
+    return false;
+  }
+
+  const normalizedEventCity = normalizeString(eventCity);
+
+  // Récupérer les infos géographiques via l'API Geo Gouv
+  const geoInfo = await getCityGeoInfo(eventCity);
+  const eventDepartment = geoInfo.department;
+  const eventRegion = geoInfo.region;
+
+  return mobilityZones.some(zone => {
+    const normalizedZoneValue = normalizeString(zone.value);
+
+    switch (zone.type) {
+      case 'ville':
+        // Match exact sur la ville
+        return normalizedEventCity === normalizedZoneValue;
+
+      case 'departement':
+        // Match si le département de la ville de l'événement correspond
+        if (!eventDepartment) {
+          return false;
+        }
+        const normalizedDept = normalizeDepartment(zone.value);
+        return eventDepartment === normalizedDept;
+
+      case 'region':
+        // Match si la région de la ville de l'événement correspond
+        if (!eventRegion) {
+          return false;
+        }
+        return normalizeString(eventRegion) === normalizedZoneValue;
+
+      default:
+        return false;
+    }
+  });
 };

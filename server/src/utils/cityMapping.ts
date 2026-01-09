@@ -1,0 +1,238 @@
+/**
+ * Service de géocodage utilisant l'API Geo Gouv (gratuite)
+ * Permet de récupérer le département et la région d'une ville française
+ *
+ * API: https://geo.api.gouv.fr/
+ */
+
+// Cache en mémoire pour éviter les appels API répétitifs
+const cityCache: Map<string, { department: string | null; region: string | null }> = new Map();
+
+// Durée de vie du cache: 24 heures
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+const cacheTimestamps: Map<string, number> = new Map();
+
+/**
+ * Normalise une chaîne de caractères pour la comparaison
+ * Enlève les accents, met en minuscules, et trim
+ */
+const normalizeString = (str: string): string => {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+/**
+ * Interface pour la réponse de l'API Geo Gouv
+ */
+interface GeoGouvCommune {
+  nom: string;
+  code: string;
+  codeDepartement: string;
+  codeRegion: string;
+  departement?: {
+    code: string;
+    nom: string;
+  };
+  region?: {
+    code: string;
+    nom: string;
+  };
+}
+
+/**
+ * Récupère les informations géographiques d'une ville via l'API Geo Gouv
+ *
+ * @param city - Le nom de la ville
+ * @returns Les informations de département et région, ou null si non trouvé
+ */
+export const getCityGeoInfo = async (city: string): Promise<{ department: string | null; region: string | null }> => {
+  if (!city) {
+    return { department: null, region: null };
+  }
+
+  const normalizedCity = normalizeString(city);
+
+  // Vérifier le cache
+  const cached = cityCache.get(normalizedCity);
+  const cacheTime = cacheTimestamps.get(normalizedCity);
+  if (cached && cacheTime && (Date.now() - cacheTime) < CACHE_TTL) {
+    return cached;
+  }
+
+  try {
+    // Appel à l'API Geo Gouv
+    const url = `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(city)}&fields=departement,region&limit=1`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      // Timeout de 5 secondes
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      console.warn(`[GeoGouv] API error for city "${city}": ${response.status}`);
+      return { department: null, region: null };
+    }
+
+    const data = await response.json() as GeoGouvCommune[];
+
+    if (!data || data.length === 0) {
+      console.log(`[GeoGouv] City "${city}" not found`);
+      // Mettre en cache le résultat négatif pour éviter des appels répétés
+      const result = { department: null, region: null };
+      cityCache.set(normalizedCity, result);
+      cacheTimestamps.set(normalizedCity, Date.now());
+      return result;
+    }
+
+    const commune = data[0];
+    const result = {
+      department: commune.departement?.code || commune.codeDepartement || null,
+      region: commune.region?.nom || null,
+    };
+
+    // Mettre en cache
+    cityCache.set(normalizedCity, result);
+    cacheTimestamps.set(normalizedCity, Date.now());
+
+    console.log(`[GeoGouv] City "${city}" → Département: ${result.department}, Région: ${result.region}`);
+    return result;
+
+  } catch (error) {
+    // En cas d'erreur réseau ou timeout, log et retourne null
+    const errorName = error instanceof Error ? error.name : 'Unknown';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorName === 'TimeoutError' || errorName === 'AbortError') {
+      console.warn(`[GeoGouv] Timeout for city "${city}"`);
+    } else {
+      console.error(`[GeoGouv] Error fetching city "${city}":`, errorMessage);
+    }
+    return { department: null, region: null };
+  }
+};
+
+/**
+ * Obtient le code département d'une ville (version async)
+ *
+ * @param city - Le nom de la ville
+ * @returns Le code département ou null si non trouvé
+ */
+export const getCityDepartmentAsync = async (city: string): Promise<string | null> => {
+  const geoInfo = await getCityGeoInfo(city);
+  return geoInfo.department;
+};
+
+/**
+ * Obtient le nom de la région d'une ville (version async)
+ *
+ * @param city - Le nom de la ville
+ * @returns Le nom de la région ou null si non trouvé
+ */
+export const getCityRegionAsync = async (city: string): Promise<string | null> => {
+  const geoInfo = await getCityGeoInfo(city);
+  return geoInfo.region;
+};
+
+/**
+ * Version synchrone avec fallback sur un mapping minimal pour les villes principales
+ * Utilisée quand on ne peut pas faire d'appel async
+ */
+const FALLBACK_CITIES: Record<string, string> = {
+  'paris': '75',
+  'lyon': '69',
+  'marseille': '13',
+  'toulouse': '31',
+  'nice': '06',
+  'nantes': '44',
+  'strasbourg': '67',
+  'montpellier': '34',
+  'bordeaux': '33',
+  'lille': '59',
+  'rennes': '35',
+  'reims': '51',
+  'saint-etienne': '42',
+  'le havre': '76',
+  'toulon': '83',
+  'grenoble': '38',
+  'dijon': '21',
+  'angers': '49',
+  'nimes': '30',
+  'villeurbanne': '69',
+};
+
+/**
+ * Version synchrone - utilise le cache ou le fallback
+ * Pour compatibilité avec le code existant
+ *
+ * @param city - Le nom de la ville
+ * @returns Le code département ou null si non trouvé
+ */
+export const getCityDepartment = (city: string): string | null => {
+  if (!city) return null;
+
+  const normalizedCity = normalizeString(city);
+
+  // Vérifier le cache d'abord
+  const cached = cityCache.get(normalizedCity);
+  if (cached) {
+    return cached.department;
+  }
+
+  // Fallback sur le mapping minimal
+  return FALLBACK_CITIES[normalizedCity] || null;
+};
+
+/**
+ * Vérifie si une ville est dans le cache ou le fallback
+ *
+ * @param city - Le nom de la ville
+ * @returns true si la ville est connue
+ */
+export const isCityKnown = (city: string): boolean => {
+  if (!city) return false;
+  const normalizedCity = normalizeString(city);
+  return cityCache.has(normalizedCity) || normalizedCity in FALLBACK_CITIES;
+};
+
+/**
+ * Précharge les informations géographiques pour une liste de villes
+ * Utile pour optimiser les performances avant un batch de notifications
+ *
+ * @param cities - Liste des villes à précharger
+ */
+export const preloadCities = async (cities: string[]): Promise<void> => {
+  const uniqueCities = [...new Set(cities.filter(c => c && !cityCache.has(normalizeString(c))))];
+
+  if (uniqueCities.length === 0) return;
+
+  console.log(`[GeoGouv] Preloading ${uniqueCities.length} cities...`);
+
+  // Charger les villes en parallèle avec une limite de concurrence
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < uniqueCities.length; i += BATCH_SIZE) {
+    const batch = uniqueCities.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(city => getCityGeoInfo(city)));
+
+    // Petite pause entre les batches pour ne pas surcharger l'API
+    if (i + BATCH_SIZE < uniqueCities.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  console.log(`[GeoGouv] Preloading complete`);
+};
+
+/**
+ * Vide le cache (utile pour les tests)
+ */
+export const clearCache = (): void => {
+  cityCache.clear();
+  cacheTimestamps.clear();
+};
