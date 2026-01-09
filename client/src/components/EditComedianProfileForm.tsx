@@ -88,9 +88,9 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           city: f.properties.city,
           postcode: f.properties.postcode,
         }));
-        // Dédupliquer par ville
+        // Dédupliquer par ville + code postal pour garder les villes homonymes dans différents départements
         const uniqueCities = Array.from(
-          new Map(cities.map((c: { city: string; postcode: string }) => [c.city, c])).values()
+          new Map(cities.map((c: { city: string; postcode: string }) => [c.city + c.postcode, c])).values()
         ) as Array<{ city: string; postcode: string }>;
         setCitySuggestions(prev => {
           const newSuggestions = { ...prev, [index]: uniqueCities };

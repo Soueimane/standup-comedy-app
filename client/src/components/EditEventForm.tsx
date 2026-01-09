@@ -1,4 +1,4 @@
-import React, { type CSSProperties, useState, useEffect } from 'react';
+import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import type { IEvent } from '../types/event';
 import api from '../services/api';
@@ -30,11 +30,17 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
+  // États pour l'auto-complétion des villes
+  const [citySearchQuery, setCitySearchQuery] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (eventToEdit) {
       const eventDate = new Date(eventToEdit.date);
       const formattedDate = `${eventDate.getDate().toString().padStart(2, '0')}/${(eventDate.getMonth() + 1).toString().padStart(2, '0')}/${eventDate.getFullYear()}`;
-      
+
       setFormData({
         title: eventToEdit.title,
         description: eventToEdit.description,
@@ -50,8 +56,72 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         requiredExperienceLevel: eventToEdit.requirements.requiredExperienceLevel || 'all',
         status: eventToEdit.status,
       });
+      setCitySearchQuery(eventToEdit.location.city);
     }
   }, [eventToEdit]);
+
+  const searchCities = async (query: string) => {
+    if (query.length < 2) {
+      setCitySuggestions([]);
+      setShowCityDropdown(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&type=municipality&limit=10`
+      );
+      const data = await response.json();
+
+      if (data.features && data.features.length > 0) {
+        const cities = data.features.map((f: any) => ({
+          city: f.properties.city,
+          postcode: f.properties.postcode,
+        }));
+        // Dédupliquer par ville + code postal pour garder les villes homonymes dans différents départements
+        const uniqueCities = Array.from(
+          new Map(cities.map((c: { city: string; postcode: string }) => [c.city + c.postcode, c])).values()
+        ) as Array<{ city: string; postcode: string }>;
+        setCitySuggestions(uniqueCities);
+        setShowCityDropdown(true);
+      } else {
+        setCitySuggestions([]);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la recherche de villes:', err);
+      setCitySuggestions([]);
+    }
+  };
+
+  const handleCitySearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setCitySearchQuery(query);
+    setFormData(prev => ({ ...prev, city: query }));
+
+    // Annuler la recherche précédente
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Débounce de 300ms
+    searchTimeoutRef.current = setTimeout(() => {
+      searchCities(query);
+    }, 300);
+
+    // Clear error when user starts typing
+    if (errors.city) {
+      setErrors(prev => ({
+        ...prev,
+        city: ''
+      }));
+    }
+  };
+
+  const selectCity = (city: string) => {
+    setFormData(prev => ({ ...prev, city }));
+    setCitySearchQuery(city);
+    setShowCityDropdown(false);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
@@ -426,23 +496,67 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         </div>
         
         <div style={twoColumnLayout}>
-          <div style={inputGroupStyle}>
+          <div style={{ ...inputGroupStyle, position: 'relative' }}>
             <label htmlFor="city" style={labelStyle}>Ville *</label>
-            <input 
-              type="text" 
-              id="city" 
+            <input
+              type="text"
+              id="city"
               style={{
                 ...inputStyle,
                 borderColor: errors.city ? '#ef4444' : '#555'
-              }} 
-              value={formData.city} 
-              onChange={handleChange} 
-              placeholder="Ex: Paris"
+              }}
+              value={citySearchQuery}
+              onChange={handleCitySearch}
+              onFocus={() => {
+                if (citySearchQuery.length >= 2) {
+                  setShowCityDropdown(true);
+                }
+              }}
+              placeholder="Rechercher une ville..."
             />
             {errors.city && (
               <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                 {errors.city}
               </p>
+            )}
+            {showCityDropdown && citySuggestions.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: '#2a2a2a',
+                  border: '1px solid #444',
+                  borderRadius: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  marginTop: '4px',
+                }}
+              >
+                {citySuggestions.map((suggestion, i) => (
+                  <div
+                    key={i}
+                    onClick={() => selectCity(suggestion.city)}
+                    style={{
+                      padding: '10px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#fff',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.backgroundColor = 'rgba(255, 65, 108, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <div>{suggestion.city}</div>
+                    <div style={{ fontSize: '0.8em', color: '#aaa' }}>{suggestion.postcode}</div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
           <div style={inputGroupStyle}>
