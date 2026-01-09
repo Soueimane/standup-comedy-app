@@ -307,6 +307,9 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       requestingOrganizer: organizerId,
     });
 
+    // Sauvegarder l'ancienne ville pour détecter le changement
+    const oldCity = event.location?.city;
+
     const updatedEvent = await EventModel.findByIdAndUpdate(
       eventId,
       { $set: { ...req.body, modifiedByOrganizer: true } },
@@ -323,6 +326,22 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       eventId: updatedEvent._id,
       title: updatedEvent.title,
     });
+
+    // Si la ville a changé, notifier les humoristes dont la zone de mobilité correspond
+    const newCity = updatedEvent.location?.city;
+    if (oldCity !== newCity && newCity) {
+      console.log(`📍 [MobilityNotification] Ville de l'événement modifiée: "${oldCity}" → "${newCity}"`);
+
+      const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
+      if (organizer) {
+        notifyComediansByMobilityAsync(updatedEvent, {
+          firstName: organizer.firstName,
+          lastName: organizer.lastName,
+          email: organizer.email
+        });
+        console.log('📧 [MobilityNotification] Notification des humoristes par zone de mobilité lancée en arrière-plan');
+      }
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());
