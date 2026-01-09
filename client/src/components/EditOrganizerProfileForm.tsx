@@ -54,6 +54,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   });
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [avatarChanged, setAvatarChanged] = useState(false); // Track if avatar was actually changed
   const [postalCodeError, setPostalCodeError] = useState<string>('');
   const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
@@ -117,6 +118,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       });
       setPreviewImage(currentUser.avatarUrl || null);
       setAvatarRemoved(false);
+      setAvatarChanged(false);
       setIsInitialLoad(true);
     }
   }, [currentUser]);
@@ -138,6 +140,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       setPreviewImage(base64String);
       setFormData(prev => ({ ...prev, avatarUrl: base64String }));
       setAvatarRemoved(false);
+      setAvatarChanged(true); // Mark avatar as changed
     };
     reader.readAsDataURL(file);
   };
@@ -146,6 +149,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     setPreviewImage(null);
     setFormData(prev => ({ ...prev, avatarUrl: null }));
     setAvatarRemoved(true);
+    setAvatarChanged(true); // Mark avatar as changed (removed)
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -211,11 +215,10 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     }
 
     try {
-      const updatedData = {
+      const updatedData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        avatarUrl: avatarRemoved ? null : formData.avatarUrl,
         organizerProfile: {
           companyName: formData.organizerProfile.companyName,
           description: formData.organizerProfile.description,
@@ -230,6 +233,12 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
           },
         },
       };
+
+      // Only include avatarUrl if it was actually changed (new upload or removed)
+      // This avoids sending ~1MB of base64 data on every profile save
+      if (avatarChanged) {
+        updatedData.avatarUrl = avatarRemoved ? null : formData.avatarUrl;
+      }
 
       const config = {
         headers: {
