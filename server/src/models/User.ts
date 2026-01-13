@@ -257,6 +257,23 @@ const userSchema = new Schema<UserDocument>({
     unique: true,
     sparse: true, // Allow null values while maintaining uniqueness
   },
+  // Champs de gestion de desactivation de compte
+  isActive: {
+    type: Boolean,
+    default: true,
+    index: true
+  },
+  deactivatedAt: {
+    type: Date
+  },
+  deactivatedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  deactivationReason: {
+    type: String,
+    trim: true
+  },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {

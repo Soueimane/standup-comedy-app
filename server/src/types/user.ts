@@ -84,6 +84,11 @@ export interface User {
     unsubscribeToken?: string;
   };
   keycloakId?: string;
+  // Champs de gestion de desactivation de compte
+  isActive?: boolean;
+  deactivatedAt?: Date;
+  deactivatedBy?: Types.ObjectId;
+  deactivationReason?: string;
 }
 
 // Interface for a user document after being populated
