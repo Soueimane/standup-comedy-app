@@ -23,6 +23,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LandingPage from './pages/LandingPage'
 import OAuthCallback from './pages/OAuthCallback'
 import { SSEProvider } from './components/SSEProvider'
+import CalendarPage from './pages/CalendarPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,8 @@ const AppRouter: React.FC = () => {
       <Route path="/admin/password-resets" element={<PasswordResetManagementPage />} />
       <Route path="/admin/presence-alerts" element={<PresenceAlertsPage />} />
       <Route path="/admin/comedian-reports" element={<ComedianReportsPage />} />
+      
+<Route path="/calendar" element={<CalendarPage/>} />
     </Routes>
   );
 };
