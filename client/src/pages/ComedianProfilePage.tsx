@@ -339,6 +339,21 @@ function ComedianProfilePage() {
                   : 'Non spécifié'}
               </span>
             </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Zone de mobilité:</span>
+              <span style={infoValueStyle}>
+                {user?.profile?.mobilityZone && user.profile.mobilityZone.length > 0
+                  ? user.profile.mobilityZone.map((zone, index) => {
+                      const typeLabels: Record<string, string> = {
+                        'ville': 'Ville',
+                        'departement': 'Département',
+                        'region': 'Région'
+                      };
+                      return `${typeLabels[zone.type] || zone.type}: ${zone.value}`;
+                    }).join(', ')
+                  : 'Non spécifié'}
+              </span>
+            </div>
             {(user?.profile?.socialLinks?.youtube || user?.profile?.socialLinks?.instagram || user?.profile?.socialLinks?.facebook) && (
               <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
                 <h3 style={{ ...cardTitleStyle, fontSize: '1.1em', marginBottom: '10px' }}>Réseaux sociaux</h3>

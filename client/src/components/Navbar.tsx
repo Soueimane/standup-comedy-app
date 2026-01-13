@@ -171,10 +171,42 @@ function Navbar() {
           <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
         </div>
 
+<<<<<<< HEAD
         {/* MOBILE HEADER */}
         <div id="mobile-nav" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>☰</button>
           <h2 style={{ marginLeft: 15, color: '#ff4b2b' }}>Connect Comedy Club</h2>
+=======
+        {/* Info utilisateur Desktop - Masqué sur mobile */}
+        <div id="desktop-user" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          {/* Ligne du rôle et nom */}
+          {user && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              background: roleStyles.badgeBg,
+              color: roleStyles.badgeColor,
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+            }}>
+              <span style={{ fontSize: '1rem' }}>{roleStyles.badgeIcon}</span>
+              <span>{roleStyles.badgeText}</span>
+              <span style={{ color: '#aaa', margin: '0 4px' }}>|</span>
+              <span style={{ color: '#ffffff' }}>{`${user.firstName} ${user.lastName}`}</span>
+            </div>
+          )}
+          {/* Ligne avec cloche et déconnexion */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Badge de notifications pour les organisateurs et humoristes */}
+            {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN') && <NotificationDropdown />}
+            {!user && <span style={userNameStyle}>Invité</span>}
+            <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
+          </div>
+>>>>>>> 94b59062d6def06291c2a9d86b34b440163f538c
         </div>
       </nav>
 

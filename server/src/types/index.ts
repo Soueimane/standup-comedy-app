@@ -12,6 +12,7 @@ export interface EventRequirements {
   minExperience: number;
   maxPerformers?: number;
   duration: number;
+  requiredExperienceLevel?: 'all' | '0-50' | '50-200' | '200+';
 }
 
 export interface IPopulatedEvent extends Event {

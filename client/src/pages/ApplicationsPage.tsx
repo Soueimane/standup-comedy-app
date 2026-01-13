@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addFavorite, removeFavorite, getFavorites } from '../services/api';
+import { checkGeographicCompatibility, isGeographicMatch, matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
 
 export interface IUser {
   _id: string;
@@ -14,7 +15,13 @@ export interface IUser {
   email: string;
   phone?: string;
   avatarUrl?: string | null;
-  profile?: { bio?: string; experience?: number; speciality?: string; }; // Ajoutez d'autres champs si nécessaires
+  profile?: { 
+    bio?: string; 
+    experience?: number; 
+    speciality?: string;
+    numberOfScenes?: '0-50' | '50-200' | '200+';
+    mobilityZone?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>;
+  };
 }
 
 export interface IEventPopulated {
@@ -46,6 +53,87 @@ export interface IApplication {
 type ComedianApplicationTab = 'accepted' | 'pending' | 'rejected' | 'archived' | 'cancelled';
 type OrganizerApplicationTab = 'all' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'favorites';
 
+// Composant pour afficher l'indicateur de compatibilité géographique
+function GeographicCompatibilityBadge({ 
+  eventCity, 
+  mobilityZones 
+}: { 
+  eventCity: string; 
+  mobilityZones?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }> 
+}) {
+  const [isCompatible, setIsCompatible] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    // Log pour déboguer
+    console.log('📍 GeographicCompatibilityBadge - Données reçues:', {
+      eventCity,
+      mobilityZones,
+      hasMobilityZones: !!mobilityZones,
+      mobilityZonesLength: mobilityZones?.length || 0
+    });
+
+    const checkCompatibility = async () => {
+      setIsChecking(true);
+      try {
+        console.log('🔍 Vérification compatibilité géographique:', { eventCity, mobilityZones });
+        const result = await checkGeographicCompatibility(eventCity, mobilityZones);
+        console.log('✅ Résultat compatibilité:', result);
+        setIsCompatible(result.isCompatible);
+      } catch (error) {
+        console.error('Erreur lors de la vérification de compatibilité:', error);
+        setIsCompatible(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    if (eventCity && mobilityZones && mobilityZones.length > 0) {
+      checkCompatibility();
+    } else {
+      console.log('⚠️ Pas de zones de mobilité ou ville manquante:', { eventCity, mobilityZones });
+      setIsCompatible(false);
+      setIsChecking(false);
+    }
+  }, [eventCity, mobilityZones]);
+
+  if (isChecking) {
+    return (
+      <span style={{ 
+        fontSize: '0.75em', 
+        color: '#aaa',
+        marginTop: '4px',
+        display: 'block'
+      }}>
+        🔍 Vérification...
+      </span>
+    );
+  }
+
+  // Si pas de zones de mobilité, ne rien afficher
+  if (!mobilityZones || mobilityZones.length === 0) {
+    return null;
+  }
+
+  // Si compatible, afficher le badge
+  if (isCompatible === true) {
+    return (
+      <span style={{ 
+        fontSize: '0.75em', 
+        color: '#4caf50',
+        marginTop: '4px',
+        display: 'block',
+        fontWeight: 'bold'
+      }}>
+        ✅ Zone compatible
+      </span>
+    );
+  }
+
+  // Si pas compatible, ne rien afficher (ou afficher un message d'incompatibilité si besoin)
+  return null;
+}
+
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
   const queryClient = useQueryClient();
@@ -68,6 +156,9 @@ function ApplicationsPage() {
   const [comedianSortKey, setComedianSortKey] = useState<'dateAsc' | 'dateDesc'>('dateDesc');
   const [comedianOrganizerFilter, setComedianOrganizerFilter] = useState<string>('all');
   const [archivedOutcomeFilter, setArchivedOutcomeFilter] = useState<'all' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'>('all');
+  // États pour la recherche par zone d'événement et filtre par niveau d'expérience (organisateur)
+  const [eventZoneSearch, setEventZoneSearch] = useState<string>('');
+  const [organizerExperienceFilter, setOrganizerExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all');
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState<boolean>(() => {
@@ -100,6 +191,18 @@ function ApplicationsPage() {
       const list = Array.isArray(res.data)
         ? res.data
         : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
+      
+      // Log pour déboguer les zones de mobilité
+      console.log('📋 Applications chargées:', list.length);
+      list.forEach((app: IApplication, idx: number) => {
+        if (app.comedian?.profile?.mobilityZone) {
+          console.log(`  Application ${idx + 1} - Humoriste: ${app.comedian.firstName} ${app.comedian.lastName}`, {
+            mobilityZones: app.comedian.profile.mobilityZone,
+            eventCity: app.event.location.city
+          });
+        }
+      });
+      
       return list as IApplication[];
     },
     enabled: !!token && !!user,
@@ -251,7 +354,7 @@ function ApplicationsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedTab, selectedEventId, comedianFilter, sortKey, applications.length]);
+  }, [selectedTab, selectedEventId, comedianFilter, sortKey, applications.length, eventZoneSearch, organizerExperienceFilter]);
   const organizerFilteredApplications = user?.role === 'ORGANIZER'
     ? getFilteredApplications().filter(app => app.event)
     : [];
@@ -346,6 +449,72 @@ function ApplicationsPage() {
     if (user?.role === 'ORGANIZER' && comedianFilter !== 'all') {
       filtered = filtered.filter(app => app.comedian && app.comedian._id === comedianFilter);
     }
+    
+    // Filtre par zone d'événement (recherche par zone de mobilité compatible)
+    if (user?.role === 'ORGANIZER' && eventZoneSearch.trim()) {
+      const searchTerm = eventZoneSearch.trim();
+      const searchNormalized = normalizeString(searchTerm);
+      
+      filtered = filtered.filter(app => {
+        const mobilityZones = app.comedian?.profile?.mobilityZone;
+        
+        // Si l'humoriste n'a pas de zones de mobilité, on ne l'affiche pas
+        if (!mobilityZones || mobilityZones.length === 0) {
+          return false;
+        }
+        
+        // Déterminer le type de recherche (ville, département ou région)
+        // On essaie de deviner le type en fonction du format
+        let searchType: 'ville' | 'departement' | 'region' = 'ville';
+        
+        // Si c'est un numéro à 2 chiffres (ou 2A, 2B), c'est probablement un département
+        if (/^\d{1,2}[AB]?$/.test(searchTerm.toUpperCase())) {
+          searchType = 'departement';
+        } else {
+          // Vérifier si c'est une région connue
+          const knownRegions = [
+            'Auvergne-Rhône-Alpes', 'Bourgogne-Franche-Comté', 'Bretagne',
+            'Centre-Val de Loire', 'Corse', 'Grand Est', 'Hauts-de-France',
+            'Île-de-France', 'Normandie', 'Nouvelle-Aquitaine', 'Occitanie',
+            'Pays de la Loire', "Provence-Alpes-Côte d'Azur"
+          ];
+          const isRegion = knownRegions.some(region => 
+            normalizeString(region) === searchNormalized
+          );
+          if (isRegion) {
+            searchType = 'region';
+          }
+        }
+        
+        const searchZone = { type: searchType, value: searchTerm };
+        
+        // Vérifier si la recherche correspond à une zone de mobilité de l'humoriste
+        const matches = matchesMobilityZones(searchZone, mobilityZones);
+        
+        if (matches) {
+          return true;
+        }
+        
+        // Vérifier aussi si la recherche correspond directement à une zone de mobilité
+        // (match partiel dans le nom)
+        const directMatch = mobilityZones.some(zone => {
+          const zoneNormalized = normalizeString(zone.value);
+          return zoneNormalized.includes(searchNormalized) || searchNormalized.includes(zoneNormalized);
+        });
+        
+        return directMatch;
+      });
+    }
+    
+    // Filtre par niveau d'expérience (organisateur)
+    if (user?.role === 'ORGANIZER' && organizerExperienceFilter !== 'all') {
+      filtered = filtered.filter(app => {
+        const comedianLevel = app.comedian?.profile?.numberOfScenes;
+        if (!comedianLevel) return false;
+        return comedianLevel === organizerExperienceFilter;
+      });
+    }
+    
     // Tri
     const sortByStatusOrder = (a: IApplication['status'], b: IApplication['status']) => {
       const order = ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
@@ -1149,6 +1318,114 @@ function ApplicationsPage() {
           )}
         </div>
 
+        {/* Barre de recherche par zone d'événement et filtre par niveau d'expérience (organisateur) */}
+        {user?.role === 'ORGANIZER' && (
+          <div
+            style={{
+              marginBottom: '20px',
+              padding: '15px',
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '8px',
+              border: '1px solid #444'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: '15px',
+                alignItems: isMobile ? 'stretch' : 'flex-end'
+              }}
+            >
+              {/* Recherche par zone d'événement */}
+              <div style={{ flex: isMobile ? undefined : 1, width: isMobile ? '100%' : undefined }}>
+                <label
+                  style={{
+                    display: 'block',
+                    color: '#ffffff',
+                    marginBottom: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Recherche par zone d'événement
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ville, département, région de l'événement..."
+                  value={eventZoneSearch}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEventZoneSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              
+              {/* Filtre par niveau d'expérience */}
+              <div style={{ width: isMobile ? '100%' : '200px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    color: '#ffffff',
+                    marginBottom: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  Niveau d'expérience
+                </label>
+                <select
+                  value={organizerExperienceFilter}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOrganizerExperienceFilter(e.target.value as 'all' | '0-50' | '50-200' | '200+')}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="all">Tous les niveaux</option>
+                  <option value="0-50">Débutant (0-50 scènes)</option>
+                  <option value="50-200">Expérimenté (50-200 scènes)</option>
+                  <option value="200+">Pro (200+ scènes)</option>
+                </select>
+              </div>
+              
+              {/* Bouton réinitialiser */}
+              {(eventZoneSearch.trim() || organizerExperienceFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setEventZoneSearch('');
+                    setOrganizerExperienceFilter('all');
+                  }}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '6px',
+                    border: '1px solid #555',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    whiteSpace: 'nowrap',
+                    height: 'fit-content'
+                  }}
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {loading && <p style={{ textAlign: 'center', color: '#ccc' }}>Chargement des candidatures...</p>}
         {error && <p style={{ textAlign: 'center', color: '#dc3545' }}>Erreur: {error}</p>}
         
@@ -1324,6 +1601,10 @@ function ApplicationsPage() {
                         <div style={comedianDetailsStyle}>
                           <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
                           <p style={comedianRoleTextStyle}>Humoriste</p>
+                          <GeographicCompatibilityBadge 
+                            eventCity={app.event.location.city} 
+                            mobilityZones={app.comedian.profile?.mobilityZone}
+                          />
                         </div>
                         <button 
                           style={viewProfileInlineButtonStyle}

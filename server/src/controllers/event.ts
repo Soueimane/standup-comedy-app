@@ -5,7 +5,8 @@ import { AuthRequest } from '../middleware/auth';
 import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
 import { expirePendingApplicationsForEvent } from './application';
-import { sendNewEventNotificationToHumorists, sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants } from '../services/emailService';
+import { sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants, sendNewEventNotificationToHumorists } from '../services/emailService';
+import { notifyComediansByMobilityAsync } from '../services/mobilityNotificationService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
 import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
@@ -77,52 +78,24 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       // Ne pas faire échouer la création de l'évènement si les stats échouent
     }
 
-    // Envoyer les notifications par email aux humoristes (en arrière-plan)
-    console.log('📧 Démarrage envoi notifications email...');
-    console.log('📋 Données évènement pour email:', {
+    // Envoyer les notifications par mobilité aux humoristes dont la zone correspond
+    console.log('📍 Démarrage envoi notifications par mobilité...');
+    console.log('📋 Données évènement:', {
       title: event.title,
       date: event.date,
       location: event.location,
-      startTime: req.body.startTime,
-      endTime: req.body.endTime,
       requirements: event.requirements
     });
-    console.log('👤 Données organisateur pour email:', {
+    console.log('👤 Organisateur:', {
       firstName: organizer.firstName,
       lastName: organizer.lastName,
       email: organizer.email
     });
 
-    // Vérifier les variables d'environnement avant d'envoyer
-    console.log('🔍 Vérification variables d\'environnement:', {
-      NODE_ENV: process.env.NODE_ENV,
-      DISABLE_EMAILS: process.env.DISABLE_EMAILS,
-      SMTP_USER: config.email.smtpUser ? 'Configuré' : 'MANQUANT',
-      SMTP_PASS: config.email.smtpPass ? 'Configuré (masqué)' : 'MANQUANT'
-    });
-
-    sendNewEventNotificationToHumorists({
-      title: event.title,
-      description: event.description,
-      date: event.date,
-      location: event.location,
-      requirements: event.requirements,
-      startTime: req.body.startTime,
-      endTime: req.body.endTime
-    }, {
+    notifyComediansByMobilityAsync(event, {
       firstName: organizer.firstName,
       lastName: organizer.lastName,
       email: organizer.email
-    }).then((result) => {
-      console.log('✅ Fonction d\'envoi d\'emails terminée avec succès', result);
-    }).catch(emailError => {
-      console.error('❌ Erreur lors de l\'envoi des notifications:', emailError);
-      console.error('🔍 Détails de l\'erreur:', {
-        message: emailError?.message,
-        response: emailError?.response?.body,
-        code: emailError?.code,
-        stack: emailError instanceof Error ? emailError.stack : 'N/A'
-      });
     });
 
     // Convertir l'évènement en objet JSON pour éviter les problèmes de sérialisation
@@ -334,6 +307,9 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       requestingOrganizer: organizerId,
     });
 
+    // Sauvegarder l'ancienne ville pour détecter le changement
+    const oldCity = event.location?.city;
+
     const updatedEvent = await EventModel.findByIdAndUpdate(
       eventId,
       { $set: { ...req.body, modifiedByOrganizer: true } },
@@ -350,6 +326,22 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       eventId: updatedEvent._id,
       title: updatedEvent.title,
     });
+
+    // Si la ville a changé, notifier les humoristes dont la zone de mobilité correspond
+    const newCity = updatedEvent.location?.city;
+    if (oldCity !== newCity && newCity) {
+      console.log(`📍 [MobilityNotification] Ville de l'événement modifiée: "${oldCity}" → "${newCity}"`);
+
+      const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
+      if (organizer) {
+        notifyComediansByMobilityAsync(updatedEvent, {
+          firstName: organizer.firstName,
+          lastName: organizer.lastName,
+          email: organizer.email
+        });
+        console.log('📧 [MobilityNotification] Notification des humoristes par zone de mobilité lancée en arrière-plan');
+      }
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());

@@ -7,7 +7,12 @@ export const validate = (schema: ZodSchema) => async (
   next: NextFunction
 ) => {
   try {
-    console.log('🔍 [VALIDATION] Validation des données:', JSON.stringify(req.body, null, 2));
+    // Log sécurisé sans inclure les données volumineuses (avatarUrl base64)
+    const safeBody = { ...req.body };
+    if (safeBody.avatarUrl && typeof safeBody.avatarUrl === 'string' && safeBody.avatarUrl.length > 100) {
+      safeBody.avatarUrl = `[base64 image: ${safeBody.avatarUrl.length} chars]`;
+    }
+    console.log('🔍 [VALIDATION] Validation des données:', Object.keys(req.body));
     const validatedData = await schema.parseAsync(req.body);
     console.log('✅ [VALIDATION] Données validées avec succès');
     req.body = validatedData; // Utiliser les données validées (avec transformations appliquées)

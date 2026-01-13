@@ -80,10 +80,16 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     const { userId } = req.params;
     const updateData = req.body;
 
+    // Log sans inclure le contenu complet de avatarUrl (peut être une énorme chaîne base64)
+    const safeLogData = { ...updateData };
+    if (safeLogData.avatarUrl && typeof safeLogData.avatarUrl === 'string' && safeLogData.avatarUrl.length > 100) {
+      safeLogData.avatarUrl = `[base64 image: ${safeLogData.avatarUrl.length} caractères]`;
+    }
     console.log('📝 [updateUserProfile] Données reçues:', {
       userId,
       updateDataKeys: Object.keys(updateData),
-      updateData: JSON.stringify(updateData, null, 2)
+      hasAvatarUrl: !!updateData.avatarUrl,
+      avatarUrlLength: updateData.avatarUrl?.length || 0
     });
 
     if (req.user?.id !== userId) {
@@ -155,6 +161,7 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
         if (updateData.profile.numberOfScenes !== undefined) user.profile.numberOfScenes = updateData.profile.numberOfScenes;
         if (updateData.profile.comedyStyle !== undefined) user.profile.comedyStyle = updateData.profile.comedyStyle;
         if (updateData.profile.performanceLanguages !== undefined) user.profile.performanceLanguages = updateData.profile.performanceLanguages;
+        if (updateData.profile.mobilityZone !== undefined) user.profile.mobilityZone = updateData.profile.mobilityZone;
         if (updateData.profile.socialLinks) {
           if (!user.profile.socialLinks) user.profile.socialLinks = {};
           if (updateData.profile.socialLinks.youtube !== undefined) user.profile.socialLinks.youtube = updateData.profile.socialLinks.youtube || undefined;
