@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Types } from 'mongoose';
 import { UserModel } from '../models/User';
 import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
 import { config } from '../config/env';
@@ -192,6 +193,13 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
+    // Verifier si le compte est actif
+    if ((user as any).isActive === false) {
+      return res.status(403).json({
+        message: 'Votre compte a ete desactive. Veuillez contacter le support.'
+      });
+    }
+
     // Générer le token JWT
     if (!config.jwt.secret) {
       return res.status(500).json({
@@ -310,7 +318,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const users = await UserModel.find({
       role: { $in: ['COMEDIAN', 'ORGANIZER'] }
     })
-      .select('firstName lastName email phone role city createdAt stats profile organizerProfile')
+      .select('firstName lastName email phone role city createdAt stats profile organizerProfile isActive deactivatedAt deactivationReason')
       .populate('profile')
       .populate('organizerProfile')
       .sort({ createdAt: -1 });
@@ -332,6 +340,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         stats: user.stats || {},
+        isActive: (user as any).isActive !== false, // Par defaut true si non defini
+        deactivatedAt: (user as any).deactivatedAt || null,
+        deactivationReason: (user as any).deactivationReason || null,
       };
 
       // Ajouter des données spécifiques au rôle
@@ -642,5 +653,105 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la réinitialisation admin:', error);
     res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
+  }
+};
+
+// ============================================================================
+// DEACTIVATE USER - Desactiver un compte (Super Admin uniquement)
+// ============================================================================
+export const deactivateUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Acces refuse' });
+    }
+
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouve' });
+    }
+
+    // Empecher la desactivation d'un Super Admin
+    if (user.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Impossible de desactiver un Super Admin' });
+    }
+
+    // Verifier si deja desactive
+    if ((user as any).isActive === false) {
+      return res.status(400).json({ message: 'Ce compte est deja desactive' });
+    }
+
+    // Desactiver le compte
+    (user as any).isActive = false;
+    (user as any).deactivatedAt = new Date();
+    (user as any).deactivatedBy = new Types.ObjectId(req.user.id);
+    (user as any).deactivationReason = reason || '';
+    await user.save();
+
+    console.log(`✅ Compte desactive: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} desactive avec succes`,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: (user as any).isActive,
+        deactivatedAt: (user as any).deactivatedAt,
+        deactivationReason: (user as any).deactivationReason
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la desactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la desactivation du compte' });
+  }
+};
+
+// ============================================================================
+// REACTIVATE USER - Reactiver un compte (Super Admin uniquement)
+// ============================================================================
+export const reactivateUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Acces refuse' });
+    }
+
+    const { userId } = req.params;
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouve' });
+    }
+
+    // Verifier si deja actif
+    if ((user as any).isActive !== false) {
+      return res.status(400).json({ message: 'Ce compte est deja actif' });
+    }
+
+    // Reactiver le compte
+    (user as any).isActive = true;
+    (user as any).deactivatedAt = undefined;
+    (user as any).deactivatedBy = undefined;
+    (user as any).deactivationReason = undefined;
+    await user.save();
+
+    console.log(`✅ Compte reactive: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} reactive avec succes`,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: (user as any).isActive
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la reactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la reactivation du compte' });
   }
 };
