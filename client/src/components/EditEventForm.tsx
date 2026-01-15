@@ -24,7 +24,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     minExperience: '',
     maxPerformers: '',
     requiredExperienceLevel: 'all' as 'all' | '0-50' | '50-200' | '200+',
-    status: 'PUBLISHED',
+    status: 'published',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -318,7 +318,6 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
           duration: durationInMinutes,
           requiredExperienceLevel: formData.requiredExperienceLevel,
         },
-        status: formData.status.toUpperCase(),
         startTime: formData.startTime,
         endTime: formData.endTime,
       };

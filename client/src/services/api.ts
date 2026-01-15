@@ -189,4 +189,27 @@ export const deleteNotification = async (notificationId: string) => {
   return response.data;
 };
 
+// Fonctions pour gérer les recommandations (Humoristes)
+export const getRecommendations = async (options?: { page?: number; limit?: number; minScore?: number }) => {
+  const params = new URLSearchParams();
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.minScore !== undefined) params.append('minScore', options.minScore.toString());
+  const query = params.toString();
+  const response = await api.get(`/recommendations${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
+export const getRecommendationPreferences = async () => {
+  const response = await api.get('/recommendations/preferences');
+  return response.data;
+};
+
+export const updateRecommendationPreferences = async (preferences: {
+  priorities?: Array<{ criterion: string; weight: number; enabled: boolean }>;
+}) => {
+  const response = await api.put('/recommendations/preferences', preferences);
+  return response.data;
+};
+
 export default api;

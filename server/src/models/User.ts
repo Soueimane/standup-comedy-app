@@ -143,6 +143,31 @@ const MobilityZoneSchema = new Schema({
   value: { type: String, required: true, trim: true }
 }, { _id: false });
 
+// Schéma pour les priorités de recommandation
+const RecommendationPrioritySchema = new Schema({
+  criterion: {
+    type: String,
+    enum: ['geographic', 'experienceLevel', 'experienceYears'],
+    required: true
+  },
+  weight: { type: Number, min: 0, max: 100, default: 33 },
+  enabled: { type: Boolean, default: true }
+}, { _id: false });
+
+// Schéma pour les préférences de recommandation
+const RecommendationPreferencesSchema = new Schema({
+  enabled: { type: Boolean, default: true },
+  priorities: {
+    type: [RecommendationPrioritySchema],
+    default: [
+      { criterion: 'geographic', weight: 50, enabled: true },
+      { criterion: 'experienceLevel', weight: 30, enabled: true },
+      { criterion: 'experienceYears', weight: 20, enabled: true }
+    ]
+  },
+  lastUpdated: { type: Date, default: Date.now }
+}, { _id: false });
+
 const userProfileSchema = new Schema<UserProfile>({
   bio: { type: String },
   experience: { type: Number },
@@ -163,7 +188,18 @@ const userProfileSchema = new Schema<UserProfile>({
     facebook: { type: String },
     twitter: { type: String }
   },
-  performances: [performanceSchema]
+  performances: [performanceSchema],
+  recommendationPreferences: {
+    type: RecommendationPreferencesSchema,
+    default: () => ({
+      enabled: true,
+      priorities: [
+        { criterion: 'geographic', weight: 50, enabled: true },
+        { criterion: 'experienceLevel', weight: 30, enabled: true },
+        { criterion: 'experienceYears', weight: 20, enabled: true }
+      ]
+    })
+  }
 });
 
 const AvatarSchema = new Schema({
@@ -303,15 +339,23 @@ userSchema.pre('save', function(next) {
   if (this.isModified('role') || this.isNew) {
     // Ne créer un profil par défaut que si aucun profil n'existe déjà
     if (this.role === 'COMEDIAN' && !this.profile) {
-      this.profile = { 
-        bio: '', 
-        experience: 0, 
+      this.profile = {
+        bio: '',
+        experience: 0,
         speciality: '',
         numberOfScenes: '0-50',
         comedyStyle: [],
         performanceLanguages: [],
         socialLinks: {},
-        performances: []
+        performances: [],
+        recommendationPreferences: {
+          enabled: true,
+          priorities: [
+            { criterion: 'geographic', weight: 50, enabled: true },
+            { criterion: 'experienceLevel', weight: 30, enabled: true },
+            { criterion: 'experienceYears', weight: 20, enabled: true }
+          ]
+        }
       };
     }
     if (this.role === 'ORGANIZER' && !this.organizerProfile) {

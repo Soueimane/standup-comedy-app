@@ -15,9 +15,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, checkIsEventFavorite } from '../services/api';
+import RecommendationsTab from '../components/RecommendationsTab';
 
 const ITEMS_PER_PAGE = 5;
-type ComedianTab = 'opportunities' | 'accepted' | 'favorites';
+type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
 type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
@@ -126,7 +127,7 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (isComedianView && tabParam) {
-      const validComedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites'];
+      const validComedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites', 'recommendations'];
       if (validComedianTabs.includes(tabParam as ComedianTab)) {
         setComedianTab(tabParam as ComedianTab);
       } else {
@@ -867,6 +868,8 @@ useEffect(() => {
           return acceptedUpcomingEvents;
         case 'favorites':
           return favoriteEvents;
+        case 'recommendations':
+          return []; // Les recommandations sont gérées par le composant RecommendationsTab
         default:
           return filteredUpcomingEvents;
       }
@@ -930,6 +933,7 @@ useEffect(() => {
     opportunities: filteredUpcomingEvents.length,
     accepted: acceptedUpcomingEvents.length,
     favorites: favoriteEvents.length,
+    recommendations: 0, // Le compteur est géré par le composant RecommendationsTab
   }), [filteredUpcomingEvents, acceptedUpcomingEvents, favoriteEvents]);
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
@@ -951,6 +955,7 @@ useEffect(() => {
     opportunities: 'Opportunités à venir (pour postuler)',
     accepted: 'Évènements acceptés',
     favorites: 'Mes favoris',
+    recommendations: 'Recommandations',
   };
 
   const organizerTabTitles: Record<OrganizerTab, string> = {
@@ -972,10 +977,12 @@ useEffect(() => {
     opportunities: 'Aucune opportunité disponible pour le moment.',
     accepted: 'Aucun évènement accepté à venir.',
     favorites: 'Aucun évènement en favori.',
+    recommendations: 'Aucune recommandation disponible. Complétez votre profil pour obtenir des suggestions personnalisées.',
   };
 
   const isOpportunitiesTab = comedianTab === 'opportunities';
   const isFavoritesTab = comedianTab === 'favorites';
+  const isRecommendationsTab = comedianTab === 'recommendations';
 
   const listIsLoading = isComedianView
     ? (isFavoritesTab ? eventsLoading : (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading))
@@ -1477,7 +1484,7 @@ useEffect(() => {
     fontSize: '1.1em',
   };
 
-  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites'];
+  const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites', 'recommendations'];
   const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
@@ -2013,7 +2020,9 @@ useEffect(() => {
                 onClick={() => setComedianTab(tabId)}
               >
                 <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
-                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} évènement(s)</span>
+                {tabId !== 'recommendations' && (
+                  <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} évènement(s)</span>
+                )}
               </button>
             ))}
           </div>
@@ -2049,7 +2058,8 @@ useEffect(() => {
             )}
           </div>
           
-          {/* Barre de recherche par lieu et filtre par niveau d'expérience pour les humoristes */}
+          {/* Barre de recherche par lieu et filtre par niveau d'expérience pour les humoristes - masquée pour l'onglet recommandations */}
+          {!isRecommendationsTab && (
           <div
             style={{
               marginBottom: '20px',
@@ -2154,12 +2164,28 @@ useEffect(() => {
               )}
             </div>
           </div>
-          {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
-          {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
-          {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+          )}
+
+          {/* Composant RecommendationsTab pour l'onglet recommandations */}
+          {isRecommendationsTab && (
+            <RecommendationsTab
+              isActive={isRecommendationsTab}
+              userId={user?._id}
+              onEventClick={handleCardClick}
+              onApplyClick={(event) => {
+                setSelectedEvent(event);
+                setShowApplyEventForm(true);
+              }}
+            />
+          )}
+
+          {/* Liste des événements pour les autres onglets */}
+          {!isRecommendationsTab && listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
+          {!isRecommendationsTab && listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+          {!isRecommendationsTab && eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
             <p style={emptyStateStyle}>{comedianEmptyStates[comedianTab]}</p>
           )}
-          {paginatedUpcomingEvents.map((event) => {
+          {!isRecommendationsTab && paginatedUpcomingEvents.map((event) => {
             const isCompleteEvent = isEventComplete(event);
             const participantsRatio = getParticipantsRatio(event);
             const statusLabel = translateEventStatus(event.status);
@@ -2278,7 +2304,7 @@ useEffect(() => {
               </div>
             );
           })}
-          {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+          {!isRecommendationsTab && filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
             <div style={paginationControlsStyle}>
               <button
                 style={paginationButtonStyle}

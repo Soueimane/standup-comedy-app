@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { RecommendationPreferences } from './recommendation';
 
 export interface ILocation {
   city: string;
@@ -36,6 +37,7 @@ export interface UserProfile {
     twitter?: string;
   };
   performances?: Performance[];
+  recommendationPreferences?: RecommendationPreferences;
 }
 
 export interface IOrganisateurProfile {
