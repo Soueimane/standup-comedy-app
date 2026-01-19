@@ -1,15 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import {
-  getRecommendedEvents,
-  getRecommendationPreferences as getPrefs,
-  updateRecommendationPreferences as updatePrefs
-} from '../services/recommendationService';
-import { RecommendationPriority } from '../types/recommendation';
-import {
-  updateRecommendationPreferencesSchema,
-  getRecommendationsQuerySchema
-} from '../validation/schemas';
+import { getRecommendedEvents, getSmartRecommendedEvents } from '../services/recommendationService';
+import { getRecommendationsQuerySchema, getSmartRecommendationsQuerySchema } from '../validation/schemas';
 
 /**
  * Récupère les événements recommandés pour l'humoriste connecté
@@ -63,10 +55,14 @@ export const getRecommendations = async (req: AuthRequest, res: Response): Promi
 };
 
 /**
- * Récupère les préférences de recommandation de l'humoriste connecté
- * GET /api/recommendations/preferences
+ * Récupère les recommandations intelligentes basées sur l'historique
+ * GET /api/recommendations/smart
+ *
+ * Retourne les événements à venir qui correspondent à:
+ * - Des événements avec le même nom que ceux auxquels l'utilisateur a déjà postulé/participé
+ * - Des événements du même organisateur que ceux auxquels l'utilisateur a déjà postulé/participé
  */
-export const getPreferences = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getSmartRecommendations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const comedianId = req.user?.id;
 
@@ -80,71 +76,34 @@ export const getPreferences = async (req: AuthRequest, res: Response): Promise<v
     // Vérifier que c'est bien un humoriste
     if (req.user?.role !== 'COMEDIAN') {
       res.status(403).json({
-        message: 'Seuls les humoristes peuvent accéder à leurs préférences de recommandation'
+        message: 'Seuls les humoristes peuvent accéder aux recommandations'
       });
       return;
     }
 
-    const preferences = await getPrefs(comedianId);
-
-    res.json(preferences);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des préférences:', error);
-    res.status(500).json({
-      message: 'Erreur lors de la récupération des préférences'
-    });
-  }
-};
-
-/**
- * Met à jour les préférences de recommandation de l'humoriste connecté
- * PUT /api/recommendations/preferences
- */
-export const updatePreferences = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const comedianId = req.user?.id;
-
-    if (!comedianId) {
-      res.status(401).json({
-        message: 'Non autorisé'
-      });
-      return;
-    }
-
-    // Vérifier que c'est bien un humoriste
-    if (req.user?.role !== 'COMEDIAN') {
-      res.status(403).json({
-        message: 'Seuls les humoristes peuvent modifier leurs préférences de recommandation'
-      });
-      return;
-    }
-
-    // Valider le corps de la requête
-    const bodyValidation = updateRecommendationPreferencesSchema.safeParse(req.body);
-    if (!bodyValidation.success) {
+    // Valider les paramètres de requête
+    const queryValidation = getSmartRecommendationsQuerySchema.safeParse(req.query);
+    if (!queryValidation.success) {
       res.status(400).json({
-        message: 'Données invalides',
-        errors: bodyValidation.error.errors
+        message: 'Paramètres de requête invalides',
+        errors: queryValidation.error.errors
       });
       return;
     }
 
-    const { priorities } = bodyValidation.data;
+    const { page, limit } = queryValidation.data;
 
-    // Mettre à jour les préférences (toujours activées)
-    const updatedPreferences = await updatePrefs(comedianId, {
-      enabled: true,
-      priorities: priorities as RecommendationPriority[] | undefined
+    // Récupérer les recommandations intelligentes
+    const recommendations = await getSmartRecommendedEvents(comedianId, {
+      page,
+      limit
     });
 
-    res.json({
-      message: 'Préférences mises à jour avec succès',
-      preferences: updatedPreferences
-    });
+    res.json(recommendations);
   } catch (error) {
-    console.error('Erreur lors de la mise à jour des préférences:', error);
+    console.error('Erreur lors de la récupération des recommandations intelligentes:', error);
     res.status(500).json({
-      message: 'Erreur lors de la mise à jour des préférences'
+      message: 'Erreur lors de la récupération des recommandations intelligentes'
     });
   }
 };

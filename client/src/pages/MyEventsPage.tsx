@@ -1,4 +1,4 @@
-import { type CSSProperties, useState, useMemo, useEffect, useRef } from 'react';
+import { type CSSProperties, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import Modal from '../components/Modal';
 import CreateEventForm from '../components/CreateEventForm';
@@ -7,6 +7,7 @@ import ApplyToEventForm from '../components/ApplyToEventForm';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
 import EventCalendar from '../components/EventCalendar';
+import ScorePieChart from '../components/ScorePieChart';
 import { matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -14,11 +15,25 @@ import type { IEvent } from '../types/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
-import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, checkIsEventFavorite } from '../services/api';
-import RecommendationsTab from '../components/RecommendationsTab';
+import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations } from '../services/api';
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
+
+// Types pour les recommandations intelligentes
+type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'both';
+interface SmartRecommendation {
+  event: IEvent;
+  matchType: SmartRecommendationMatchType;
+  matchedEventTitle?: string;
+  matchedOrganizerName?: string;
+}
+interface SmartRecommendationsResponse {
+  recommendations: SmartRecommendation[];
+  total: number;
+  page: number;
+  limit: number;
+}
 type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
@@ -272,6 +287,92 @@ useEffect(() => {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Charger les scores de recommandation pour les humoristes
+  const { data: recommendationsData, isLoading: recommendationsLoading } = useQuery<{
+    recommendations: Array<{
+      event: IEvent;
+      score: number;
+      breakdown?: { geographic: number; experienceLevel: number; experienceYears: number };
+      matchReasons?: string[];
+    }>
+  }, Error>({
+    queryKey: ['recommendations', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+        throw new Error("Informations d'authentification manquantes.");
+      }
+      const response = await getRecommendations({ limit: 200 }); // Charger suffisamment d'événements
+      return response;
+    },
+    enabled: isComedianView && isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Charger les recommandations intelligentes (basées sur l'historique)
+  const { data: smartRecommendationsData, isLoading: smartRecommendationsLoading } = useQuery<SmartRecommendationsResponse, Error>({
+    queryKey: ['smartRecommendations', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+        throw new Error("Informations d'authentification manquantes.");
+      }
+      const response = await getSmartRecommendations({ limit: 100 });
+      return response;
+    },
+    enabled: isComedianView && isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Créer un Map pour accéder aux informations de match par eventId
+  const smartRecommendationMap = useMemo(() => {
+    const map = new Map<string, SmartRecommendation>();
+    if (smartRecommendationsData?.recommendations) {
+      smartRecommendationsData.recommendations.forEach(rec => {
+        if (rec.event?._id) {
+          map.set(String(rec.event._id), rec);
+        }
+      });
+    }
+    return map;
+  }, [smartRecommendationsData]);
+
+  // Événements des recommandations intelligentes
+  const smartRecommendationEvents = useMemo(() => {
+    if (!smartRecommendationsData?.recommendations) return [];
+    return smartRecommendationsData.recommendations.map(rec => rec.event);
+  }, [smartRecommendationsData]);
+
+  // Créer un Map des scores et détails par eventId pour un accès rapide
+  const eventRecommendationMap = useMemo(() => {
+    const map = new Map<string, {
+      score: number;
+      breakdown?: { geographic: number; experienceLevel: number; experienceYears: number };
+      matchReasons?: string[];
+    }>();
+    if (recommendationsData?.recommendations) {
+      recommendationsData.recommendations.forEach(rec => {
+        if (rec.event?._id) {
+          map.set(String(rec.event._id), {
+            score: rec.score,
+            breakdown: rec.breakdown,
+            matchReasons: rec.matchReasons
+          });
+        }
+      });
+    }
+    return map;
+  }, [recommendationsData]);
+
+  // Événements de l'API recommendations avec leurs scores (pour l'onglet Opportunités)
+  const recommendationEventsWithScores = useMemo(() => {
+    if (!recommendationsData?.recommendations) return [];
+    return recommendationsData.recommendations.map(rec => ({
+      ...rec.event,
+      _recommendationScore: rec.score
+    }));
+  }, [recommendationsData]);
 
   // Scroll automatique vers les sections selon les paramètres URL
   useEffect(() => {
@@ -741,10 +842,14 @@ useEffect(() => {
   }, [isComedianView, favoriteEventIds, favoriteIdsSet, comedianVisibleEvents, locationSearch, experienceFilter]);
 
   // Fonction de filtrage pour les humoristes (par lieu ET niveau d'expérience)
-  // Les deux filtres sont appliqués ensemble : un événement doit satisfaire les deux conditions
-  const getFilteredUpcomingEvents = () => {
-    let base = upcomingEventsForApply;
-    
+  // Utilise les événements de l'API principale avec les scores de l'API recommendations
+  const getFilteredUpcomingEvents = useCallback(() => {
+    // Utiliser les événements de l'API principale et y attacher les scores
+    let base = upcomingEventsForApply.map(event => ({
+      ...event,
+      _recommendationScore: eventRecommendationMap.get(String(event._id))?.score ?? 0
+    })) as (IEvent & { _recommendationScore: number })[];
+
     // Filtre 1 : par lieu (recherche dans city, address, venue)
     if (locationSearch.trim()) {
       const searchLower = locationSearch.toLowerCase().trim();
@@ -757,36 +862,33 @@ useEffect(() => {
         return city.includes(searchLower) || address.includes(searchLower) || venue.includes(searchLower);
       });
     }
-    
+
     // Filtre 2 : par niveau d'expérience requis de l'événement
-    // Ce filtre est appliqué sur les résultats déjà filtrés par lieu
     if (experienceFilter !== 'all') {
       base = base.filter(event => {
         const eventRequiredLevel = event.requirements?.requiredExperienceLevel || 'all';
-        // Si l'événement accepte tous les niveaux, on l'affiche
         if (eventRequiredLevel === 'all') {
           return true;
         }
-        // Sinon, on vérifie si le niveau requis correspond au filtre sélectionné
         return eventRequiredLevel === experienceFilter;
       });
     }
-    
+
     // Filtre par complétion
     if (completionFilter === 'complete') {
-      return base.filter(event => (event.participants?.length || 0) >= (event.requirements?.maxPerformers || 0));
+      base = base.filter(event => (event.participants?.length || 0) >= (event.requirements?.maxPerformers || 0));
     }
     if (completionFilter === 'incomplete') {
-      return base.filter(event => (event.participants?.length || 0) < (event.requirements?.maxPerformers || 0));
+      base = base.filter(event => (event.participants?.length || 0) < (event.requirements?.maxPerformers || 0));
     }
-    
-    // Retourne les événements qui satisfont les deux filtres (si les deux sont actifs)
-    return base;
-  };
+
+    // Trier par score de recommandation (décroissant)
+    return base.sort((a, b) => b._recommendationScore - a._recommendationScore);
+  }, [completionFilter, upcomingEventsForApply, locationSearch, experienceFilter, eventRecommendationMap]);
 
   const filteredUpcomingEvents = useMemo(
     () => getFilteredUpcomingEvents(),
-    [completionFilter, upcomingEventsForApply, locationSearch, experienceFilter, user?.profile?.numberOfScenes]
+    [getFilteredUpcomingEvents]
   );
 
   const completedUpcomingEvents = useMemo(() => {
@@ -869,7 +971,7 @@ useEffect(() => {
         case 'favorites':
           return favoriteEvents;
         case 'recommendations':
-          return []; // Les recommandations sont gérées par le composant RecommendationsTab
+          return smartRecommendationEvents;
         default:
           return filteredUpcomingEvents;
       }
@@ -922,6 +1024,7 @@ useEffect(() => {
     filteredOrganizerCancelledEvents,
     acceptedUpcomingEvents,
     favoriteEvents,
+    smartRecommendationEvents,
     incompleteUpcomingEvents,
     completedUpcomingEvents,
     archivedEventsToShow,
@@ -933,8 +1036,8 @@ useEffect(() => {
     opportunities: filteredUpcomingEvents.length,
     accepted: acceptedUpcomingEvents.length,
     favorites: favoriteEvents.length,
-    recommendations: 0, // Le compteur est géré par le composant RecommendationsTab
-  }), [filteredUpcomingEvents, acceptedUpcomingEvents, favoriteEvents]);
+    recommendations: smartRecommendationEvents.length,
+  }), [filteredUpcomingEvents, acceptedUpcomingEvents, favoriteEvents, smartRecommendationEvents]);
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
     upcoming: filteredUpcomingEvents.length,
@@ -952,7 +1055,7 @@ useEffect(() => {
   }), [completedUpcomingEvents, incompleteUpcomingEvents, archivedEventsToShow, cancelledEvents]);
 
   const comedianTabTitles: Record<ComedianTab, string> = {
-    opportunities: 'Opportunités à venir (pour postuler)',
+    opportunities: 'Opportunités à venir',
     accepted: 'Évènements acceptés',
     favorites: 'Mes favoris',
     recommendations: 'Recommandations',
@@ -977,7 +1080,7 @@ useEffect(() => {
     opportunities: 'Aucune opportunité disponible pour le moment.',
     accepted: 'Aucun évènement accepté à venir.',
     favorites: 'Aucun évènement en favori.',
-    recommendations: 'Aucune recommandation disponible. Complétez votre profil pour obtenir des suggestions personnalisées.',
+    recommendations: 'Aucune recommandation basée sur votre historique. Postulez à des évènements pour recevoir des recommandations personnalisées !',
   };
 
   const isOpportunitiesTab = comedianTab === 'opportunities';
@@ -985,7 +1088,7 @@ useEffect(() => {
   const isRecommendationsTab = comedianTab === 'recommendations';
 
   const listIsLoading = isComedianView
-    ? (isFavoritesTab ? eventsLoading : (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading))
+    ? (isRecommendationsTab ? smartRecommendationsLoading : (isFavoritesTab ? eventsLoading : (isOpportunitiesTab ? eventsLoading : comedianApplicationsLoading)))
     : eventsLoading;
 
   const listHasError = isComedianView
@@ -1594,6 +1697,7 @@ useEffect(() => {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
+    flexShrink: 0,
   };
 
   const favoriteStarButtonStyle = (isFavorite: boolean): CSSProperties => ({
@@ -2020,9 +2124,7 @@ useEffect(() => {
                 onClick={() => setComedianTab(tabId)}
               >
                 <span style={comedianTabTitleStyle}>{comedianTabTitles[tabId]}</span>
-                {tabId !== 'recommendations' && (
-                  <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} évènement(s)</span>
-                )}
+                <span style={comedianTabCountStyle}>{comedianTabCounts[tabId]} évènement(s)</span>
               </button>
             ))}
           </div>
@@ -2058,8 +2160,7 @@ useEffect(() => {
             )}
           </div>
           
-          {/* Barre de recherche par lieu et filtre par niveau d'expérience pour les humoristes - masquée pour l'onglet recommandations */}
-          {!isRecommendationsTab && (
+          {/* Barre de recherche par lieu et filtre par niveau d'expérience pour les humoristes */}
           <div
             style={{
               marginBottom: '20px',
@@ -2164,31 +2265,22 @@ useEffect(() => {
               )}
             </div>
           </div>
-          )}
 
-          {/* Composant RecommendationsTab pour l'onglet recommandations */}
-          {isRecommendationsTab && (
-            <RecommendationsTab
-              isActive={isRecommendationsTab}
-              userId={user?._id}
-              onEventClick={handleCardClick}
-              onApplyClick={(event) => {
-                setSelectedEvent(event);
-                setShowApplyEventForm(true);
-              }}
-            />
-          )}
-
-          {/* Liste des événements pour les autres onglets */}
-          {!isRecommendationsTab && listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
-          {!isRecommendationsTab && listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
-          {!isRecommendationsTab && eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+          {/* Liste des événements */}
+          {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
+          {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
+          {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
             <p style={emptyStateStyle}>{comedianEmptyStates[comedianTab]}</p>
           )}
-          {!isRecommendationsTab && paginatedUpcomingEvents.map((event) => {
+          {paginatedUpcomingEvents.map((event) => {
             const isCompleteEvent = isEventComplete(event);
             const participantsRatio = getParticipantsRatio(event);
             const statusLabel = translateEventStatus(event.status);
+            // Récupérer les données de recommandation (score, breakdown, matchReasons)
+            const recommendationData = eventRecommendationMap.get(String(event._id));
+            const matchScore = recommendationData?.score ?? 0;
+            const breakdown = recommendationData?.breakdown;
+            const matchReasons = recommendationData?.matchReasons;
 
             let comedianApplicationChip: React.ReactNode = null;
             let relatedApplication: IApplication | undefined;
@@ -2235,6 +2327,15 @@ useEffect(() => {
                     </div>
                     <div style={cardHeaderActionsStyle}>
                       <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                      {isOpportunitiesTab && !relatedApplication && (
+                        <ScorePieChart
+                          score={matchScore}
+                          size={72}
+                          isLoading={recommendationsLoading}
+                          breakdown={breakdown}
+                          matchReasons={matchReasons}
+                        />
+                      )}
                       <button
                         type="button"
                         aria-label={favoriteIdsSet.has(event._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
@@ -2271,6 +2372,32 @@ useEffect(() => {
                     isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
                   )}
                   {comedianApplicationChip}
+                  {/* Badge pour les recommandations intelligentes */}
+                  {isRecommendationsTab && smartRecommendationMap.has(String(event._id)) && (() => {
+                    const smartRec = smartRecommendationMap.get(String(event._id));
+                    if (smartRec?.matchType === 'both') {
+                      return renderStatusChip(
+                        `Même orga et événement`,
+                        '#c084fc',
+                        'rgba(192, 132, 252, 0.25)'
+                      );
+                    }
+                    if (smartRec?.matchType === 'same_event_name') {
+                      return renderStatusChip(
+                        `Même événement: ${smartRec.matchedEventTitle || event.title}`,
+                        '#a78bfa',
+                        'rgba(139, 92, 246, 0.2)'
+                      );
+                    }
+                    if (smartRec?.matchType === 'same_organizer') {
+                      return renderStatusChip(
+                        `Même organisateur: ${smartRec.matchedOrganizerName || 'Organisateur'}`,
+                        '#60a5fa',
+                        'rgba(96, 165, 250, 0.2)'
+                      );
+                    }
+                    return null;
+                  })()}
                   <div style={cardActionStackStyle}>
                     {!appliedEventIds.has(event._id) ? (
                       <button
@@ -2304,7 +2431,7 @@ useEffect(() => {
               </div>
             );
           })}
-          {!isRecommendationsTab && filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+          {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
             <div style={paginationControlsStyle}>
               <button
                 style={paginationButtonStyle}

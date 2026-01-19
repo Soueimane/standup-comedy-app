@@ -1,6 +1,6 @@
 /**
  * Service de recommandation d'événements pour les humoristes
- * Calcule un score de pertinence pour chaque événement basé sur les critères du profil
+ * Calcule un score de compatibilité pour trier les opportunités
  */
 
 import { EventModel, EventDocument } from '../models/Event';
@@ -10,24 +10,70 @@ import {
   RecommendationResult,
   RecommendationsResponse,
   RecommendationsQueryOptions,
-  RecommendationPriority,
   ScoreBreakdown,
   DEFAULT_PRIORITIES,
-  CRITERION_LABELS
+  SmartRecommendation,
+  SmartRecommendationsResponse,
+  SmartRecommendationsQueryOptions
 } from '../types/recommendation';
-import {
-  eventMatchesMobilityZonesAsync,
-  DEPARTMENT_TO_REGION
-} from '../utils/geographicMatching';
+import { DEPARTMENT_TO_REGION } from '../utils/geographicMatching';
 import { getCityDepartment, getCityGeoInfo } from '../utils/cityMapping';
 
 /**
- * Calcule le score géographique (0-1) avec formule améliorée
- * Utilise des scores de base avec pénalité logarithmique et bonus de spécificité
- * - 1.0 si match exact (ville) avec 1-2 zones
- * - 0.75-0.95 si match département/région avec modulation
- * - Pénalité pour trop de zones de mobilité
- * - Bonus pour multiples correspondances
+ * Normalise une chaîne pour comparaison (lowercase, sans accents, trim)
+ */
+const normalizeString = (str: string): string => {
+  return str?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
+};
+
+/**
+ * Vérifie si deux villes correspondent (gère les arrondissements Paris/Lyon/Marseille)
+ */
+const citiesMatch = (city1: string, city2: string): { match: boolean; score: number } => {
+  const norm1 = normalizeString(city1);
+  const norm2 = normalizeString(city2);
+
+  // Match exact
+  if (norm1 === norm2) {
+    return { match: true, score: 1.0 };
+  }
+
+  // Gestion des arrondissements (Paris 1er, Lyon 3ème, Marseille 8e, etc.)
+  const majorCities = ['paris', 'lyon', 'marseille'];
+  for (const majorCity of majorCities) {
+    const isCity1Major = norm1 === majorCity || norm1.startsWith(majorCity + ' ');
+    const isCity2Major = norm2 === majorCity || norm2.startsWith(majorCity + ' ');
+
+    if (isCity1Major && isCity2Major) {
+      // Les deux sont dans la même grande ville (ex: "Paris" et "Paris 11ème")
+      // return { match: true, score: 0.98 };
+      return { match: true, score: 1.00 };
+    }
+  }
+
+  // Gestion des variantes de noms (Saint/St, Sainte/Ste)
+  const normalizeVariants = (s: string) => s
+    .replace(/^st\s+/i, 'saint ')
+    .replace(/^ste\s+/i, 'sainte ')
+    .replace(/-/g, ' ');
+
+  if (normalizeVariants(norm1) === normalizeVariants(norm2)) {
+    // return { match: true, score: 0.95 };
+    return { match: true, score: 1.00 };
+  }
+
+  return { match: false, score: 0 };
+};
+
+/**
+ * Calcule le score géographique (0-1)
+ *
+ * Scores:
+ * - Match ville exact: 1.0
+ * - Match ville variante (arrondissements, St/Saint): 0.95-0.98
+ * - Match département: 0.75
+ * - Match région: 0.50
+ * - Aucun match: 0
  */
 export const calculateGeographicScore = async (
   comedian: any,
@@ -36,84 +82,71 @@ export const calculateGeographicScore = async (
   const mobilityZones = comedian.profile?.mobilityZone || [];
   const eventCity = event.location?.city;
 
+  // Cas 1: Données manquantes
   if (!eventCity || mobilityZones.length === 0) {
     return 0;
   }
 
-  // Scores de base par type de correspondance
-  const BASE_SCORES = {
-    city: 1.0,        // Match exact ville
-    department: 0.75, // Même département
-    region: 0.50      // Même région
-  };
-
-  // Normaliser la ville de l'événement
-  const normalizedEventCity = eventCity.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-
   // Récupérer les infos géographiques de l'événement
   const geoInfo = await getCityGeoInfo(eventCity);
-  const eventDepartment = geoInfo.department || getCityDepartment(eventCity);
-  const eventRegion = geoInfo.region || (eventDepartment ? DEPARTMENT_TO_REGION[eventDepartment] : null);
+  const eventDept = geoInfo.department || getCityDepartment(eventCity);
+  const eventRegion = geoInfo.region || (eventDept ? DEPARTMENT_TO_REGION[eventDept] : null);
+  const normalizedEventRegion = normalizeString(eventRegion || '');
 
-  let bestMatchScore = 0;
-  let matchCount = 0;
+  // Cas 2: Pas d'info géographique trouvée
+  if (!eventDept && !eventRegion) {
+    // Tenter un match direct sur les villes
+    for (const zone of mobilityZones) {
+      if (zone.type === 'ville') {
+        const { match, score } = citiesMatch(eventCity, zone.value);
+        if (match) return score;
+      }
+    }
+    return 0;
+  }
 
-  // Trouver le meilleur score et compter les correspondances
+  let bestScore = 0;
+
+  // Parcourir les zones de mobilité
   for (const zone of mobilityZones) {
-    const normalizedZoneValue = zone.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const zoneVal = normalizeString(zone.value);
 
     if (zone.type === 'ville') {
-      // Match exact sur la ville
-      if (normalizedEventCity === normalizedZoneValue) {
-        bestMatchScore = Math.max(bestMatchScore, BASE_SCORES.city);
-        matchCount++;
+      const { match, score } = citiesMatch(eventCity, zone.value);
+      if (match) {
+        bestScore = Math.max(bestScore, score);
       }
     } else if (zone.type === 'departement') {
-      // Match département
-      if (eventDepartment) {
-        const normalizedDept = zone.value.trim().toUpperCase().padStart(2, '0');
-        if (eventDepartment === normalizedDept) {
-          bestMatchScore = Math.max(bestMatchScore, BASE_SCORES.department);
-          matchCount++;
-        }
+      // Normaliser le département (avec ou sans zéro initial)
+      const normalizedDept = zoneVal.replace(/^0+/, '').padStart(2, '0');
+      const eventDeptNorm = eventDept?.replace(/^0+/, '').padStart(2, '0');
+
+      if (eventDeptNorm === normalizedDept) {
+        bestScore = Math.max(bestScore, 0.75);
       }
     } else if (zone.type === 'region') {
-      // Match région
-      if (eventRegion) {
-        const normalizedRegion = eventRegion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        if (normalizedRegion === normalizedZoneValue) {
-          bestMatchScore = Math.max(bestMatchScore, BASE_SCORES.region);
-          matchCount++;
-        }
+      if (normalizedEventRegion === zoneVal) {
+        bestScore = Math.max(bestScore, 0.50);
       }
     }
   }
 
-  if (bestMatchScore === 0) return 0;
-
-  // Pénalité logarithmique pour trop de zones
-  // Plus de zones = moins engagé dans une zone spécifique
-  // 1 zone: penalty=0.976 | 5 zones: 0.944 | 10 zones: 0.917 | 20 zones: 0.894
-  const totalZones = mobilityZones.length;
-  const breadthPenalty = 1 - (Math.log10(totalZones + 1) * 0.08);
-
-  // Bonus pour multiples correspondances
-  // Si plusieurs zones matchent, l'événement est plus pertinent
-  // 1 match: +0.03 | 2 matches: +0.06 | 3+ matches: +0.10 (capped)
-  const matchSpecificityBonus = Math.min(matchCount * 0.03, 0.10);
-
-  const finalScore = bestMatchScore * breadthPenalty + matchSpecificityBonus;
-
-  return Math.min(Math.max(finalScore, 0), 1.0);
+  return bestScore;
 };
 
 /**
- * Calcule le score de niveau d'expérience (nombre de scènes) (0-1) avec formule améliorée
- * Utilise courbe gaussienne pour surqualification et décroissance exponentielle pour sous-qualification
- * - 1.0 si match exact
- * - 0.55-0.80 si événement accepte tous niveaux (basé sur expérience)
- * - 0.50-0.85 si légère surqualification (courbe gaussienne)
- * - 0.15-0.40 si sous-qualification (décroissance exponentielle)
+ * Calcule le score de niveau d'expérience (nombre de scènes) (0-1)
+ *
+ * Cas gérés:
+ * 1. Événement "tous niveaux" → Score basé sur l'expérience du comédien
+ * 2. Match exact → Score parfait (1.0)
+ * 3. Sur-qualification légère (+1 niveau) → Bon score (0.80)
+ * 4. Sur-qualification forte (+2 niveaux) → Score moyen (0.65)
+ * 5. Sous-qualification légère (-1 niveau) → Score faible (0.35)
+ * 6. Sous-qualification forte (-2 niveaux) → Score très faible (0.10)
+ *
+ * Note: Sur-qualification = moins prioritaire mais pas bloquant
+ *       Sous-qualification = potentiellement bloquant
  */
 export const calculateExperienceLevelScore = (
   comedian: any,
@@ -122,197 +155,282 @@ export const calculateExperienceLevelScore = (
   const comedianLevel = comedian.profile?.numberOfScenes || '0-50';
   const requiredLevel = event.requirements?.requiredExperienceLevel || 'all';
 
+  // Mapping des niveaux vers valeurs numériques
   const LEVEL_VALUES: Record<string, number> = {
-    '0-50': 1,
-    '50-200': 2,
-    '200+': 3
+    '0-50': 1,    // Débutant
+    '50-200': 2,  // Intermédiaire
+    '200+': 3     // Expérimenté
   };
 
   const comedianValue = LEVEL_VALUES[comedianLevel] || 1;
-  const requiredValue = LEVEL_VALUES[requiredLevel] || 1;
+  const requiredValue = LEVEL_VALUES[requiredLevel];
 
   // Cas 1: Événement "tous niveaux"
-  // Valoriser l'expérience même sans exigence spécifique
-  if (requiredLevel === 'all') {
-    // Score range: 0.55 (débutant) à 0.80 (expert)
-    const experienceFactor = (comedianValue - 1) / 2; // 0, 0.5, ou 1
-    return 0.55 + (experienceFactor * 0.25);
+  // Plus l'humoriste est expérimenté, plus il est valorisé
+  if (requiredLevel === 'all' || !requiredValue) {
+    // Scores: débutant=0.70, intermédiaire=0.80, expérimenté=0.90
+    const baseScore = 0.60;
+    const experienceBonus = (comedianValue - 1) * 0.15;
+    return Math.min(baseScore + experienceBonus, 0.90);
   }
 
-  const levelDifference = comedianValue - requiredValue;
+  const levelDiff = comedianValue - requiredValue;
 
   // Cas 2: Match exact
-  if (levelDifference === 0) {
+  if (levelDiff === 0) {
     return 1.0;
   }
 
-  // Cas 3: Surqualification
-  // Légère surqualification est bonne, mais extrême indique un mismatch
-  // Utilise courbe gaussienne avec sigma=1.5
-  if (levelDifference > 0) {
-    const gaussianSigma = 1.5;
-    const score = Math.exp(-(levelDifference ** 2) / (2 * gaussianSigma ** 2));
-    // 1 niveau au-dessus: 0.85 | 2 niveaux au-dessus: 0.53
-    return Math.max(score, 0.50);
+  // Cas 3 & 4: Sur-qualification
+  // L'humoriste est plus expérimenté que requis
+  // Score décroissant car l'événement est moins prioritaire pour lui
+  if (levelDiff > 0) {
+    if (levelDiff === 1) {
+      // +1 niveau: légèrement sur-qualifié (ex: intermédiaire pour un poste débutant)
+      return 0.80;
+    }
+    // +2 niveaux: très sur-qualifié (ex: expérimenté pour un poste débutant)
+    return 0.65;
   }
 
-  // Cas 4: Sous-qualification
-  // Décroissance exponentielle avec floor à 0.15
-  if (levelDifference < 0) {
-    const absGap = Math.abs(levelDifference);
-    const score = Math.exp(-absGap * 1.2);
-    // 1 niveau en-dessous: 0.40 | 2 niveaux en-dessous: 0.15
-    return Math.max(score * 0.70, 0.15);
+  // Cas 5 & 6: Sous-qualification
+  // L'humoriste est moins expérimenté que requis
+  // Score faible car risque de ne pas correspondre aux attentes
+  if (levelDiff === -1) {
+    // -1 niveau: légèrement sous-qualifié
+    // Peut tenter sa chance mais c'est limite
+    return 0.35;
   }
 
-  return 0;
+  // -2 niveaux: très sous-qualifié
+  // Quasi éliminatoire mais on laisse une petite chance
+  return 0.10;
 };
 
 /**
- * Calcule le score d'années d'expérience (0-1) avec formule améliorée
- * Utilise sigmoïde pour sous-qualification et gaussienne pour surqualification
- * - 1.0 si match dans zone optimale (±2 ans)
- * - 0.50-0.75 si pas d'exigence (basé sur expérience)
- * - 0.70-0.85 si surqualification (gaussienne douce)
- * - 0.15-0.85 si sous-qualification (sigmoïde, période grâce naturelle)
+ * Calcule le score d'années d'expérience (0-1)
+ *
+ * Cas gérés:
+ * 1. Pas d'exigence minimum → Score basé sur l'expérience du comédien
+ * 2. Zone idéale (0 à +2 ans) → Score parfait (1.0)
+ * 3. Sur-qualification légère (+3 à +5 ans) → Très bon score (0.90)
+ * 4. Sur-qualification moyenne (+6 à +10 ans) → Bon score (0.80)
+ * 5. Sur-qualification forte (+10+ ans) → Score correct (0.70)
+ * 6. Période de grâce (-1 an) → Score acceptable (0.60)
+ * 7. Sous-qualification légère (-2 ans) → Score faible (0.40)
+ * 8. Sous-qualification moyenne (-3 ans) → Score très faible (0.25)
+ * 9. Sous-qualification forte (-4+ ans) → Score quasi éliminatoire (0.10)
  */
 export const calculateExperienceYearsScore = (
   comedian: any,
   event: EventDocument
 ): number => {
-  const comedianExperience = comedian.profile?.experience || 0;
-  const minExperience = event.requirements?.minExperience || 0;
+  const comedianExp = comedian.profile?.experience || 0;
+  const minExp = event.requirements?.minExperience || 0;
 
   // Cas 1: Pas d'exigence minimum
-  // Valoriser l'expérience même sans exigence spécifique
-  if (minExperience === 0) {
-    // Score range: 0.50 (débutant) à 0.75 (très expérimenté)
-    // Normalisé sur 15 ans (max considéré comme "très expérimenté")
-    const normalizedExp = Math.min(comedianExperience / 15, 1);
-    return 0.50 + (normalizedExp * 0.25);
+  // L'expérience est valorisée mais pas déterminante
+  if (minExp === 0) {
+    // Score progressif basé sur l'expérience (normalisé sur 15 ans)
+    // 0 ans: 0.60 | 5 ans: 0.73 | 10 ans: 0.87 | 15+ ans: 0.95
+    const normalizedExp = Math.min(comedianExp / 15, 1);
+    return 0.60 + (normalizedExp * 0.35);
   }
 
-  const experienceGap = comedianExperience - minExperience;
+  const diff = comedianExp - minExp;
 
-  // Cas 2: Qualification suffisante
-  if (experienceGap >= 0) {
-    // Zone optimale: ±2 ans autour de l'exigence
-    // Score parfait pour match exact jusqu'à 2 ans au-dessus
-    if (experienceGap <= 2) {
-      return 1.0;
+  // Cas 2: Zone idéale (0 à +2 ans au-dessus du minimum)
+  // L'humoriste répond parfaitement aux attentes
+  if (diff >= 0 && diff <= 2) {
+    return 1.0;
+  }
+
+  // Cas 3, 4, 5: Sur-qualification
+  // L'humoriste est plus expérimenté que requis
+  // Score décroissant progressivement (l'événement est moins prioritaire)
+  if (diff > 2) {
+    if (diff <= 5) {
+      // +3 à +5 ans: très bon score
+      return 0.90;
     }
-
-    // Surqualification: pénalité gaussienne douce
-    // sigma=8 pour une décroissance très progressive
-    // 3-5 ans over: 0.95-0.90 | 10 ans over: 0.838 | 20+ ans: 0.741
-    const excessYears = experienceGap - 2;
-    const overQualificationSigma = 8;
-    const overQualificationPenalty = Math.exp(
-      -(excessYears ** 2) / (2 * overQualificationSigma ** 2)
-    );
-    return Math.max(0.70 + overQualificationPenalty * 0.30, 0.70);
+    if (diff <= 10) {
+      // +6 à +10 ans: bon score
+      return 0.80;
+    }
+    // +10+ ans: score correct (très sur-qualifié)
+    return 0.70;
   }
 
-  // Cas 3: Sous-qualification
-  // Utilise fonction sigmoïde pour transition douce
-  // Crée une période de grâce naturelle autour de 1.5 ans
-  const absGap = Math.abs(experienceGap);
-  const sigmoidSteepness = 3.0; // k: raideur de la courbe
-  const sigmoidInflection = 1.5; // x0: point d'inflexion (1.5 ans)
+  // Cas 6, 7, 8, 9: Sous-qualification
+  // L'humoriste a moins d'expérience que requis
+  // Score décroissant rapidement (potentiellement bloquant)
+  if (diff === -1) {
+    // Période de grâce: 1 an de moins est acceptable
+    return 0.60;
+  }
+  if (diff === -2) {
+    // 2 ans de moins: limite mais possible
+    return 0.40;
+  }
+  if (diff === -3) {
+    // 3 ans de moins: très limite
+    return 0.25;
+  }
 
-  const sigmoidScore =
-    1 / (1 + Math.exp(sigmoidSteepness * (absGap - sigmoidInflection)));
-
-  // Scale sigmoid output to range [0.15, 0.85]
-  const scaledScore = 0.15 + sigmoidScore * 0.70;
-
-  // Exemples:
-  // 0.5 ans short: 0.85 | 1 an short: 0.72 | 1.5 ans: 0.50 | 2 ans: 0.28 | 3+ ans: 0.15
-  return Math.max(scaledScore, 0.15);
+  // -4+ ans de moins: quasi éliminatoire
+  return 0.10;
 };
 
 /**
- * Génère les raisons de correspondance en français
- * Utilise seuils nuancés pour refléter la gradation du scoring
+ * Génère des raisons de match claires et nuancées pour l'UI
+ *
+ * Types de raisons:
+ * - Positives (score élevé): mises en avant
+ * - Neutres (score moyen): informatives
+ * - Négatives (score faible): avertissements
  */
 export const generateMatchReasons = (breakdown: ScoreBreakdown): string[] => {
   const reasons: string[] = [];
 
-  // Raisons géographiques - avec nuances
-  if (breakdown.geographic >= 0.9) {
-    reasons.push('Dans votre zone de mobilité préférée');
-  } else if (breakdown.geographic >= 0.7) {
-    reasons.push('Proche de votre zone de mobilité');
-  } else if (breakdown.geographic >= 0.5) {
+  // --- Raisons géographiques ---
+  if (breakdown.geographic >= 0.98) {
+    reasons.push('Dans votre ville');
+  } else if (breakdown.geographic >= 0.95) {
+    reasons.push('Dans votre ville (variante)');
+  } else if (breakdown.geographic >= 0.75) {
+    reasons.push('Dans votre département');
+  } else if (breakdown.geographic >= 0.50) {
     reasons.push('Dans votre région');
+  } else if (breakdown.geographic > 0) {
+    reasons.push('Proche de votre zone de mobilité');
   }
+  // Pas de raison si geographic === 0 (hors zone)
 
-  // Raisons de niveau d'expérience - avec nuances
-  if (breakdown.experienceLevel >= 0.95) {
+  // --- Raisons niveau d'expérience (nombre de scènes) ---
+  if (breakdown.experienceLevel === 1.0) {
     reasons.push("Niveau d'expérience idéal");
-  } else if (breakdown.experienceLevel >= 0.7) {
-    reasons.push("Niveau d'expérience bien adapté");
-  } else if (breakdown.experienceLevel >= 0.5) {
-    reasons.push("Niveau d'expérience acceptable");
+  } else if (breakdown.experienceLevel >= 0.80) {
+    reasons.push("Vous êtes légèrement sur-qualifié");
+  } else if (breakdown.experienceLevel >= 0.65) {
+    reasons.push("Événement pour débutants");
+  } else if (breakdown.experienceLevel >= 0.60) {
+    reasons.push("Ouvert à tous les niveaux");
+  } else if (breakdown.experienceLevel >= 0.35) {
+    reasons.push("Niveau requis légèrement supérieur");
+  } else if (breakdown.experienceLevel > 0) {
+    reasons.push("Niveau requis élevé pour votre profil");
   }
 
-  // Raisons d'années d'expérience - avec nuances
-  if (breakdown.experienceYears >= 0.95) {
-    reasons.push("Expérience idéale pour cet événement");
-  } else if (breakdown.experienceYears >= 0.7) {
-    reasons.push("Années d'expérience adaptées");
-  } else if (breakdown.experienceYears >= 0.5) {
-    reasons.push("Expérience acceptable");
+  // --- Raisons années d'expérience ---
+  if (breakdown.experienceYears === 1.0) {
+    reasons.push("Années d'expérience idéales");
+  } else if (breakdown.experienceYears >= 0.90) {
+    reasons.push("Très bonne expérience pour cet événement");
+  } else if (breakdown.experienceYears >= 0.80) {
+    reasons.push("Expérience au-delà des attentes");
+  } else if (breakdown.experienceYears >= 0.70) {
+    reasons.push("Expérience solide");
+  } else if (breakdown.experienceYears >= 0.60) {
+    reasons.push("Expérience acceptable (période de grâce)");
+  } else if (breakdown.experienceYears >= 0.40) {
+    reasons.push("Expérience légèrement insuffisante");
+  } else if (breakdown.experienceYears >= 0.25) {
+    reasons.push("Expérience insuffisante");
   }
+  // Pas de raison si < 0.25 (trop sous-qualifié)
 
   return reasons;
 };
 
 /**
- * Calcule le score total d'un événement pour un humoriste
+ * Calcule un indicateur de confiance global (0-100)
+ * Indique à quel point la recommandation est fiable
+ */
+export const calculateConfidenceScore = (breakdown: ScoreBreakdown): number => {
+  // Vérifier si les données sont complètes
+  let dataCompleteness = 1.0;
+
+  // Si le score géographique est 0, on manque potentiellement de données
+  if (breakdown.geographic === 0) {
+    dataCompleteness *= 0.7;
+  }
+
+  // Si les deux scores d'expérience sont à leur valeur par défaut
+  // (0.60-0.70 pour "tous niveaux" ou "pas d'exigence")
+  const isDefaultLevel = breakdown.experienceLevel >= 0.60 && breakdown.experienceLevel <= 0.70;
+  const isDefaultYears = breakdown.experienceYears >= 0.60 && breakdown.experienceYears <= 0.70;
+
+  if (isDefaultLevel && isDefaultYears) {
+    dataCompleteness *= 0.85;
+  }
+
+  // Score de confiance basé sur la variance des scores
+  // Si tous les scores sont proches = haute confiance
+  const scores = [breakdown.geographic, breakdown.experienceLevel, breakdown.experienceYears];
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const variance = scores.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / scores.length;
+
+  // Variance faible = scores cohérents = confiance élevée
+  const consistencyScore = 1 - Math.min(variance * 2, 0.5);
+
+  return Math.round(dataCompleteness * consistencyScore * 100);
+};
+
+/**
+ * Catégorise le score global en niveau de recommandation
+ */
+export const getRecommendationLevel = (score: number): {
+  level: 'excellent' | 'good' | 'average' | 'low' | 'poor';
+  label: string;
+  color: string;
+} => {
+  if (score >= 85) {
+    return { level: 'excellent', label: 'Excellent match', color: '#22c55e' };
+  }
+  if (score >= 70) {
+    return { level: 'good', label: 'Bon match', color: '#84cc16' };
+  }
+  if (score >= 50) {
+    return { level: 'average', label: 'Match moyen', color: '#eab308' };
+  }
+  if (score >= 30) {
+    return { level: 'low', label: 'Match faible', color: '#f97316' };
+  }
+  return { level: 'poor', label: 'Match insuffisant', color: '#ef4444' };
+};
+
+/**
+ * Score global pondéré (Poids : Géo 50%, Niveau 30%, Années 20%)
  */
 export const calculateEventScore = async (
   comedian: any,
-  event: EventDocument,
-  priorities?: RecommendationPriority[]
-): Promise<{ score: number; breakdown: ScoreBreakdown; matchReasons: string[] }> => {
-  const prefs = comedian.profile?.recommendationPreferences;
-  const enabledPriorities = priorities || prefs?.priorities?.filter((p: RecommendationPriority) => p.enabled) || DEFAULT_PRIORITIES;
-
-  // Calculer les scores par critère
+  event: EventDocument
+): Promise<{ score: number; breakdown: ScoreBreakdown; matchReasons: string[]; confidence: number }> => {
   const breakdown: ScoreBreakdown = {
     geographic: await calculateGeographicScore(comedian, event),
     experienceLevel: calculateExperienceLevelScore(comedian, event),
     experienceYears: calculateExperienceYearsScore(comedian, event)
   };
 
-  // Calculer le poids total des critères activés
-  const totalWeight = enabledPriorities.reduce((sum: number, p: RecommendationPriority) => sum + p.weight, 0);
+  const weights = { geographic: 0.5, experienceLevel: 0.3, experienceYears: 0.2 };
 
-  // Si aucun poids, retourner 0
-  if (totalWeight === 0) {
-    return { score: 0, breakdown, matchReasons: [] };
-  }
+  const totalScore =
+    (breakdown.geographic * weights.geographic) +
+    (breakdown.experienceLevel * weights.experienceLevel) +
+    (breakdown.experienceYears * weights.experienceYears);
 
-  // Calculer le score pondéré
-  let totalScore = 0;
-  for (const priority of enabledPriorities) {
-    const normalizedWeight = priority.weight / totalWeight;
-    const criterionScore = breakdown[priority.criterion as keyof ScoreBreakdown] || 0;
-    totalScore += criterionScore * normalizedWeight;
-  }
+  const confidence = calculateConfidenceScore(breakdown);
 
-  // Convertir en pourcentage (0-100)
-  const finalScore = Math.round(totalScore * 100);
-
-  // Générer les raisons
-  const matchReasons = generateMatchReasons(breakdown);
-
-  return { score: finalScore, breakdown, matchReasons };
+  return {
+    score: Math.round(totalScore * 100),
+    breakdown,
+    matchReasons: generateMatchReasons(breakdown),
+    confidence
+  };
 };
 
 /**
- * Récupère les événements recommandés pour un humoriste
+ * Récupère la liste des recommandations triée
  */
 export const getRecommendedEvents = async (
   comedianId: string,
@@ -320,138 +438,204 @@ export const getRecommendedEvents = async (
 ): Promise<RecommendationsResponse> => {
   const { page = 1, limit = 10, minScore = 0 } = options;
 
-  // Récupérer l'humoriste
   const comedian = await UserModel.findById(comedianId);
-  if (!comedian) {
-    throw new Error('Humoriste non trouvé');
+  if (!comedian || comedian.role !== 'COMEDIAN') {
+    throw new Error("Accès restreint aux humoristes");
   }
 
-  // Vérifier que c'est bien un humoriste
-  if (comedian.role !== 'COMEDIAN') {
-    throw new Error("Seuls les humoristes peuvent accéder aux recommandations");
-  }
+  const existingApps = await ApplicationModel.find({ comedian: comedianId }).select('event');
+  const appliedEventIds = existingApps.map(app => app.event.toString());
 
-  // Récupérer les IDs des événements où l'humoriste a déjà candidaté
-  const existingApplications = await ApplicationModel.find({
-    comedian: comedianId
-  }).select('event');
-  const appliedEventIds = existingApplications.map(app => app.event.toString());
-
-  // Récupérer les événements publiés et futurs, excluant ceux déjà candidatés
-  const now = new Date();
   const events = await EventModel.find({
     status: 'published',
-    date: { $gte: now },
+    date: { $gte: new Date() },
     _id: { $nin: appliedEventIds }
-  })
-    .populate('organizer', 'firstName lastName email organizerProfile')
-    .sort({ date: 1 });
+  }).populate('organizer', 'firstName lastName email organizerProfile');
 
-  // Calculer le score pour chaque événement
   const scoredEvents: RecommendationResult[] = [];
 
   for (const event of events) {
-    const { score, breakdown, matchReasons } = await calculateEventScore(comedian, event);
-
-    // Filtrer par score minimum
-    if (score >= minScore) {
+    const result = await calculateEventScore(comedian, event);
+    if (result.score >= minScore) {
       scoredEvents.push({
         event: event.toObject(),
-        score,
-        breakdown,
-        matchReasons
+        ...result
       });
     }
   }
 
-  // Trier par score décroissant
   scoredEvents.sort((a, b) => b.score - a.score);
 
-  // Pagination
-  const total = scoredEvents.length;
-  const startIndex = (page - 1) * limit;
-  const paginatedEvents = scoredEvents.slice(startIndex, startIndex + limit);
-
   return {
-    recommendations: paginatedEvents,
-    total,
+    recommendations: scoredEvents.slice((page - 1) * limit, page * limit),
+    total: scoredEvents.length,
     page,
     limit
   };
 };
 
-/**
- * Récupère les préférences de recommandation d'un humoriste
- */
-export const getRecommendationPreferences = async (comedianId: string) => {
-  const comedian = await UserModel.findById(comedianId);
-  if (!comedian) {
-    throw new Error('Humoriste non trouvé');
-  }
-
-  const prefs = comedian.profile?.recommendationPreferences || {
-    enabled: true,
-    priorities: DEFAULT_PRIORITIES
-  };
-
-  return prefs;
-};
+// ============================================================================
+// SMART RECOMMENDATIONS - Recommandations basées sur l'historique
+// ============================================================================
 
 /**
- * Met à jour les préférences de recommandation d'un humoriste
- * Normalise les poids pour que la somme égale 100
+ * Récupère les recommandations intelligentes basées sur l'historique de l'utilisateur
+ *
+ * Critères de recommandation:
+ * 1. Événements avec le même nom que ceux où l'utilisateur a été accepté
+ * 2. Événements du même organisateur que ceux où l'utilisateur a été accepté
+ *
+ * @param comedianId - ID de l'humoriste
+ * @param options - Options de pagination
  */
-export const updateRecommendationPreferences = async (
+export const getSmartRecommendedEvents = async (
   comedianId: string,
-  preferences: { enabled?: boolean; priorities?: RecommendationPriority[] }
-) => {
+  options: SmartRecommendationsQueryOptions = {}
+): Promise<SmartRecommendationsResponse> => {
+  const { page = 1, limit = 50 } = options;
+
+  // Vérifier que l'utilisateur est un humoriste
   const comedian = await UserModel.findById(comedianId);
-  if (!comedian) {
-    throw new Error('Humoriste non trouvé');
+  if (!comedian || comedian.role !== 'COMEDIAN') {
+    throw new Error("Accès restreint aux humoristes");
   }
 
-  if (comedian.role !== 'COMEDIAN') {
-    throw new Error("Seuls les humoristes peuvent modifier leurs préférences de recommandation");
-  }
-
-  // Initialiser le profil si nécessaire
-  if (!comedian.profile) {
-    comedian.profile = {} as any;
-  }
-
-  // Initialiser les préférences si nécessaires
-  if (!comedian.profile.recommendationPreferences) {
-    comedian.profile.recommendationPreferences = {
-      enabled: true,
-      priorities: DEFAULT_PRIORITIES
-    } as any;
-  }
-
-  // Mettre à jour les préférences (toujours activées)
-  (comedian.profile.recommendationPreferences as any).enabled = true;
-
-  if (preferences.priorities) {
-    // Normaliser les poids pour que la somme égale 100
-    const enabledPriorities = preferences.priorities.filter(p => p.enabled);
-    const totalWeight = enabledPriorities.reduce((sum: number, p: RecommendationPriority) => sum + p.weight, 0);
-
-    // Normaliser les poids uniquement pour les critères activés
-    const normalizedPriorities = preferences.priorities.map((priority: RecommendationPriority) => {
-      if (!priority.enabled || totalWeight === 0) {
-        return priority; // Pas de normalisation si désactivé ou total = 0
+  // Récupérer toutes les applications de l'humoriste avec le statut 'ACCEPTED' et les événements peuplés
+  const applications = await ApplicationModel.find({
+    comedian: comedianId,
+    status: 'ACCEPTED'
+  })
+    .populate({
+      path: 'event',
+      select: 'title organizer',
+      populate: {
+        path: 'organizer',
+        select: 'firstName lastName organizerProfile'
       }
-      return {
-        ...priority,
-        weight: Math.round((priority.weight / totalWeight) * 100)
-      };
     });
 
-    (comedian.profile.recommendationPreferences as any).priorities = normalizedPriorities;
+  // Extraire les noms d'événements uniques (normalisés)
+  const eventNamesSet = new Set<string>();
+  const eventNamesMap = new Map<string, string>(); // normalized -> original title
+
+  // Extraire les IDs d'organisateurs uniques
+  const organizerIdsSet = new Set<string>();
+  const organizerNamesMap = new Map<string, string>(); // organizerId -> name
+
+  // IDs des événements déjà postulés (à exclure)
+  const appliedEventIds: string[] = [];
+
+  for (const app of applications) {
+    const event = app.event as any;
+    if (!event) continue;
+
+    appliedEventIds.push(event._id.toString());
+
+    // Collecter les noms d'événements
+    if (event.title) {
+      const normalizedTitle = normalizeString(event.title);
+      eventNamesSet.add(normalizedTitle);
+      eventNamesMap.set(normalizedTitle, event.title);
+    }
+
+    // Collecter les organisateurs
+    const organizer = event.organizer;
+    if (organizer?._id) {
+      const organizerId = organizer._id.toString();
+      organizerIdsSet.add(organizerId);
+
+      // Stocker le nom de l'organisateur
+      const orgName = organizer.organizerProfile?.companyName ||
+                      `${organizer.firstName || ''} ${organizer.lastName || ''}`.trim() ||
+                      'Organisateur';
+      organizerNamesMap.set(organizerId, orgName);
+    }
   }
 
-  (comedian.profile.recommendationPreferences as any).lastUpdated = new Date();
+  // Si l'utilisateur n'a pas d'historique, retourner une liste vide
+  if (eventNamesSet.size === 0 && organizerIdsSet.size === 0) {
+    return {
+      recommendations: [],
+      total: 0,
+      page,
+      limit
+    };
+  }
 
-  await comedian.save();
+  // Récupérer les événements futurs publiés, excluant ceux déjà postulés
+  const futureEvents = await EventModel.find({
+    status: 'published',
+    date: { $gte: new Date() },
+    _id: { $nin: appliedEventIds }
+  }).populate('organizer', 'firstName lastName organizerProfile');
 
-  return comedian.profile.recommendationPreferences;
+  const smartRecommendations: SmartRecommendation[] = [];
+  const addedEventIds = new Set<string>(); // Pour éviter les doublons
+
+  // Parcourir les événements futurs et chercher les matchs
+  for (const event of futureEvents) {
+    const eventId = event._id.toString();
+
+    // Éviter les doublons
+    if (addedEventIds.has(eventId)) continue;
+
+    const normalizedTitle = normalizeString(event.title || '');
+    const organizerId = (event.organizer as any)?._id?.toString();
+
+    // Vérifier les deux critères
+    const matchesByName = eventNamesSet.has(normalizedTitle);
+    const matchesByOrganizer = organizerId && organizerIdsSet.has(organizerId);
+
+    // Cas 1: Match sur les deux critères
+    if (matchesByName && matchesByOrganizer) {
+      addedEventIds.add(eventId);
+      smartRecommendations.push({
+        event: event.toObject(),
+        matchType: 'both',
+        matchedEventTitle: eventNamesMap.get(normalizedTitle) || event.title,
+        matchedOrganizerName: organizerNamesMap.get(organizerId)
+      });
+      continue;
+    }
+
+    // Cas 2: Match uniquement par nom d'événement
+    if (matchesByName) {
+      addedEventIds.add(eventId);
+      smartRecommendations.push({
+        event: event.toObject(),
+        matchType: 'same_event_name',
+        matchedEventTitle: eventNamesMap.get(normalizedTitle) || event.title
+      });
+      continue;
+    }
+
+    // Cas 3: Match uniquement par organisateur
+    if (matchesByOrganizer) {
+      addedEventIds.add(eventId);
+      smartRecommendations.push({
+        event: event.toObject(),
+        matchType: 'same_organizer',
+        matchedOrganizerName: organizerNamesMap.get(organizerId)
+      });
+    }
+  }
+
+  // Trier par date (événements les plus proches en premier)
+  smartRecommendations.sort((a, b) => {
+    const dateA = new Date(a.event.date).getTime();
+    const dateB = new Date(b.event.date).getTime();
+    return dateA - dateB;
+  });
+
+  // Pagination
+  const total = smartRecommendations.length;
+  const startIndex = (page - 1) * limit;
+  const paginatedRecommendations = smartRecommendations.slice(startIndex, startIndex + limit);
+
+  return {
+    recommendations: paginatedRecommendations,
+    total,
+    page,
+    limit
+  };
 };

@@ -370,32 +370,14 @@ export const updateProfileSchema = z.object({
 // SCHÉMAS DE RECOMMANDATION
 // ============================================================================
 
-export const recommendationPrioritySchema = z.object({
-  criterion: z.enum(['geographic', 'experienceLevel', 'experienceYears'], {
-    errorMap: () => ({ message: 'Critère de recommandation invalide' })
-  }),
-  weight: z.number()
-    .min(0, { message: 'Le poids doit être entre 0 et 100' })
-    .max(100, { message: 'Le poids doit être entre 0 et 100' }),
-  enabled: z.boolean()
-});
-
-export const updateRecommendationPreferencesSchema = z.object({
-  priorities: z.array(recommendationPrioritySchema)
-    .min(1, { message: 'Au moins un critère doit être défini' })
-    .max(3, { message: 'Maximum 3 critères autorisés' })
-    .optional()
-    .refine((priorities) => {
-      if (!priorities) return true;
-      const enabledPriorities = priorities.filter(p => p.enabled);
-      if (enabledPriorities.length === 0) return true;
-      const totalWeight = enabledPriorities.reduce((sum, p) => sum + p.weight, 0);
-      return totalWeight > 0;
-    }, { message: 'La somme des poids actifs doit être supérieure à 0' })
-});
-
 export const getRecommendationsQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(50).default(10),
+  limit: z.coerce.number().min(1).max(500).default(10), // Augmenté pour charger tous les événements
   minScore: z.coerce.number().min(0).max(100).default(0)
+});
+
+// Schéma pour les recommandations intelligentes (basées sur l'historique)
+export const getSmartRecommendationsQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(50)
 }); 

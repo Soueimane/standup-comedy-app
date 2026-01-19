@@ -24,12 +24,16 @@ export interface ScoreBreakdown {
   experienceYears: number;
 }
 
+// Niveau de recommandation (catégorisation du score)
+export type RecommendationLevel = 'excellent' | 'good' | 'average' | 'low' | 'poor';
+
 // Résultat d'une recommandation
 export interface RecommendationResult {
   event: any; // EventDocument populé
   score: number; // Score total 0-100
   breakdown: ScoreBreakdown;
   matchReasons: string[];
+  confidence?: number; // Score de confiance 0-100 (optionnel pour rétrocompatibilité)
 }
 
 // Réponse de l'API de recommandations
@@ -67,3 +71,32 @@ export const CRITERION_DESCRIPTIONS: Record<RecommendationCriterion, string> = {
   experienceLevel: "Correspond au nombre de scènes requis par l'événement",
   experienceYears: "Correspond aux années d'expérience minimum requises",
 };
+
+// ============================================================================
+// SMART RECOMMENDATIONS - Recommandations basées sur l'historique
+// ============================================================================
+
+// Type de match pour les recommandations intelligentes
+export type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'both';
+
+// Résultat d'une recommandation intelligente
+export interface SmartRecommendation {
+  event: any; // EventDocument populé
+  matchType: SmartRecommendationMatchType;
+  matchedEventTitle?: string;     // Nom de l'événement original qui a déclenché le match
+  matchedOrganizerName?: string;  // Nom de l'organisateur
+}
+
+// Réponse de l'API de recommandations intelligentes
+export interface SmartRecommendationsResponse {
+  recommendations: SmartRecommendation[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// Options de requête pour les recommandations intelligentes
+export interface SmartRecommendationsQueryOptions {
+  page?: number;
+  limit?: number;
+}
