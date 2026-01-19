@@ -1,4 +1,4 @@
-import { type CSSProperties } from 'react';
+import { type CSSProperties, useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import EventCalendar from '../components/EventCalendar';
 import { useQuery } from '@tanstack/react-query';
@@ -8,6 +8,34 @@ import { useAuth } from '../hooks/useAuth';
 
 const CalendarPage = () => {
   const { token, user } = useAuth();
+  const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+
+  // --- Responsive detection hook ---
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const checkScreenSize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        const width = window.innerWidth;
+        if (width < 768) setScreenSize('mobile');
+        else if (width < 1024) setScreenSize('tablet');
+        else setScreenSize('desktop');
+      }, 150);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', checkScreenSize);
+    };
+  }, []);
+
+  // --- Responsive helper function ---
+  const getResponsiveValue = <T,>(mobile: T, tablet: T, desktop: T): T => {
+    if (screenSize === 'mobile') return mobile;
+    if (screenSize === 'tablet') return tablet;
+    return desktop;
+  };
 
   const isQueryEnabled = !!token && !!user?._id;
 
@@ -62,10 +90,11 @@ const CalendarPage = () => {
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#ffffff',
-    padding: '20px',
+    padding: getResponsiveValue('16px', '24px', '32px'),
     background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
     display: 'flex',
     flexDirection: 'column',
+    gap: getResponsiveValue('16px', '24px', '32px'),
   };
 
   return (
