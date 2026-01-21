@@ -224,11 +224,20 @@ function OrganizerProfilePage() {
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Budget moyen:</span>
-              <span style={infoValueStyle}>{(user?.organizerProfile?.averageBudget?.min !== undefined ? user.organizerProfile.averageBudget.min : 'Non spécifié')} - {(user?.organizerProfile?.averageBudget?.max !== undefined ? user.organizerProfile.averageBudget.max : 'Non spécifié')}€</span>
+              <span style={infoValueStyle}>
+                {user?.organizerProfile?.averageBudget?.min !== undefined && user?.organizerProfile?.averageBudget?.max !== undefined
+                  ? `${user.organizerProfile.averageBudget.min} - ${user.organizerProfile.averageBudget.max}€`
+                  : 'Non spécifié'}
+              </span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Fréquence des évènements:</span>
-              <span style={infoValueStyle}>{user?.organizerProfile?.eventFrequency || 'monthly'}</span>
+              <span style={infoValueStyle}>
+                {user?.organizerProfile?.eventFrequency === 'weekly' ? 'Hebdomadaire' :
+                 user?.organizerProfile?.eventFrequency === 'monthly' ? 'Mensuel' :
+                 user?.organizerProfile?.eventFrequency === 'occasional' ? 'Occasionnel' :
+                 'Non spécifié'}
+              </span>
             </div>
           </div>
 

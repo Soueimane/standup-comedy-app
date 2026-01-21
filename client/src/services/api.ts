@@ -210,4 +210,65 @@ export const getSmartRecommendations = async (options?: { page?: number; limit?:
   return response.data;
 };
 
+// Fonctions pour rechercher des humoristes par zone géographique (Organisateurs)
+export interface SearchComediansByZoneOptions {
+  zone: string;
+  experienceLevel?: 'all' | '0-50' | '50-200' | '200+';
+  page?: number;
+  limit?: number;
+}
+
+export interface ComedianSearchResult {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  city?: string;
+  phone?: string;
+  stageName?: string;
+  bio?: string;
+  numberOfScenes?: string;
+  comedyStyle?: string[];
+  performanceLanguages?: string[];
+  mobilityZone?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>;
+  socialLinks?: {
+    youtube?: string;
+    instagram?: string;
+    facebook?: string;
+    twitter?: string;
+  };
+  stats?: {
+    totalEvents?: number;
+    averageRating?: number;
+    absences?: number;
+  };
+}
+
+export interface SearchComediansByZoneResponse {
+  comedians: ComedianSearchResult[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  searchZone: {
+    type: 'ville' | 'departement' | 'region';
+    value: string;
+    department?: string;
+    region?: string;
+  };
+}
+
+export const searchComediansByZone = async (options: SearchComediansByZoneOptions): Promise<SearchComediansByZoneResponse> => {
+  const params = new URLSearchParams();
+  params.append('zone', options.zone);
+  if (options.experienceLevel && options.experienceLevel !== 'all') {
+    params.append('experienceLevel', options.experienceLevel);
+  }
+  if (options.page) params.append('page', options.page.toString());
+  if (options.limit) params.append('limit', options.limit.toString());
+  const query = params.toString();
+  const response = await api.get(`/comedians/search-by-zone?${query}`);
+  return response.data;
+};
+
 export default api;

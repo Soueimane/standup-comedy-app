@@ -163,6 +163,21 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           Authorization: `Bearer ${token}`,
         },
       };
+
+      // Traitement silencieux des zones de mobilité pour Paris
+      const processedMobilityZone = formData.profile?.mobilityZone ? [...formData.profile.mobilityZone] : undefined;
+      
+      if (processedMobilityZone) {
+        const hasParisCity = processedMobilityZone.some(z => z.type === 'ville' && z.value === 'Paris');
+        const hasParisDept = processedMobilityZone.some(z => z.type === 'departement' && z.value === '75');
+
+        if (hasParisCity && !hasParisDept) {
+          processedMobilityZone.push({ type: 'departement', value: '75' });
+        } else if (hasParisDept && !hasParisCity) {
+          processedMobilityZone.push({ type: 'ville', value: 'Paris' });
+        }
+      }
+
       // Send only the fields that are specific to the comedian's profile update
       const comedianProfileData: any = {
         firstName: formData.firstName,
@@ -178,7 +193,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
             numberOfScenes: formData.profile?.numberOfScenes || undefined,
             comedyStyle: formData.profile?.comedyStyle || undefined,
             performanceLanguages: formData.profile?.performanceLanguages || undefined,
-            mobilityZone: formData.profile?.mobilityZone || undefined,
+            mobilityZone: processedMobilityZone,
             socialLinks: {
               youtube: formData.profile?.socialLinks?.youtube || undefined,
               instagram: formData.profile?.socialLinks?.instagram || undefined,

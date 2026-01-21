@@ -1487,11 +1487,12 @@ function ApplicationsPage() {
                               {app.status === 'ACCEPTED' ? '✓ Acceptée' : app.status === 'REJECTED' ? '✕ Refusée' : ''}
                             </span>
                           )}
+                          {/* Boutons de confirmation/désinscription pour les événements modifiés */}
                           {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button
-                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => { 
-                                  e.stopPropagation(); 
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.stopPropagation();
                                   try {
                                     await api.patch(`/applications/${app._id}/confirm`, {}, {
                                       headers: { Authorization: `Bearer ${token}` }
@@ -1522,6 +1523,30 @@ function ApplicationsPage() {
                                   }
                                 }}
                                 style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
+                              >
+                                Me désinscrire
+                              </button>
+                            </div>
+                          )}
+                          {/* Bouton de désinscription pour le tab "accepted" */}
+                          {user?.role === 'COMEDIAN' && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.stopPropagation();
+                                  if (!token) return;
+                                  if (!confirm('Voulez-vous vous désinscrire de cet évènement ?')) return;
+                                  try {
+                                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                                    await api.delete(`/applications/${app._id}`, config);
+                                    alert('Vous avez été désinscrit de cet évènement.');
+                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
+                                    refreshUser();
+                                  } catch (err: any) {
+                                    alert('Échec de la désinscription.');
+                                  }
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#dc3545', width: isMobile ? '100%' : 'auto' }}
                               >
                                 Me désinscrire
                               </button>

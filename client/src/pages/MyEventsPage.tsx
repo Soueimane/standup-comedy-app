@@ -8,14 +8,15 @@ import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
 import EventCalendar from '../components/EventCalendar';
 import ScorePieChart from '../components/ScorePieChart';
-import { matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import type { IEvent } from '../types/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
-import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations } from '../services/api';
+import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites } from '../services/api';
+import type { ComedianSearchResult, SearchComediansByZoneResponse } from '../services/api';
+import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
@@ -96,6 +97,23 @@ function MyEventsPage() {
     }
   }, [eventFavoritesData, isComedianView]);
 
+  // Charger les humoristes favoris (pour les organisateurs)
+  useEffect(() => {
+    if (isOrganizerView && token) {
+      const loadFavoriteComedians = async () => {
+        try {
+          const response = await getFavorites();
+          const favoriteIds = response.favorites?.map((comedian: any) => comedian._id || comedian.id) || [];
+          setFavoriteComedianIds(favoriteIds);
+        } catch (error) {
+          console.error('Erreur lors du chargement des humoristes favoris:', error);
+          setFavoriteComedianIds([]);
+        }
+      };
+      loadFavoriteComedians();
+    }
+  }, [isOrganizerView, token]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
   const [showCreateEventForm, setShowCreateEventForm] = useState(false);
@@ -125,8 +143,17 @@ function MyEventsPage() {
   // États pour les filtres organisateur
   const [organizerEventZoneSearch, setOrganizerEventZoneSearch] = useState(''); // Recherche par zone d'événement pour les organisateurs
   const [organizerEventExperienceFilter, setOrganizerEventExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all'); // Filtre par niveau d'expérience pour les organisateurs
-  // État pour la recherche d'humoriste par zone d'événement dans le modal
-  const [participantZoneSearch, setParticipantZoneSearch] = useState('');
+  // États pour la recherche d'humoristes par zone
+  const [comedianZoneType, setComedianZoneType] = useState<'ville' | 'departement' | 'region'>('ville'); // Type de zone
+  const [comedianZoneSearch, setComedianZoneSearch] = useState(''); // Zone de recherche
+  const [comedianExperienceFilter, setComedianExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all'); // Filtre par niveau
+  const [comedianSearchResults, setComedianSearchResults] = useState<ComedianSearchResult[]>([]);
+  const [comedianSearchTotal, setComedianSearchTotal] = useState(0);
+  const [comedianSearchPage, setComedianSearchPage] = useState(1);
+  const [isSearchingComedians, setIsSearchingComedians] = useState(false);
+  const [comedianSearchError, setComedianSearchError] = useState<string | null>(null);
+  const [showComedianSearchSection, setShowComedianSearchSection] = useState(false);
+  const [favoriteComedianIds, setFavoriteComedianIds] = useState<string[]>([]);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
@@ -411,9 +438,9 @@ useEffect(() => {
 
   const toggleFavoriteEvent = async (eventId: string) => {
     if (!isComedianView || !token) return;
-    
+
     const isCurrentlyFavorite = favoriteIdsSet.has(eventId);
-    
+
     // Optimistic update
     setFavoriteEventIds(prev => {
       const updated = new Set(prev);
@@ -444,6 +471,41 @@ useEffect(() => {
           updated.delete(eventId);
         }
         return Array.from(updated);
+      });
+      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+    }
+  };
+
+  // Toggle favori pour un humoriste (organisateurs)
+  const toggleFavoriteComedian = async (comedianId: string) => {
+    if (!isOrganizerView || !token) return;
+
+    const isCurrentlyFavorite = favoriteComedianIds.includes(comedianId);
+
+    // Mise à jour optimiste
+    setFavoriteComedianIds(prev => {
+      if (isCurrentlyFavorite) {
+        return prev.filter(id => id !== comedianId);
+      } else {
+        return [...prev, comedianId];
+      }
+    });
+
+    try {
+      if (isCurrentlyFavorite) {
+        await removeFavorite(comedianId);
+      } else {
+        await addFavorite(comedianId);
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la modification des favoris d\'humoriste:', error);
+      // Revert en cas d'erreur
+      setFavoriteComedianIds(prev => {
+        if (isCurrentlyFavorite) {
+          return [...prev, comedianId];
+        } else {
+          return prev.filter(id => id !== comedianId);
+        }
       });
       alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
     }
@@ -1204,13 +1266,59 @@ useEffect(() => {
   const handleCardClick = (event: IEvent, shouldFocusParticipants = false) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
-    setParticipantZoneSearch(''); // Réinitialiser la recherche lors de l'ouverture d'un nouvel événement
     setFocusParticipantsSection(shouldFocusParticipants);
     // Charger les absences si l'utilisateur est organisateur
     if (user?.role === 'ORGANIZER') {
       loadEventAbsences(event._id);
     }
   };
+
+  // Fonction de recherche d'humoristes par zone géographique
+  const handleComedianSearch = useCallback(async () => {
+    if (!comedianZoneSearch.trim()) {
+      setComedianSearchResults([]);
+      setComedianSearchTotal(0);
+      setComedianSearchError(null);
+      return;
+    }
+
+    setIsSearchingComedians(true);
+    setComedianSearchError(null);
+
+    try {
+      const response = await searchComediansByZone({
+        zone: comedianZoneSearch.trim(),
+        experienceLevel: comedianExperienceFilter,
+        page: comedianSearchPage,
+        limit: 10
+      });
+
+      setComedianSearchResults(response.comedians);
+      setComedianSearchTotal(response.total);
+    } catch (error) {
+      console.error('Erreur lors de la recherche d\'humoristes:', error);
+      setComedianSearchError('Erreur lors de la recherche. Veuillez réessayer.');
+      setComedianSearchResults([]);
+      setComedianSearchTotal(0);
+    } finally {
+      setIsSearchingComedians(false);
+    }
+  }, [comedianZoneSearch, comedianExperienceFilter, comedianSearchPage]);
+
+  // Effectuer la recherche quand les paramètres changent
+  useEffect(() => {
+    if (isOrganizerView && showComedianSearchSection && comedianZoneSearch.trim()) {
+      const debounceTimer = setTimeout(() => {
+        handleComedianSearch();
+      }, 500);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [isOrganizerView, showComedianSearchSection, comedianZoneSearch, comedianExperienceFilter, comedianSearchPage, comedianZoneType, handleComedianSearch]);
+
+  // Réinitialiser la page lors d'un changement de recherche
+  useEffect(() => {
+    setComedianSearchPage(1);
+  }, [comedianZoneSearch, comedianExperienceFilter, comedianZoneType]);
 
   const handleEditClick = (event: IEvent) => {
     console.log('🔍 [MyEventsPage] handleEditClick - Vérification évènement', {
@@ -1273,7 +1381,6 @@ useEffect(() => {
     setIsModalOpen(false);
     setSelectedEvent(null);
     setFocusParticipantsSection(false);
-    setParticipantZoneSearch(''); // Réinitialiser la recherche lors de la fermeture du modal
   };
 
   const handleComedianClick = (comedian: any) => {
@@ -2585,6 +2692,422 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
+
+              {/* Section de recherche d'humoristes par zone d'événement */}
+              <div
+                style={{
+                  maxWidth: '1200px',
+                  margin: '0 auto 20px auto',
+                  padding: '0 20px'
+                }}
+              >
+                <div
+                  style={{
+                    marginBottom: '20px',
+                    padding: '15px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid #444'
+                  }}
+                >
+                  {/* Bouton pour afficher/masquer la section */}
+                  <button
+                    onClick={() => setShowComedianSearchSection(!showComedianSearchSection)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '10px 15px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#ffffffff',
+                      fontWeight: 'bold',
+                      fontSize: '16px'
+                    }}
+                  >
+                    <span>Rechercher des humoristes par zone</span>
+                    <span style={{ fontSize: '20px' }}>{showComedianSearchSection ? '−' : '+'}</span>
+                  </button>
+
+                  {showComedianSearchSection && (
+                    <div style={{ marginTop: '15px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: isMobile ? 'column' : 'row',
+                          gap: '15px',
+                          alignItems: isMobile ? 'stretch' : 'flex-end'
+                        }}
+                      >
+                        {/* Sélection du type de zone */}
+                        <div style={{ width: isMobile ? '100%' : '180px' }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              color: '#ffffff',
+                              marginBottom: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Type de zone
+                          </label>
+                          <select
+                            value={comedianZoneType}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                              setComedianZoneType(e.target.value as 'ville' | 'departement' | 'region');
+                              setComedianZoneSearch(''); // Réinitialiser la recherche lors du changement de type
+                              setComedianSearchResults([]); // Réinitialiser les résultats
+                              setComedianSearchTotal(0);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '10px',
+                              borderRadius: '6px',
+                              border: '1px solid #555',
+                              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                              color: '#ffffff',
+                              fontSize: '14px'
+                            }}
+                          >
+                            <option value="ville">Ville</option>
+                            <option value="departement">Département</option>
+                            <option value="region">Région</option>
+                          </select>
+                        </div>
+
+                        {/* Recherche par zone */}
+                        <div style={{ flex: isMobile ? undefined : 1, width: isMobile ? '100%' : undefined }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              color: '#ffffff',
+                              marginBottom: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Zone d'événement
+                          </label>
+
+                          {/* Select pour les régions */}
+                          {comedianZoneType === 'region' && (
+                            <select
+                              value={comedianZoneSearch}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setComedianZoneSearch(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1px solid #555',
+                                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                color: '#ffffff',
+                                fontSize: '14px'
+                              }}
+                            >
+                              <option value="">Sélectionnez une région</option>
+                              {Object.keys(FRENCH_REGIONS).map(region => (
+                                <option key={region} value={region}>{region}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {/* Select pour les départements */}
+                          {comedianZoneType === 'departement' && (
+                            <select
+                              value={comedianZoneSearch}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setComedianZoneSearch(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1px solid #555',
+                                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                color: '#ffffff',
+                                fontSize: '14px'
+                              }}
+                            >
+                              <option value="">Sélectionnez un département</option>
+                              {DEPARTMENTS_ORDER.map(code => (
+                                <option key={code} value={code}>{code} - {FRENCH_DEPARTMENTS[code]}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {/* Input pour les villes */}
+                          {comedianZoneType === 'ville' && (
+                            <input
+                              type="text"
+                              placeholder="Ex: Paris, Lyon, Marseille..."
+                              value={comedianZoneSearch}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setComedianZoneSearch(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1px solid #555',
+                                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                color: '#ffffff',
+                                fontSize: '14px'
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        {/* Filtre par niveau d'expérience */}
+                        <div style={{ width: isMobile ? '100%' : '200px' }}>
+                          <label
+                            style={{
+                              display: 'block',
+                              color: '#ffffff',
+                              marginBottom: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Niveau d'expérience
+                          </label>
+                          <select
+                            value={comedianExperienceFilter}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setComedianExperienceFilter(e.target.value as 'all' | '0-50' | '50-200' | '200+')}
+                            style={{
+                              width: '100%',
+                              padding: '10px',
+                              borderRadius: '6px',
+                              border: '1px solid #555',
+                              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                              color: '#ffffff',
+                              fontSize: '14px'
+                            }}
+                          >
+                            <option value="all">Tous les niveaux</option>
+                            <option value="0-50">Débutant (0-50 scènes)</option>
+                            <option value="50-200">Expérimenté (50-200 scènes)</option>
+                            <option value="200+">Pro (200+ scènes)</option>
+                          </select>
+                        </div>
+
+                        {/* Bouton réinitialiser */}
+                        {(comedianZoneSearch.trim() || comedianExperienceFilter !== 'all' || comedianZoneType !== 'ville') && (
+                          <button
+                            onClick={() => {
+                              setComedianZoneType('ville');
+                              setComedianZoneSearch('');
+                              setComedianExperienceFilter('all');
+                              setComedianSearchResults([]);
+                              setComedianSearchTotal(0);
+                            }}
+                            style={{
+                              padding: '10px 18px',
+                              borderRadius: '6px',
+                              border: '1px solid #555',
+                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                              color: '#ffffff',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              whiteSpace: 'nowrap',
+                              height: 'fit-content'
+                           }}
+                          >
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Résultats de la recherche */}
+                      {isSearchingComedians && (
+                        <p style={{ color: '#28a745', marginTop: '15px', textAlign: 'center' }}>
+                          Recherche en cours...
+                        </p>
+                      )}
+
+                      {comedianSearchError && (
+                        <p style={{ color: '#dc3545', marginTop: '15px', textAlign: 'center' }}>
+                          {comedianSearchError}
+                        </p>
+                      )}
+
+                      {!isSearchingComedians && comedianZoneSearch.trim() && comedianSearchResults.length === 0 && !comedianSearchError && (
+                        <p style={{ color: '#ffc107', marginTop: '15px', textAlign: 'center' }}>
+                          Aucun humoriste trouvé pour cette zone.
+                        </p>
+                      )}
+
+                      {comedianSearchResults.length > 0 && (
+                        <div style={{ marginTop: '20px' }}>
+                          <h4 style={{ color: '#28a745', marginBottom: '15px' }}>
+                            {comedianSearchTotal} humoriste{comedianSearchTotal > 1 ? 's' : ''} trouvé{comedianSearchTotal > 1 ? 's' : ''}
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {comedianSearchResults.map((comedian) => (
+                              <div
+                                key={comedian._id}
+                                onClick={() => {
+                                  setSelectedComedian({
+                                    id: comedian._id,
+                                    firstName: comedian.firstName,
+                                    lastName: comedian.lastName,
+                                    email: comedian.email,
+                                    phone: comedian.phone,
+                                    stageName: comedian.stageName,
+                                    bio: comedian.bio,
+                                    numberOfScenes: comedian.numberOfScenes,
+                                    comedyStyle: comedian.comedyStyle,
+                                    performanceLanguages: comedian.performanceLanguages,
+                                    mobilityZone: comedian.mobilityZone,
+                                    socialLinks: comedian.socialLinks,
+                                    stats: comedian.stats
+                                  });
+                                  setIsComedianModalOpen(true);
+                                }}
+                                style={{
+                                  padding: '15px',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                  borderRadius: '8px',
+                                  border: '1px solid #444',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                                  e.currentTarget.style.borderColor = '#28a745';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                                  e.currentTarget.style.borderColor = '#444';
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                                      <h5 style={{ color: '#ffffff', margin: 0, fontSize: '16px' }}>
+                                        {comedian.stageName || `${comedian.firstName} ${comedian.lastName}`}
+                                      </h5>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleFavoriteComedian(comedian._id);
+                                        }}
+                                        style={{
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: favoriteComedianIds.includes(comedian._id) ? '#ffd700' : '#888888',
+                                          fontSize: '1.3em',
+                                          cursor: 'pointer',
+                                          transition: 'color 0.2s ease, transform 0.2s ease',
+                                          padding: 0,
+                                          lineHeight: 1,
+                                        }}
+                                        title={favoriteComedianIds.includes(comedian._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1.2)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                        }}
+                                      >
+                                        {favoriteComedianIds.includes(comedian._id) ? '⭐' : '☆'}
+                                      </button>
+                                    </div>
+                                    {comedian.stageName && (
+                                      <p style={{ color: '#aaa', margin: '0 0 5px 0', fontSize: '13px' }}>
+                                        {comedian.firstName} {comedian.lastName}
+                                      </p>
+                                    )}
+                                    {comedian.mobilityZone && comedian.mobilityZone.length > 0 && (
+                                      <p style={{ color: '#888', margin: '0', fontSize: '13px' }}>
+                                        🚗 Zones : {comedian.mobilityZone.map(z => z.value).join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
+                                    {comedian.numberOfScenes && (
+                                      <span
+                                        style={{
+                                          padding: '4px 10px',
+                                          borderRadius: '12px',
+                                          fontSize: '12px',
+                                          // On garde la même couleur jaune pour tous les niveaux
+                                          backgroundColor: 'rgba(255, 193, 7, 0.3)',
+                                          color: '#ffc107'
+                                        }}
+                                      >
+                                        {comedian.numberOfScenes === '200+' ? 'Pro' : comedian.numberOfScenes === '50-200' ? 'Expérimenté' : 'Débutant'}
+                                      </span>
+                                    )}
+                                    {comedian.stats?.totalEvents !== undefined && comedian.stats.totalEvents > 0 && (
+                                      <span style={{ color: '#888', fontSize: '12px' }}>
+                                        🎭 {comedian.stats.totalEvents} évènement{comedian.stats.totalEvents > 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {comedian.comedyStyle && comedian.comedyStyle.length > 0 && (
+                                  <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {comedian.comedyStyle.map((style, idx) => (
+                                      <span
+                                        key={idx}
+                                        style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '10px',
+                                          fontSize: '11px',
+                                          backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                                          color: '#667eea'
+                                        }}
+                                      >
+                                        {style}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Pagination */}
+                          {comedianSearchTotal > 10 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
+                              <button
+                                onClick={() => setComedianSearchPage(p => Math.max(1, p - 1))}
+                                disabled={comedianSearchPage === 1}
+                                style={{
+                                  padding: '8px 16px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #28a745',
+                                  backgroundColor: comedianSearchPage === 1 ? 'rgba(0, 0, 0, 0.3)' : 'rgba(40, 167, 69, 0.2)',
+                                  color: comedianSearchPage === 1 ? '#666' : '#ffffff',
+                                  cursor: comedianSearchPage === 1 ? 'not-allowed' : 'pointer'
+                                }}
+                              >
+                                Précédent
+                              </button>
+                              <span style={{ color: '#ffffff', alignSelf: 'center' }}>
+                                Page {comedianSearchPage} / {Math.ceil(comedianSearchTotal / 10)}
+                              </span>
+                              <button
+                                onClick={() => setComedianSearchPage(p => p + 1)}
+                                disabled={comedianSearchPage >= Math.ceil(comedianSearchTotal / 10)}
+                                style={{
+                                  padding: '8px 16px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #28a745',
+                                  backgroundColor: comedianSearchPage >= Math.ceil(comedianSearchTotal / 10) ? 'rgba(0, 0, 0, 0.3)' : 'rgba(40, 167, 69, 0.2)',
+                                  color: comedianSearchPage >= Math.ceil(comedianSearchTotal / 10) ? '#666' : '#ffffff',
+                                  cursor: comedianSearchPage >= Math.ceil(comedianSearchTotal / 10) ? 'not-allowed' : 'pointer'
+                                }}
+                              >
+                                Suivant
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
           {isSuperAdminView && (
@@ -2899,118 +3422,10 @@ useEffect(() => {
                 <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
                   Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
                 </h3>
-                
-                {/* Barre de recherche d'humoriste par zone d'événement */}
-                {selectedEvent.participants && selectedEvent.participants.length > 0 && (
-                  <div style={{ marginBottom: '15px' }}>
-                    <label
-                      style={{
-                        display: 'block',
-                        color: '#ffffff',
-                        marginBottom: '8px',
-                        fontWeight: 'bold',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Recherche d'humoriste par zone d'événement
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ville, département, région de l'événement..."
-                      value={participantZoneSearch}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParticipantZoneSearch(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        borderRadius: '6px',
-                        border: '1px solid #555',
-                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                        color: '#ffffff',
-                        fontSize: '14px'
-                      }}
-                    />
-                    {participantZoneSearch.trim() && (
-                      <button
-                        onClick={() => setParticipantZoneSearch('')}
-                        style={{
-                          marginTop: '8px',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid #555',
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                          color: '#ffffff',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
-                        Réinitialiser
-                      </button>
-                    )}
-                  </div>
-                )}
-                
+
                 {selectedEvent.participants && selectedEvent.participants.length > 0 ? (
                   <div>
-                    {(() => {
-                      // Filtrer les participants par zone d'événement
-                      let filteredParticipants = selectedEvent.participants;
-                      
-                      if (participantZoneSearch.trim()) {
-                        const searchTerm = participantZoneSearch.trim();
-                        const searchNormalized = normalizeString(searchTerm);
-                        const eventCity = selectedEvent.location?.city || '';
-                        
-                        // Déterminer le type de recherche (ville, département ou région)
-                        let searchType: 'ville' | 'departement' | 'region' = 'ville';
-                        
-                        // Si c'est un numéro à 2 chiffres (ou 2A, 2B), c'est probablement un département
-                        if (/^\d{1,2}[AB]?$/.test(searchTerm.toUpperCase())) {
-                          searchType = 'departement';
-                        } else {
-                          // Vérifier si c'est une région connue
-                          const knownRegions = [
-                            'Auvergne-Rhône-Alpes', 'Bourgogne-Franche-Comté', 'Bretagne',
-                            'Centre-Val de Loire', 'Corse', 'Grand Est', 'Hauts-de-France',
-                            'Île-de-France', 'Normandie', 'Nouvelle-Aquitaine', 'Occitanie',
-                            'Pays de la Loire', "Provence-Alpes-Côte d'Azur"
-                          ];
-                          const isRegion = knownRegions.some(region => 
-                            normalizeString(region) === searchNormalized
-                          );
-                          if (isRegion) {
-                            searchType = 'region';
-                          }
-                        }
-                        
-                        const searchZone = { type: searchType, value: searchTerm };
-                        
-                        filteredParticipants = selectedEvent.participants.filter((participant: any) => {
-                          const mobilityZones = participant.profile?.mobilityZone;
-                          
-                          // Si l'humoriste n'a pas de zones de mobilité, on ne l'affiche pas
-                          if (!mobilityZones || mobilityZones.length === 0) {
-                            return false;
-                          }
-                          
-                          // Vérifier si la recherche correspond à une zone de mobilité de l'humoriste
-                          const matches = matchesMobilityZones(searchZone, mobilityZones);
-                          
-                          if (matches) {
-                            return true;
-                          }
-                          
-                          // Vérifier aussi si la recherche correspond directement à une zone de mobilité
-                          // (match partiel dans le nom)
-                          const directMatch = mobilityZones.some((zone: any) => {
-                            const zoneNormalized = normalizeString(zone.value);
-                            return zoneNormalized.includes(searchNormalized) || searchNormalized.includes(zoneNormalized);
-                          });
-                          
-                          return directMatch;
-                        });
-                      }
-                      
-                      return filteredParticipants.map((participant: any, index: number) => {
+                    {selectedEvent.participants.map((participant: any, index: number) => {
                         const isAbsent = isParticipantAbsent(participant._id);
                         const absence = eventAbsences.find(absence => absence.comedian._id === participant._id);
                         
@@ -3110,8 +3525,7 @@ useEffect(() => {
                           )}
                         </div>
                         );
-                      });
-                    })()}
+                      })}
                   </div>
                 ) : (
                   <p style={modalValueStyle}>Aucun participant pour l'instant.</p>

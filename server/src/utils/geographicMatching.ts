@@ -39,16 +39,16 @@ Object.entries(FRENCH_REGIONS).forEach(([region, departments]) => {
 });
 
 // Normaliser les noms de régions (enlever accents, mettre en minuscules)
-const normalizeString = (str: string): string => {
+export const normalizeString = (str: string): string => {
   return str
-    .toLowerCase()
+    ?.toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .trim();
+    .trim() || '';
 };
 
 // Normaliser les numéros de départements (enlever les zéros initiaux si nécessaire)
-const normalizeDepartment = (dept: string): string => {
+export const normalizeDepartment = (dept: string): string => {
   const normalized = dept.trim().toUpperCase();
   // Si c'est un numéro avec zéro initial (ex: "01"), on garde tel quel
   // Si c'est un numéro sans zéro (ex: "1"), on ajoute le zéro
@@ -257,4 +257,144 @@ export const eventMatchesMobilityZonesAsync = async (
         return false;
     }
   });
+};
+
+/**
+ * Détecte le type de zone géographique à partir d'une chaîne de recherche
+ * et récupère les informations géographiques associées (département, région)
+ *
+ * @param searchTerm - Le terme de recherche (ville, département ou région)
+ * @returns Les informations sur le type de zone et ses données géographiques
+ */
+export const detectZoneType = async (searchTerm: string): Promise<{
+  type: 'ville' | 'departement' | 'region';
+  value: string;
+  department?: string;
+  region?: string;
+}> => {
+  const normalized = normalizeString(searchTerm);
+
+  // Vérifier si c'est un numéro de département (01-95, 2A, 2B, 971-976)
+  const deptMatch = searchTerm.match(/^(\d{1,3}|2[AB])$/i);
+  if (deptMatch) {
+    const dept = normalizeDepartment(deptMatch[1]);
+    const region = DEPARTMENT_TO_REGION[dept];
+    return { type: 'departement', value: dept, department: dept, region: region || undefined };
+  }
+
+  // Vérifier si c'est un nom de région
+  const regionNames = Object.keys(DEPARTMENT_TO_REGION).map(d => DEPARTMENT_TO_REGION[d]);
+  const uniqueRegions = [...new Set(regionNames)];
+
+  for (const region of uniqueRegions) {
+    if (normalizeString(region) === normalized) {
+      return { type: 'region', value: region, region };
+    }
+  }
+
+  // Sinon, c'est probablement une ville - essayer de récupérer le département
+  const geoInfo = await getCityGeoInfo(searchTerm);
+  const department = geoInfo.department || getCityDepartment(searchTerm);
+  const region = department ? DEPARTMENT_TO_REGION[department] : geoInfo.region || undefined;
+
+  return {
+    type: 'ville',
+    value: searchTerm,
+    department: department || undefined,
+    region: region || undefined
+  };
+};
+
+/**
+ * Vérifie si une zone de mobilité d'un humoriste correspond à la zone de recherche
+ * Cette fonction gère les hiérarchies géographiques (ville → département → région)
+ *
+ * @param mobilityZone - La zone de mobilité de l'humoriste
+ * @param searchZone - La zone de recherche avec informations géographiques enrichies
+ * @returns true si la zone de mobilité correspond à la zone de recherche
+ */
+export const matchesMobilityZone = (
+  mobilityZone: { type: 'ville' | 'departement' | 'region'; value: string },
+  searchZone: { type: 'ville' | 'departement' | 'region'; value: string; department?: string; region?: string }
+): boolean => {
+  const mobilityNormalized = normalizeString(mobilityZone.value);
+  const searchNormalized = normalizeString(searchZone.value);
+
+  // Match exact du même type
+  if (mobilityZone.type === searchZone.type && mobilityNormalized === searchNormalized) {
+    return true;
+  }
+
+  // Recherche par ville
+  if (searchZone.type === 'ville') {
+    // Si la mobilité est une ville, vérifier le match direct
+    if (mobilityZone.type === 'ville') {
+      // Match partiel pour les arrondissements et variantes
+      if (mobilityNormalized.includes(searchNormalized) || searchNormalized.includes(mobilityNormalized)) {
+        return true;
+      }
+    }
+
+    // Si la mobilité est un département, vérifier si la ville est dans ce département
+    if (mobilityZone.type === 'departement' && searchZone.department) {
+      const normalizedMobilityDept = normalizeDepartment(mobilityZone.value);
+      if (normalizedMobilityDept === searchZone.department) {
+        return true;
+      }
+    }
+
+    // Si la mobilité est une région, vérifier si la ville est dans cette région
+    if (mobilityZone.type === 'region' && searchZone.region) {
+      if (normalizeString(mobilityZone.value) === normalizeString(searchZone.region)) {
+        return true;
+      }
+    }
+  }
+
+  // Recherche par département
+  if (searchZone.type === 'departement') {
+    const searchDept = normalizeDepartment(searchZone.value);
+
+    // Si la mobilité est un département, vérifier le match direct
+    if (mobilityZone.type === 'departement') {
+      const mobilityDept = normalizeDepartment(mobilityZone.value);
+      if (mobilityDept === searchDept) {
+        return true;
+      }
+    }
+
+    // Si la mobilité est une région, vérifier si le département est dans cette région
+    if (mobilityZone.type === 'region') {
+      const depts = getDepartmentsByRegion(mobilityZone.value);
+      if (depts.includes(searchDept)) {
+        return true;
+      }
+    }
+
+    // Si la mobilité est une ville, on ne peut pas vérifier sans connaître le département de la ville
+    // (cela nécessiterait une base de données villes → départements)
+  }
+
+  // Recherche par région
+  if (searchZone.type === 'region') {
+    const searchRegionNormalized = normalizeString(searchZone.value);
+
+    // Si la mobilité est une région, vérifier le match direct
+    if (mobilityZone.type === 'region') {
+      if (normalizeString(mobilityZone.value) === searchRegionNormalized) {
+        return true;
+      }
+    }
+
+    // Si la mobilité est un département, vérifier si ce département est dans la région recherchée
+    if (mobilityZone.type === 'departement') {
+      const mobilityDept = normalizeDepartment(mobilityZone.value);
+      const mobilityRegion = getRegionByDepartment(mobilityDept);
+      if (mobilityRegion && normalizeString(mobilityRegion) === searchRegionNormalized) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };

@@ -21,6 +21,7 @@ import notificationRoutes from './routes/notification';
 import sseRoutes from './routes/sse';
 import oauthRoutes from './routes/oauth';
 import recommendationsRoutes from './routes/recommendations';
+import comediansRoutes from './routes/comedians';
 import { sseManager } from './services/sseManager';
 
 const app = express();
@@ -107,6 +108,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/sse', sseRoutes);
 app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/comedians', comediansRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
