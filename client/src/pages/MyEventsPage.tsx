@@ -3028,18 +3028,13 @@ useEffect(() => {
                                         style={{
                                           padding: '4px 10px',
                                           borderRadius: '12px',
-                                          fontSize: '12px',
+                                          fontSize: '15px',
                                           // On garde la même couleur jaune pour tous les niveaux
                                           backgroundColor: 'rgba(255, 193, 7, 0.3)',
                                           color: '#ffc107'
                                         }}
                                       >
                                         {comedian.numberOfScenes === '200+' ? 'Pro' : comedian.numberOfScenes === '50-200' ? 'Expérimenté' : 'Débutant'}
-                                      </span>
-                                    )}
-                                    {comedian.stats?.totalEvents !== undefined && comedian.stats.totalEvents > 0 && (
-                                      <span style={{ color: '#888', fontSize: '12px' }}>
-                                        🎭 {comedian.stats.totalEvents} évènement{comedian.stats.totalEvents > 1 ? 's' : ''}
                                       </span>
                                     )}
                                   </div>
@@ -3052,7 +3047,7 @@ useEffect(() => {
                                         style={{
                                           padding: '3px 8px',
                                           borderRadius: '10px',
-                                          fontSize: '11px',
+                                          fontSize: '15px',
                                           backgroundColor: 'rgba(102, 126, 234, 0.2)',
                                           color: '#667eea'
                                         }}
