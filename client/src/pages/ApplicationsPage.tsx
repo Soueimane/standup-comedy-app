@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { addFavorite, removeFavorite, getFavorites } from '../services/api';
+import { addFavorite, removeFavorite, getFavorites, addApplicationFavorite, removeApplicationFavorite, getApplicationFavorites } from '../services/api';
 import { checkGeographicCompatibility, isGeographicMatch, matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
 
 export interface IUser {
@@ -170,6 +170,11 @@ function ApplicationsPage() {
     () => new Set(favoriteComedianIds),
     [favoriteComedianIds]
   );
+  const [favoriteApplicationIds, setFavoriteApplicationIds] = useState<string[]>([]);
+  const favoriteApplicationIdsSet = useMemo(
+    () => new Set(favoriteApplicationIds),
+    [favoriteApplicationIds]
+  );
   const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
   const isOrganizerView = user?.role === 'ORGANIZER';
   const isQueryEnabled = !!token && !!user?._id && isOrganizerView;
@@ -211,7 +216,7 @@ function ApplicationsPage() {
   const applications = applicationsData || [];
   const error = applicationsError ? (applicationsError as any).response?.data?.message || (applicationsError as any).message || 'Échec de la récupération des candidatures.' : null;
 
-  // Charger les favoris depuis l'API
+  // Charger les favoris d'humoristes depuis l'API
   const { data: favoritesData, refetch: refetchFavorites } = useQuery<{ favorites: IUser[] }, Error>({
     queryKey: ['organizerFavorites', user?._id, token],
     queryFn: async () => {
@@ -219,6 +224,21 @@ function ApplicationsPage() {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getFavorites();
+      return response;
+    },
+    enabled: isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Charger les favoris de candidatures depuis l'API
+  const { data: applicationFavoritesData, refetch: refetchApplicationFavorites } = useQuery<{ favorites: IApplication[] }, Error>({
+    queryKey: ['organizerApplicationFavorites', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+        throw new Error("Informations d'authentification manquantes.");
+      }
+      const response = await getApplicationFavorites();
       return response;
     },
     enabled: isQueryEnabled,
@@ -236,46 +256,55 @@ function ApplicationsPage() {
     }
   }, [favoritesData, isOrganizerView]);
 
+  // Extraire les IDs des candidatures favorites
+  useEffect(() => {
+    if (applicationFavoritesData?.favorites) {
+      const favoriteIds = applicationFavoritesData.favorites.map((application: IApplication) => application._id);
+      setFavoriteApplicationIds(favoriteIds);
+    } else if (!isOrganizerView) {
+      setFavoriteApplicationIds([]);
+    }
+  }, [applicationFavoritesData, isOrganizerView]);
+
   const toggleFavoriteApplication = async (appId: string) => {
     if (!isOrganizerView || !token) return;
     
     const app = applications.find(a => a._id === appId);
-    if (!app || !app.comedian?._id) {
-      console.error('Candidature ou comédien introuvable');
+    if (!app) {
+      console.error('Candidature introuvable');
       return;
     }
 
-    const comedianId = app.comedian._id;
-    const isCurrentlyFavorite = favoriteComedianIdsSet.has(comedianId);
+    const isCurrentlyFavorite = favoriteApplicationIdsSet.has(appId);
     
     // Optimistic update
-    setFavoriteComedianIds(prev => {
+    setFavoriteApplicationIds(prev => {
       const updated = new Set(prev);
       if (isCurrentlyFavorite) {
-        updated.delete(comedianId);
+        updated.delete(appId);
       } else {
-        updated.add(comedianId);
+        updated.add(appId);
       }
       return Array.from(updated);
     });
 
     try {
       if (isCurrentlyFavorite) {
-        await removeFavorite(comedianId);
+        await removeApplicationFavorite(appId);
       } else {
-        await addFavorite(comedianId);
+        await addApplicationFavorite(appId);
       }
       // Rafraîchir les favoris depuis l'API pour s'assurer de la cohérence
-      await refetchFavorites();
+      await refetchApplicationFavorites();
     } catch (error: any) {
       console.error('Erreur lors de la modification des favoris:', error);
       // Revert optimistic update en cas d'erreur
-      setFavoriteComedianIds(prev => {
+      setFavoriteApplicationIds(prev => {
         const updated = new Set(prev);
         if (isCurrentlyFavorite) {
-          updated.add(comedianId);
+          updated.add(appId);
         } else {
-          updated.delete(comedianId);
+          updated.delete(appId);
         }
         return Array.from(updated);
       });
@@ -540,7 +569,7 @@ function ApplicationsPage() {
       return 0;
     });
     const withFavoritesFilter = selectedTab === 'favorites'
-      ? sorted.filter(app => app.comedian && favoriteComedianIdsSet.has(app.comedian._id))
+      ? sorted.filter(app => favoriteApplicationIdsSet.has(app._id))
       : sorted;
 
     return withFavoritesFilter;
@@ -731,7 +760,7 @@ function ApplicationsPage() {
   const pendingApplicationsCount = applications.filter(app => app.status === 'PENDING').length;
   const acceptedApplicationsCount = applications.filter(app => app.status === 'ACCEPTED').length;
   const rejectedApplicationsCount = applications.filter(app => app.status === 'REJECTED').length;
-  const favoriteApplicationsCount = applications.filter(app => app.comedian && favoriteComedianIdsSet.has(app.comedian._id)).length;
+  const favoriteApplicationsCount = applications.filter(app => favoriteApplicationIdsSet.has(app._id)).length;
 
   const organizerTabsConfig: Array<{ id: OrganizerApplicationTab; label: string; count: number }> = [
     { id: 'all', label: 'Toutes', count: allApplicationsCount },
@@ -1653,17 +1682,17 @@ function ApplicationsPage() {
 
                     {/* Section droite - Statut et actions */}
                     <div style={cardRightSectionStyle}>
-                      {isOrganizerView && app.comedian && (
+                      {isOrganizerView && (
                         <button
                           type="button"
-                          aria-label={favoriteComedianIdsSet.has(app.comedian._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                          style={{ ...favoriteStarButtonStyle(favoriteComedianIdsSet.has(app.comedian._id)), alignSelf: 'flex-end' }}
+                          aria-label={favoriteApplicationIdsSet.has(app._id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                          style={{ ...favoriteStarButtonStyle(favoriteApplicationIdsSet.has(app._id)), alignSelf: 'flex-end' }}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             toggleFavoriteApplication(app._id);
                           }}
                         >
-                          {favoriteComedianIdsSet.has(app.comedian._id) ? '★' : '☆'}
+                          {favoriteApplicationIdsSet.has(app._id) ? '★' : '☆'}
                         </button>
                       )}
                       <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>

@@ -25,6 +25,10 @@ export enum SSEEventType {
   EVENT_FAVORITE_ADDED = 'EVENT_FAVORITE_ADDED',
   EVENT_FAVORITE_REMOVED = 'EVENT_FAVORITE_REMOVED',
 
+  // Favoris candidatures
+  APPLICATION_FAVORITE_ADDED = 'APPLICATION_FAVORITE_ADDED',
+  APPLICATION_FAVORITE_REMOVED = 'APPLICATION_FAVORITE_REMOVED',
+
   // Profils & Utilisateurs
   PROFILE_UPDATED = 'PROFILE_UPDATED',
   USER_REGISTERED = 'USER_REGISTERED',
@@ -139,6 +143,14 @@ export const emitEventFavoriteAdded = (comedianId: string, eventId: string) => {
 
 export const emitEventFavoriteRemoved = (comedianId: string, eventId: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.EVENT_FAVORITE_REMOVED, { comedianId, eventId });
+};
+
+export const emitApplicationFavoriteAdded = (organizerId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.APPLICATION_FAVORITE_ADDED, { organizerId, applicationId });
+};
+
+export const emitApplicationFavoriteRemoved = (organizerId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.APPLICATION_FAVORITE_REMOVED, { organizerId, applicationId });
 };
 
 export const emitProfileUpdated = (userId: string) => {

@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
 import { expirePendingApplicationsForEvent } from './application';
-import { sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants, sendNewEventNotificationToHumorists } from '../services/emailService';
+import { sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants, sendNewEventNotificationToHumorists, sendEventInvitationToComedian } from '../services/emailService';
 import { notifyComediansByMobilityAsync } from '../services/mobilityNotificationService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
@@ -856,6 +856,139 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
   } catch (error) {
     console.error('Error notifying humorists:', error);
     res.status(500).json({ message: 'Erreur lors de l\'envoi des notifications' });
+  }
+};
+
+// ============================================================================
+// INVITE COMEDIAN TO EVENT
+// ============================================================================
+/**
+ * Permet à un organisateur d'inviter un humoriste spécifique à postuler pour un de ses événements
+ */
+export const inviteComedian = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId, comedianId } = req.params;
+    const organizerId = req.user?.id;
+
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Vérifier que l'utilisateur est un organisateur
+    if (req.user?.role !== 'ORGANIZER') {
+      res.status(403).json({ message: 'Seuls les organisateurs peuvent inviter des humoristes' });
+      return;
+    }
+
+    // Valider les formats des IDs
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Format d\'ID d\'événement invalide' });
+      return;
+    }
+    if (!mongoose.Types.ObjectId.isValid(comedianId)) {
+      res.status(400).json({ message: 'Format d\'ID d\'humoriste invalide' });
+      return;
+    }
+
+    // Récupérer l'événement
+    const event = await EventModel.findById(eventId);
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    // Vérifier que l'utilisateur est bien l'organisateur de l'événement
+    const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null
+      ? (event.organizer as any)._id?.toString()
+      : event.organizer?.toString();
+
+    if (eventOrganizerId !== organizerId) {
+      res.status(403).json({ message: 'Vous n\'êtes pas autorisé à inviter des humoristes pour cet événement' });
+      return;
+    }
+
+    // Vérifier que l'événement est publié
+    const eventStatus = event.status?.toLowerCase();
+    if (eventStatus !== 'published') {
+      res.status(400).json({ message: 'L\'événement doit être publié pour inviter des humoristes' });
+      return;
+    }
+
+    // Vérifier que l'événement est à venir
+    const eventDate = new Date(event.date);
+    const now = new Date();
+    if (eventDate < now) {
+      res.status(400).json({ message: 'Impossible d\'inviter des humoristes pour un événement passé' });
+      return;
+    }
+
+    // Récupérer l'humoriste
+    const comedian = await UserModel.findById(comedianId);
+    if (!comedian) {
+      res.status(404).json({ message: 'Humoriste non trouvé' });
+      return;
+    }
+
+    // Vérifier que c'est bien un humoriste
+    if (comedian.role !== 'COMEDIAN') {
+      res.status(400).json({ message: 'L\'utilisateur n\'est pas un humoriste' });
+      return;
+    }
+
+    // Récupérer les informations de l'organisateur
+    const organizer = await UserModel.findById(organizerId);
+    if (!organizer) {
+      res.status(404).json({ message: 'Organisateur non trouvé' });
+      return;
+    }
+
+    // Préparer les données pour l'email
+    const comedianData = {
+      _id: comedian._id.toString(),
+      email: comedian.email,
+      firstName: comedian.firstName,
+      lastName: comedian.lastName,
+      emailSubscriptions: comedian.emailSubscriptions
+    };
+
+    const eventData = {
+      _id: event._id,
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      location: event.location,
+      requirements: event.requirements,
+      startTime: event.startTime,
+      endTime: event.endTime
+    };
+
+    const organizerData = {
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+      email: organizer.email
+    };
+
+    // Envoyer l'invitation en arrière-plan
+    sendEventInvitationToComedian(comedianData, eventData, organizerData)
+      .then(() => {
+        console.log(`✅ Invitation envoyée à ${comedian.email} pour l'événement "${event.title}" par ${organizer.firstName} ${organizer.lastName}`);
+      })
+      .catch((error) => {
+        console.error('❌ Erreur lors de l\'envoi de l\'invitation:', error);
+      });
+
+    res.status(200).json({
+      message: 'Invitation envoyée avec succès',
+      eventId: event._id,
+      eventTitle: event.title,
+      comedianEmail: comedian.email,
+      comedianName: `${comedian.firstName} ${comedian.lastName}`
+    });
+  } catch (error) {
+    console.error('Error inviting comedian:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'envoi de l\'invitation' });
   }
 };
 

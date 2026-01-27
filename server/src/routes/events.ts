@@ -12,6 +12,7 @@ import {
   deleteEvent,
   getOrganizerEvents,
   notifyHumorists,
+  inviteComedian,
   processCompletedEvents,
   resetParticipations,
   markEventsAsCompletedCron
@@ -68,6 +69,9 @@ router.delete('/:eventId', authMiddleware, asyncHandler(deleteEvent));
 
 // POST /api/events/:id/notify - Envoyer des notifications manuelles aux humoristes
 router.post('/:id/notify', authMiddleware, asyncHandler(notifyHumorists));
+
+// POST /api/events/:eventId/invite-comedian/:comedianId - Inviter un humoriste spécifique à postuler pour un événement
+router.post('/:eventId/invite-comedian/:comedianId', authMiddleware, asyncHandler(inviteComedian));
 
 // POST /api/events/process-completed-events - Traiter automatiquement les évènements terminés (SUPER_ADMIN uniquement)
 router.post('/process-completed-events', authMiddleware, asyncHandler(processCompletedEvents));

@@ -115,6 +115,27 @@ export const checkIsFavorite = async (comedianId: string) => {
   return response.data;
 };
 
+// Fonctions pour gérer les favoris de candidatures (organisateurs)
+export const addApplicationFavorite = async (applicationId: string) => {
+  const response = await api.post('/application-favorites', { applicationId });
+  return response.data;
+};
+
+export const removeApplicationFavorite = async (applicationId: string) => {
+  const response = await api.delete(`/application-favorites/${applicationId}`);
+  return response.data;
+};
+
+export const getApplicationFavorites = async () => {
+  const response = await api.get('/application-favorites');
+  return response.data;
+};
+
+export const checkIsApplicationFavorite = async (applicationId: string) => {
+  const response = await api.get(`/application-favorites/check/${applicationId}`);
+  return response.data;
+};
+
 // Fonctions pour gérer les alertes de présence (Super Admin)
 export const getPresenceAlerts = async () => {
   const response = await api.get('/presence-alerts');
@@ -269,6 +290,11 @@ export const searchComediansByZone = async (options: SearchComediansByZoneOption
   const query = params.toString();
   const response = await api.get(`/comedians/search-by-zone?${query}`);
   return response.data;
+};
+
+// Inviter un humoriste à postuler pour un événement
+export const inviteComedianToEvent = async (eventId: string, comedianId: string): Promise<void> => {
+  await api.post(`/events/${eventId}/invite-comedian/${comedianId}`);
 };
 
 export default api;

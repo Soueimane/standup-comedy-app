@@ -14,7 +14,7 @@ import type { IEvent } from '../types/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
-import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites } from '../services/api';
+import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites, inviteComedianToEvent } from '../services/api';
 import type { ComedianSearchResult, SearchComediansByZoneResponse } from '../services/api';
 import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
 
@@ -35,7 +35,7 @@ interface SmartRecommendationsResponse {
   page: number;
   limit: number;
 }
-type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar';
+type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar' | 'favoriteComedians';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
@@ -97,22 +97,30 @@ function MyEventsPage() {
     }
   }, [eventFavoritesData, isComedianView]);
 
-  // Charger les humoristes favoris (pour les organisateurs)
+  // Charger les humoristes favoris (pour les organisateurs) avec React Query
+  const { data: favoriteComediansData, refetch: refetchFavoriteComedians } = useQuery<{ favorites: any[] }, Error>({
+    queryKey: ['organizerFavoriteComedians', user?._id, token],
+    queryFn: async () => {
+      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+        throw new Error("Informations d'authentification manquantes.");
+      }
+      const response = await getFavorites();
+      return response;
+    },
+    enabled: isOrganizerView && isQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Extraire les IDs des humoristes favoris
   useEffect(() => {
-    if (isOrganizerView && token) {
-      const loadFavoriteComedians = async () => {
-        try {
-          const response = await getFavorites();
-          const favoriteIds = response.favorites?.map((comedian: any) => comedian._id || comedian.id) || [];
-          setFavoriteComedianIds(favoriteIds);
-        } catch (error) {
-          console.error('Erreur lors du chargement des humoristes favoris:', error);
-          setFavoriteComedianIds([]);
-        }
-      };
-      loadFavoriteComedians();
+    if (favoriteComediansData?.favorites) {
+      const favoriteIds = favoriteComediansData.favorites.map((comedian: any) => comedian._id || comedian.id) || [];
+      setFavoriteComedianIds(favoriteIds);
+    } else if (!isOrganizerView) {
+      setFavoriteComedianIds([]);
     }
-  }, [isOrganizerView, token]);
+  }, [favoriteComediansData, isOrganizerView]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
@@ -154,6 +162,11 @@ function MyEventsPage() {
   const [comedianSearchError, setComedianSearchError] = useState<string | null>(null);
   const [showComedianSearchSection, setShowComedianSearchSection] = useState(false);
   const [favoriteComedianIds, setFavoriteComedianIds] = useState<string[]>([]);
+  // États pour la modal d'invitation d'humoriste
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [comedianToInvite, setComedianToInvite] = useState<ComedianSearchResult | null>(null);
+  const [selectedEventForInvite, setSelectedEventForInvite] = useState<string>('');
+  const [isInviting, setIsInviting] = useState(false);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   const [cancelledPage, setCancelledPage] = useState(1);
@@ -184,7 +197,7 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (isOrganizerView && tabParam) {
-      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled'];
+      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians'];
       if (validOrganizerTabs.includes(tabParam as OrganizerTab)) {
         setOrganizerTab(tabParam as OrganizerTab);
       } else {
@@ -497,6 +510,8 @@ useEffect(() => {
       } else {
         await addFavorite(comedianId);
       }
+      // Rafraîchir les favoris depuis l'API pour s'assurer de la cohérence
+      await refetchFavoriteComedians();
     } catch (error: any) {
       console.error('Erreur lors de la modification des favoris d\'humoriste:', error);
       // Revert en cas d'erreur
@@ -1107,7 +1122,8 @@ useEffect(() => {
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
     calendar: upcomingEvents.length + archivedEventsToShow.length + cancelledEvents.length,
-  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents, upcomingEvents]);
+    favoriteComedians: favoriteComedianIds.length,
+  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents, upcomingEvents, favoriteComedianIds]);
 
   const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
     full: completedUpcomingEvents.length,
@@ -1129,6 +1145,7 @@ useEffect(() => {
     archived: 'Évènements archivés',
     cancelled: 'Évènements annulés',
     calendar: 'Calendrier',
+    favoriteComedians: 'Humoristes favoris',
   };
 
   const superAdminTabTitles: Record<SuperAdminTab, string> = {
@@ -1178,6 +1195,7 @@ useEffect(() => {
     (isSuperAdminView && superAdminTab === 'cancelled')
   );
   const showCalendarSection = isOrganizerView && organizerTab === 'calendar';
+  const showFavoriteComediansSection = isOrganizerView && organizerTab === 'favoriteComedians';
 
   const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived') => {
     if (user?.role !== 'ORGANIZER') {
@@ -1533,6 +1551,34 @@ useEffect(() => {
     }
   };
 
+  // Handlers pour l'invitation d'humoriste
+  const openInviteModal = (comedian: ComedianSearchResult) => {
+    setComedianToInvite(comedian);
+    setSelectedEventForInvite('');
+    setShowInviteModal(true);
+  };
+
+  const handleInviteComedian = async () => {
+    if (!comedianToInvite || !selectedEventForInvite || !token) {
+      alert('Veuillez sélectionner un événement.');
+      return;
+    }
+
+    setIsInviting(true);
+    try {
+      await inviteComedianToEvent(selectedEventForInvite, comedianToInvite._id);
+      alert(`Invitation envoyée à ${comedianToInvite.stageName || comedianToInvite.firstName} !`);
+      setShowInviteModal(false);
+      setComedianToInvite(null);
+      setSelectedEventForInvite('');
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi de l\'invitation:', error);
+      alert('Erreur: ' + (error.response?.data?.message || error.message || 'Impossible d\'envoyer l\'invitation'));
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   // Handlers pour les absences
   const handleAbsenceClick = (participant: any, event: IEvent) => {
     setSelectedAbsenceParticipant({ 
@@ -1695,7 +1741,7 @@ useEffect(() => {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites', 'recommendations'];
-  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
@@ -3010,6 +3056,33 @@ useEffect(() => {
                                       >
                                         {favoriteComedianIds.includes(comedian._id) ? '⭐' : '☆'}
                                       </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openInviteModal(comedian);
+                                        }}
+                                        style={{
+                                          border: 'none',
+                                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                          color: '#ffffff',
+                                          fontSize: '12px',
+                                          cursor: 'pointer',
+                                          padding: '6px 12px',
+                                          borderRadius: '15px',
+                                          transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                        }}
+                                        title="Inviter pour un événement"
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1.05)';
+                                          e.currentTarget.style.opacity = '0.9';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                          e.currentTarget.style.opacity = '1';
+                                        }}
+                                      >
+                                        Inviter
+                                      </button>
                                     </div>
                                     {comedian.stageName && (
                                       <p style={{ color: '#aaa', margin: '0 0 5px 0', fontSize: '13px' }}>
@@ -3647,6 +3720,142 @@ useEffect(() => {
         </div>
       )}
 
+      {/* Section Humoristes favoris */}
+      {showFavoriteComediansSection && (
+        <div style={sectionStyle}>
+          <h2 style={sectionTitleStyle}>Humoristes favoris</h2>
+          {favoriteComediansData?.favorites && favoriteComediansData.favorites.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+              {favoriteComediansData.favorites.map((comedian: any) => (
+                <div
+                  key={comedian._id || comedian.id}
+                  onClick={() => {
+                    setSelectedComedian({
+                      id: comedian._id || comedian.id,
+                      firstName: comedian.firstName,
+                      lastName: comedian.lastName,
+                      email: comedian.email,
+                      phone: comedian.phone,
+                      stageName: comedian.stageName,
+                      bio: comedian.bio,
+                      numberOfScenes: comedian.numberOfScenes || comedian.profile?.numberOfScenes,
+                      comedyStyle: comedian.comedyStyle || comedian.profile?.comedyStyle,
+                      performanceLanguages: comedian.performanceLanguages || comedian.profile?.performanceLanguages,
+                      mobilityZone: comedian.mobilityZone || comedian.profile?.mobilityZone,
+                      socialLinks: comedian.socialLinks || comedian.profile?.socialLinks,
+                      stats: comedian.stats
+                    });
+                    setIsComedianModalOpen(true);
+                  }}
+                  style={{
+                    padding: '15px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: '8px',
+                    border: '1px solid #444',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                    e.currentTarget.style.borderColor = '#28a745';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                    e.currentTarget.style.borderColor = '#444';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                        <h5 style={{ color: '#ffffff', margin: 0, fontSize: '16px' }}>
+                          {comedian.stageName || `${comedian.firstName} ${comedian.lastName}`}
+                        </h5>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await toggleFavoriteComedian(comedian._id || comedian.id);
+                            await refetchFavoriteComedians();
+                          }}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#ffd700',
+                            fontSize: '1.3em',
+                            cursor: 'pointer',
+                            transition: 'color 0.2s ease, transform 0.2s ease',
+                            padding: 0,
+                            lineHeight: 1,
+                          }}
+                          title="Retirer des favoris"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'scale(1.2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          ⭐
+                        </button>
+                      </div>
+                      {comedian.stageName && (
+                        <p style={{ color: '#aaa', margin: '0 0 5px 0', fontSize: '13px' }}>
+                          {comedian.firstName} {comedian.lastName}
+                        </p>
+                      )}
+                      {(comedian.mobilityZone || comedian.profile?.mobilityZone) && 
+                       (comedian.mobilityZone || comedian.profile?.mobilityZone).length > 0 && (
+                        <p style={{ color: '#888', margin: '0', fontSize: '13px' }}>
+                          🚗 Zones : {(comedian.mobilityZone || comedian.profile?.mobilityZone).map((z: any) => z.value).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
+                      {(comedian.numberOfScenes || comedian.profile?.numberOfScenes) && (
+                        <span
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            fontSize: '15px',
+                            backgroundColor: 'rgba(255, 193, 7, 0.3)',
+                            color: '#ffc107'
+                          }}
+                        >
+                          {(comedian.numberOfScenes || comedian.profile?.numberOfScenes) === '200+' ? 'Pro' : 
+                           (comedian.numberOfScenes || comedian.profile?.numberOfScenes) === '50-200' ? 'Expérimenté' : 'Débutant'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {(comedian.comedyStyle || comedian.profile?.comedyStyle) && 
+                   (comedian.comedyStyle || comedian.profile?.comedyStyle).length > 0 && (
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {(comedian.comedyStyle || comedian.profile?.comedyStyle).map((style: string, idx: number) => (
+                        <span
+                          key={idx}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '10px',
+                            fontSize: '15px',
+                            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                            color: '#667eea'
+                          }}
+                        >
+                          {style}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ color: '#aaa', marginTop: '20px', textAlign: 'center' }}>
+              Aucun humoriste en favoris pour le moment. Utilisez la recherche d'humoristes pour en ajouter.
+            </p>
+          )}
+        </div>
+      )}
+
       {showApplyEventForm && user?.role === 'COMEDIAN' && selectedEvent && (
         <ApplyToEventForm
           event={selectedEvent}
@@ -3711,6 +3920,63 @@ useEffect(() => {
               Confirmer l'annulation
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal d'invitation d'humoriste */}
+      <Modal isOpen={showInviteModal} onClose={() => setShowInviteModal(false)} title="Inviter un humoriste">
+        <div>
+          {comedianToInvite && (
+            <>
+              <p style={{ marginBottom: 16, color: '#ddd' }}>
+                Inviter <strong>{comedianToInvite.stageName || `${comedianToInvite.firstName} ${comedianToInvite.lastName}`}</strong> à postuler pour un de vos événements :
+              </p>
+
+              <select
+                value={selectedEventForInvite}
+                onChange={(e) => setSelectedEventForInvite(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid #555',
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  color: '#fff',
+                  marginBottom: '16px',
+                }}
+              >
+                <option value="">-- Choisir un événement --</option>
+                {upcomingEvents
+                  .filter(event => event.status === 'PUBLISHED' || event.status === 'published')
+                  .map(event => (
+                    <option key={event._id} value={event._id}>
+                      {event.title} - {new Date(event.date).toLocaleDateString('fr-FR')}
+                    </option>
+                  ))
+                }
+              </select>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d' }}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleInviteComedian}
+                  disabled={!selectedEventForInvite || isInviting}
+                  style={{
+                    ...actionButtonStyleSmall,
+                    background: selectedEventForInvite && !isInviting ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#555',
+                    cursor: selectedEventForInvite && !isInviting ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {isInviting ? 'Envoi...' : 'Envoyer l\'invitation'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
