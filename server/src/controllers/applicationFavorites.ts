@@ -81,23 +81,50 @@ export const addApplicationFavorite = async (req: AuthRequest, res: Response): P
       return;
     }
 
-    // Ajouter la candidature aux favoris
-    if (!organizer.favoriteApplications) {
-      organizer.favoriteApplications = [];
+    // Ajouter la candidature aux favoris en utilisant $addToSet pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS_APP] Ajout de la candidature ${applicationId} aux favoris de l'organisateur ${organizerId}`);
+    
+    const updatedOrganizer = await UserModel.findByIdAndUpdate(
+      organizerObjectId,
+      { $addToSet: { favoriteApplications: applicationObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedOrganizer) {
+      console.error(`❌ [FAVORIS_APP] Organisateur ${organizerId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Organisateur non trouvé après mise à jour'
+      });
+      return;
     }
-    organizer.favoriteApplications.push(applicationObjectId);
-    await organizer.save();
+
+    // Vérifier que le favori a bien été ajouté
+    const favoriteCount = updatedOrganizer.favoriteApplications?.length || 0;
+    const isNowFavorite = updatedOrganizer.favoriteApplications?.some(
+      id => id.toString() === applicationObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS_APP] Favori ajouté - Total favoris: ${favoriteCount}, Est favori: ${isNowFavorite}`);
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitApplicationFavoriteAdded(organizerId, applicationId);
 
     res.status(201).json({
       message: 'Candidature ajoutée aux favoris avec succès',
-      favoriteApplications: organizer.favoriteApplications
+      favoriteApplications: updatedOrganizer.favoriteApplications || []
     });
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout aux favoris:', error);
-    res.status(500).json({ message: 'Erreur lors de l\'ajout aux favoris' });
+  } catch (error: any) {
+    console.error('❌ [FAVORIS_APP] Erreur lors de l\'ajout aux favoris:', error);
+    console.error('❌ [FAVORIS_APP] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'ajout aux favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 
@@ -148,20 +175,50 @@ export const removeApplicationFavorite = async (req: AuthRequest, res: Response)
       return;
     }
 
-    // Retirer la candidature des favoris
-    organizer.favoriteApplications?.splice(favoriteIndex, 1);
-    await organizer.save();
+    // Retirer la candidature des favoris en utilisant $pull pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS_APP] Retrait de la candidature ${applicationId} des favoris de l'organisateur ${organizerId}`);
+    
+    const updatedOrganizer = await UserModel.findByIdAndUpdate(
+      organizerObjectId,
+      { $pull: { favoriteApplications: applicationObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedOrganizer) {
+      console.error(`❌ [FAVORIS_APP] Organisateur ${organizerId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Organisateur non trouvé après mise à jour'
+      });
+      return;
+    }
+
+    // Vérifier que le favori a bien été retiré
+    const favoriteCount = updatedOrganizer.favoriteApplications?.length || 0;
+    const isStillFavorite = updatedOrganizer.favoriteApplications?.some(
+      id => id.toString() === applicationObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS_APP] Favori retiré - Total favoris: ${favoriteCount}, Est encore favori: ${isStillFavorite}`);
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitApplicationFavoriteRemoved(organizerId, applicationId);
 
     res.json({
       message: 'Candidature retirée des favoris avec succès',
-      favoriteApplications: organizer.favoriteApplications
+      favoriteApplications: updatedOrganizer.favoriteApplications || []
     });
-  } catch (error) {
-    console.error('Erreur lors du retrait des favoris:', error);
-    res.status(500).json({ message: 'Erreur lors du retrait des favoris' });
+  } catch (error: any) {
+    console.error('❌ [FAVORIS_APP] Erreur lors du retrait des favoris:', error);
+    console.error('❌ [FAVORIS_APP] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors du retrait des favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 

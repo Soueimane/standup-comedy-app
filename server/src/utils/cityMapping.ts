@@ -25,6 +25,37 @@ const normalizeString = (str: string): string => {
 };
 
 /**
+ * Normalise le nom d'une ville pour l'API Geo Gouv
+ * Gère les arrondissements de Paris, Lyon, Marseille
+ * 
+ * @param city - Le nom de la ville
+ * @returns Le nom normalisé pour l'API
+ */
+const normalizeCityForAPI = (city: string): string => {
+  if (!city) return city;
+  
+  const normalized = normalizeString(city);
+  
+  // Gérer les arrondissements de Paris (Paris 1er, Paris 2e, Paris 10e Arrondissement, etc.)
+  if (normalized.includes('paris') && (normalized.includes('arrondissement') || /paris\s+\d+/.test(normalized))) {
+    return 'Paris';
+  }
+  
+  // Gérer les arrondissements de Lyon (Lyon 1er, Lyon 2e, etc.)
+  if (normalized.includes('lyon') && /lyon\s+\d+/.test(normalized)) {
+    return 'Lyon';
+  }
+  
+  // Gérer les arrondissements de Marseille (Marseille 1er, Marseille 2e, etc.)
+  if (normalized.includes('marseille') && /marseille\s+\d+/.test(normalized)) {
+    return 'Marseille';
+  }
+  
+  // Retourner la ville originale si pas d'arrondissement détecté
+  return city;
+};
+
+/**
  * Interface pour la réponse de l'API Geo Gouv
  */
 interface GeoGouvCommune {
@@ -54,17 +85,29 @@ export const getCityGeoInfo = async (city: string): Promise<{ department: string
   }
 
   const normalizedCity = normalizeString(city);
+  const apiCityName = normalizeCityForAPI(city); // Normaliser pour l'API (gérer arrondissements)
+  const normalizedApiCity = normalizeString(apiCityName);
 
-  // Vérifier le cache
+  // Vérifier le cache avec la ville normalisée (inclut les arrondissements)
   const cached = cityCache.get(normalizedCity);
   const cacheTime = cacheTimestamps.get(normalizedCity);
   if (cached && cacheTime && (Date.now() - cacheTime) < CACHE_TTL) {
     return cached;
   }
+  
+  // Vérifier aussi le cache avec la ville API (sans arrondissement)
+  const cachedApi = cityCache.get(normalizedApiCity);
+  const cacheTimeApi = cacheTimestamps.get(normalizedApiCity);
+  if (cachedApi && cacheTimeApi && (Date.now() - cacheTimeApi) < CACHE_TTL) {
+    // Mettre en cache pour la ville originale aussi
+    cityCache.set(normalizedCity, cachedApi);
+    cacheTimestamps.set(normalizedCity, Date.now());
+    return cachedApi;
+  }
 
   try {
-    // Appel à l'API Geo Gouv
-    const url = `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(city)}&fields=departement,region&limit=1`;
+    // Appel à l'API Geo Gouv avec la ville normalisée (sans arrondissement si applicable)
+    const url = `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(apiCityName)}&fields=departement,region&limit=1`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -83,11 +126,15 @@ export const getCityGeoInfo = async (city: string): Promise<{ department: string
     const data = await response.json() as GeoGouvCommune[];
 
     if (!data || data.length === 0) {
-      console.log(`[GeoGouv] City "${city}" not found`);
+      console.log(`[GeoGouv] City "${city}" (normalisé: "${apiCityName}") not found`);
       // Mettre en cache le résultat négatif pour éviter des appels répétés
       const result = { department: null, region: null };
       cityCache.set(normalizedCity, result);
       cacheTimestamps.set(normalizedCity, Date.now());
+      if (normalizedCity !== normalizedApiCity) {
+        cityCache.set(normalizedApiCity, result);
+        cacheTimestamps.set(normalizedApiCity, Date.now());
+      }
       return result;
     }
 
@@ -97,11 +144,18 @@ export const getCityGeoInfo = async (city: string): Promise<{ department: string
       region: commune.region?.nom || null,
     };
 
-    // Mettre en cache
-    cityCache.set(normalizedCity, result);
-    cacheTimestamps.set(normalizedCity, Date.now());
+    // Mettre en cache pour la ville API (sans arrondissement)
+    cityCache.set(normalizedApiCity, result);
+    cacheTimestamps.set(normalizedApiCity, Date.now());
+    
+    // Mettre aussi en cache pour la ville originale (avec arrondissement si applicable)
+    // pour que les prochains appels avec la même ville soient plus rapides
+    if (normalizedCity !== normalizedApiCity) {
+      cityCache.set(normalizedCity, result);
+      cacheTimestamps.set(normalizedCity, Date.now());
+    }
 
-    console.log(`[GeoGouv] City "${city}" → Département: ${result.department}, Région: ${result.region}`);
+    console.log(`[GeoGouv] City "${city}" (normalisé: "${apiCityName}") → Département: ${result.department}, Région: ${result.region}`);
     return result;
 
   } catch (error) {

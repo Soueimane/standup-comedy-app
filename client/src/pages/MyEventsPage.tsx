@@ -20,6 +20,8 @@ import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites, inviteComedianToEvent } from '../services/api';
 import type { ComedianSearchResult, SearchComediansByZoneResponse } from '../services/api';
 import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages, InfoMessages, ConfirmMessages } from '../services/systemMessages';
+import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
+import { MoreVertical } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
@@ -38,7 +40,7 @@ interface SmartRecommendationsResponse {
   page: number;
   limit: number;
 }
-type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar' | 'favoriteComedians';
+type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar' | 'favoriteComedians' | 'recurringEvents';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
@@ -157,6 +159,10 @@ function MyEventsPage() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [eventToWithdraw, setEventToWithdraw] = useState<IEvent | null>(null);
   const [eventToDuplicate, setEventToDuplicate] = useState<IEvent | null>(null);
+  const [selectedRecurrenceGroupId, setSelectedRecurrenceGroupId] = useState<string | null>(null);
+  const [expandedUpcomingGroupId, setExpandedUpcomingGroupId] = useState<string | null>(null);
+  const [openActionsEventId, setOpenActionsEventId] = useState<string | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationSearch, setLocationSearch] = useState(''); // Recherche par lieu pour les humoristes
   const [experienceFilter, setExperienceFilter] = useState<'all' | '0-50' | '50-200' | '200+'>('all'); // Filtre par niveau d'expérience
@@ -208,7 +214,7 @@ function MyEventsPage() {
     const tabParam = params.get('tab');
 
     if (isOrganizerView && tabParam) {
-      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians'];
+      const validOrganizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians', 'recurringEvents'];
       if (validOrganizerTabs.includes(tabParam as OrganizerTab)) {
         setOrganizerTab(tabParam as OrganizerTab);
       } else {
@@ -259,6 +265,16 @@ useEffect(() => {
       return () => clearTimeout(timeout);
     }
   }, [isModalOpen, focusParticipantsSection]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (openActionsEventId && actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setOpenActionsEventId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openActionsEventId]);
 
   console.log("MyEventsPage: Initial token", token);
   console.log("MyEventsPage: Initial user", user);
@@ -765,6 +781,23 @@ useEffect(() => {
     return { upcomingEvents: upcoming, archivedEvents: archived, cancelledEvents: cancelled };
   }, [fetchedEvents, location.search]);
 
+  // Groupes d'événements récurrents (par recurrenceGroupId) pour l'organisateur
+  const recurringGroups = useMemo(() => {
+    if (!fetchedEvents || !Array.isArray(fetchedEvents) || user?.role !== 'ORGANIZER' || !user?._id) return new Map<string, IEvent[]>();
+    const map = new Map<string, IEvent[]>();
+    (fetchedEvents as IEvent[]).forEach((event: IEvent) => {
+      const groupId = (event as IEvent & { recurrenceGroupId?: string }).recurrenceGroupId;
+      if (!groupId) return;
+      const organizerId = getOrganizerIdFromEvent(event.organizer);
+      if (organizerId !== user._id) return;
+      const list = map.get(groupId) || [];
+      list.push(event);
+      map.set(groupId, list);
+    });
+    map.forEach((list) => list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    return map;
+  }, [fetchedEvents, user?._id, user?.role]);
+
   const totalCancelledPages = Math.max(1, Math.ceil(cancelledEvents.length / ITEMS_PER_PAGE));
   const paginatedCancelledEvents = cancelledEvents.slice(
     (cancelledPage - 1) * ITEMS_PER_PAGE,
@@ -1049,6 +1082,42 @@ useEffect(() => {
     return getFilteredOrganizerEvents(cancelledEvents);
   }, [isOrganizerView, cancelledEvents, organizerEventZoneSearch, organizerEventExperienceFilter]);
 
+  // Liste d'affichage "Évènements à venir" pour l'organisateur : événements uniques + groupes récurrents (un bloc par groupe)
+  type UpcomingDisplayItem = { type: 'event'; event: IEvent } | { type: 'group'; groupId: string; events: IEvent[] };
+  const upcomingDisplayItems = useMemo((): UpcomingDisplayItem[] => {
+    if (!isOrganizerView || !filteredOrganizerUpcomingEvents?.length) return [];
+    const groupIdsSeen = new Set<string>();
+    const items: UpcomingDisplayItem[] = [];
+    filteredOrganizerUpcomingEvents.forEach((event: IEvent) => {
+      const groupId = (event as IEvent & { recurrenceGroupId?: string }).recurrenceGroupId;
+      if (groupId) {
+        if (!groupIdsSeen.has(groupId)) {
+          groupIdsSeen.add(groupId);
+          const groupEvents = recurringGroups.get(groupId) || [];
+          const upcomingInGroup = groupEvents.filter((e) => {
+            if (e.status === 'CANCELLED' || e.status === 'cancelled') return false;
+            const d = new Date(e.date);
+            d.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return d >= today;
+          });
+          if (upcomingInGroup.length > 0) {
+            items.push({ type: 'group', groupId, events: upcomingInGroup.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) });
+          }
+        }
+        return;
+      }
+      items.push({ type: 'event', event });
+    });
+    items.sort((a, b) => {
+      const dateA = a.type === 'event' ? new Date(a.event.date).getTime() : new Date(a.events[0]?.date ?? 0).getTime();
+      const dateB = b.type === 'event' ? new Date(b.event.date).getTime() : new Date(b.events[0]?.date ?? 0).getTime();
+      return dateA - dateB;
+    });
+    return items;
+  }, [isOrganizerView, filteredOrganizerUpcomingEvents, recurringGroups]);
+
   const eventsToDisplay = useMemo(() => {
     if (isComedianView) {
       switch (comedianTab) {
@@ -1126,13 +1195,14 @@ useEffect(() => {
   }), [filteredUpcomingEvents, acceptedUpcomingEvents, favoriteEvents, smartRecommendationEvents]);
 
   const organizerTabCounts: Record<OrganizerTab, number> = useMemo(() => ({
-    upcoming: filteredUpcomingEvents.length,
+    upcoming: isOrganizerView ? upcomingDisplayItems.length : filteredUpcomingEvents.length,
     full: completedUpcomingEvents.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
     calendar: upcomingEvents.length + archivedEventsToShow.length + cancelledEvents.length,
     favoriteComedians: favoriteComedianIds.length,
-  }), [filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents, upcomingEvents, favoriteComedianIds]);
+    recurringEvents: recurringGroups.size,
+  }), [isOrganizerView, upcomingDisplayItems.length, filteredUpcomingEvents, completedUpcomingEvents, archivedEventsToShow, cancelledEvents, upcomingEvents, favoriteComedianIds, recurringGroups.size]);
 
   const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
     full: completedUpcomingEvents.length,
@@ -1155,6 +1225,7 @@ useEffect(() => {
     cancelled: 'Évènements annulés',
     calendar: 'Calendrier',
     favoriteComedians: 'Humoristes favoris',
+    recurringEvents: 'Événements récurrents',
   };
 
   const superAdminTabTitles: Record<SuperAdminTab, string> = {
@@ -1205,55 +1276,148 @@ useEffect(() => {
   );
   const showCalendarSection = isOrganizerView && organizerTab === 'calendar';
   const showFavoriteComediansSection = isOrganizerView && organizerTab === 'favoriteComedians';
+  const showRecurringEventsSection = isOrganizerView && organizerTab === 'recurringEvents';
 
   const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived') => {
     if (user?.role !== 'ORGANIZER') {
       return null;
     }
 
-    if (context === 'archived') {
-      return (
-        <div style={cardActionStackStyle}>
-          <button
-            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-              e.stopPropagation();
-              handleCardClick(event, true);
-            }}
-            style={{ ...actionButtonStyleSmall, backgroundColor: '#8a2be2', ...organizerMobileButtonAdjustments }}
-          >
-            Gérer absences
-          </button>
-        </div>
-      );
-    }
+    const isOpen = openActionsEventId === event._id;
+    const menuItemStyle: CSSProperties = {
+      display: 'block',
+      width: '100%',
+      padding: '10px 14px',
+      border: 'none',
+      background: 'transparent',
+      color: '#fff',
+      fontSize: '14px',
+      textAlign: 'left',
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      fontFamily: 'inherit',
+      transition: 'background-color 0.15s ease',
+    };
 
     return (
-      <div style={cardActionStackStyle}>
+      <div
+        style={{ ...cardActionStackStyle, position: 'relative' }}
+        ref={isOpen ? actionsMenuRef : undefined}
+      >
         <button
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleEditClick(event); }}
-          style={{ ...editButtonStyle, ...organizerMobileButtonAdjustments }}
+          type="button"
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation();
+            setOpenActionsEventId(isOpen ? null : event._id);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '36px',
+            height: '36px',
+            padding: 0,
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            background: isOpen ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+          title="Actions"
+          aria-label="Actions"
         >
-          Modifier
+          <MoreVertical size={20} />
         </button>
-        <button
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleDuplicateClick(event); }}
-          style={{ ...actionButtonStyleSmall, backgroundColor: '#9c27b0', ...organizerMobileButtonAdjustments }}
-        >
-          Dupliquer
-        </button>
-        <button
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleNotifyHumorists(event); }}
-          style={{ ...actionButtonStyleSmall, backgroundColor: '#17a2b8', ...organizerMobileButtonAdjustments }}
-          disabled={notifyingEventId === event._id}
-        >
-          {notifyingEventId === event._id ? 'Envoi...' : '📧 Notifier les humoristes'}
-        </button>
-        <button
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); openCancelModal(event); }}
-          style={{ ...actionButtonStyleSmall, backgroundColor: '#6c757d', ...organizerMobileButtonAdjustments }}
-        >
-          Annuler
-        </button>
+        {isOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: '4px',
+              minWidth: '200px',
+              backgroundColor: '#2a2a3a',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+              zIndex: 1000,
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {context === 'archived' ? (
+              <button
+                type="button"
+                style={{ ...menuItemStyle }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenActionsEventId(null);
+                  handleCardClick(event, true);
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                Gérer absences
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    handleEditClick(event);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    handleDuplicateClick(event);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Dupliquer
+                </button>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    handleNotifyHumorists(event);
+                  }}
+                  disabled={notifyingEventId === event._id}
+                  onMouseEnter={(e) => { if (notifyingEventId !== event._id) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  {notifyingEventId === event._id ? 'Envoi...' : 'Notifier les humoristes'}
+                </button>
+                <button
+                  type="button"
+                  style={menuItemStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    openCancelModal(event);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Annuler
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -1776,7 +1940,7 @@ useEffect(() => {
   };
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites', 'recommendations'];
-  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians'];
+  const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians', 'recurringEvents'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
@@ -2651,7 +2815,11 @@ useEffect(() => {
                     <button
                       key={tabId}
                       style={organizerTabButtonStyle(organizerTab === tabId)}
-                      onClick={() => setOrganizerTab(tabId)}
+                      onClick={() => {
+                        if (tabId !== 'recurringEvents') setSelectedRecurrenceGroupId(null);
+                        if (tabId !== 'upcoming') setExpandedUpcomingGroupId(null);
+                        setOrganizerTab(tabId);
+                      }}
                     >
                       <span>{organizerTabTitles[tabId]}</span>
                       <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
@@ -2660,7 +2828,8 @@ useEffect(() => {
                 </div>
               </div>
               
-              {/* Barre de recherche par zone d'événement et filtre par niveau d'expérience (organisateur) */}
+              {/* Barre de recherche par zone d'événement et filtre (masquée sur l'onglet Événements récurrents) */}
+              {organizerTab !== 'recurringEvents' && (
               <div
                 style={{
                   maxWidth: '1200px',
@@ -2773,8 +2942,10 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
+              )}
 
-              {/* Section de recherche d'humoristes par zone d'événement */}
+              {/* Section de recherche d'humoristes par zone d'événement (masquée sur l'onglet Événements récurrents) */}
+              {organizerTab !== 'recurringEvents' && (
               <div
                 style={{
                   maxWidth: '1200px',
@@ -3211,6 +3382,7 @@ useEffect(() => {
                   )}
                 </div>
               </div>
+              )}
             </>
           )}
           {isSuperAdminView && (
@@ -3264,75 +3436,223 @@ useEffect(() => {
               </div>
               {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
               {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
-              {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
-                <p style={emptyStateStyle}>
-                  {isOrganizerView ? 'Aucun évènement à venir pour ce filtre.' : 'Aucun évènement à venir (non complet).'}
-                </p>
-              )}
-              {paginatedUpcomingEvents.map((event) => {
-                const isCompleteEvent = isEventComplete(event);
-                const participantsRatio = getParticipantsRatio(event);
-                const statusLabel = translateEventStatus(event.status);
-
-                return (
-                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
-                    <div style={cardContentStyle}>
-                      <div style={cardHeaderRowStyle}>
-                        <div>
-                          <h3 style={eventTitleStyle}>{event.title}</h3>
+              {isOrganizerView && organizerTab === 'upcoming'
+                ? (
+                  <>
+                    {upcomingDisplayItems.length === 0 && !listIsLoading && !listHasError && (
+                      <p style={emptyStateStyle}>Aucun évènement à venir pour ce filtre.</p>
+                    )}
+                    {upcomingDisplayItems.slice((upcomingPage - 1) * ITEMS_PER_PAGE, upcomingPage * ITEMS_PER_PAGE).map((item) => {
+                    if (item.type === 'event') {
+                      const event = item.event;
+                      const isCompleteEvent = isEventComplete(event);
+                      const participantsRatio = getParticipantsRatio(event);
+                      const statusLabel = translateEventStatus(event.status);
+                      return (
+                        <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                          <div style={cardContentStyle}>
+                            <div style={cardHeaderRowStyle}>
+                              <div>
+                                <h3 style={eventTitleStyle}>{event.title}</h3>
+                              </div>
+                              <div style={cardHeaderActionsStyle}>
+                                <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString('fr-FR')}</span>
+                              </div>
+                            </div>
+                            <div style={cardMetaGridStyle}>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Lieu</span>
+                                <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                              </div>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Horaires</span>
+                                <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                              </div>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Statut</span>
+                                <span style={cardMetaValueStyle}>{statusLabel}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={cardStatusBlockStyle}>
+                            {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                            {renderStatusChip(
+                              isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                              isCompleteEvent ? '#28a745' : '#ffc107',
+                              isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                            )}
+                            {renderOrganizerActions(event, 'upcoming')}
+                          </div>
                         </div>
-                        <div style={cardHeaderActionsStyle}>
-                          <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                      );
+                    }
+                    const first = item.events[0];
+                    const last = item.events[item.events.length - 1];
+                    const dateFirst = first?.date ? new Date(first.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    const dateLast = last?.date ? new Date(last.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    const isExpanded = expandedUpcomingGroupId === item.groupId;
+                    return (
+                      <div key={item.groupId} style={{ marginBottom: '15px' }}>
+                        <div
+                          style={{ ...eventCardStyle, borderLeft: '4px solid rgba(255, 75, 43, 0.6)' }}
+                          onClick={() => setExpandedUpcomingGroupId((id) => (id === item.groupId ? null : item.groupId))}
+                        >
+                          <div style={cardContentStyle}>
+                            <div style={cardHeaderRowStyle}>
+                              <div>
+                                <h3 style={eventTitleStyle}>{first?.title}</h3>
+                                <span style={{ fontSize: '0.85em', color: '#aaa' }}>Événement récurrent · {item.events.length} date(s)</span>
+                              </div>
+                              <div style={cardHeaderActionsStyle}>
+                                <span style={cardDateBadgeStyle}>autres dates</span>
+                                <span style={{ ...cardDateBadgeStyle, marginLeft: '8px' }}>{isExpanded ? '−' : '+'}</span>
+                              </div>
+                            </div>
+                            <div style={cardMetaGridStyle}>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Lieu</span>
+                                <span style={cardMetaValueStyle}>{first?.location?.venue} — {first?.location?.city}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={cardStatusBlockStyle}>
+                            {renderStatusChip(`Groupe · ${item.events.length} date(s)`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                            {first && renderOrganizerActions(first, 'upcoming')}
+                          </div>
                         </div>
+                        {isExpanded && (
+                          <div style={{ marginLeft: isMobile ? 0 : '20px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {item.events.map((event) => {
+                              const dateStr = typeof event.date === 'string' ? event.date : '';
+                              const dateFormatted = dateStr ? new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                              const timeStr = event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : '';
+                              const participantsCount = event.participants?.length ?? 0;
+                              const maxP = event.requirements?.maxPerformers ?? event.maxParticipants ?? 0;
+                              return (
+                                <div
+                                  key={event._id}
+                                  onClick={(e) => { e.stopPropagation(); handleCardClick(event); }}
+                                  style={{
+                                    padding: '12px 16px',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap',
+                                    gap: '8px',
+                                  }}
+                                >
+                                  <div>
+                                    <span style={{ ...cardDateBadgeStyle, marginRight: '8px', fontSize: '0.8em' }}>{dateFormatted}</span>
+                                    <span style={{ color: '#fff' }}>{timeStr}</span>
+                                  </div>
+                                  <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} comédiens</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      <div style={cardMetaGridStyle}>
-                        <div style={cardMetaItemStyle}>
-                          <span style={cardMetaLabelStyle}>Lieu</span>
-                          <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
-                        </div>
-                        <div style={cardMetaItemStyle}>
-                          <span style={cardMetaLabelStyle}>Horaires</span>
-                          <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
-                        </div>
-                        <div style={cardMetaItemStyle}>
-                          <span style={cardMetaLabelStyle}>Statut</span>
-                          <span style={cardMetaValueStyle}>{statusLabel}</span>
-                        </div>
+                    );
+                  })}
+                    {upcomingDisplayItems.length > ITEMS_PER_PAGE && (
+                      <div style={paginationControlsStyle}>
+                        <button
+                          style={paginationButtonStyle}
+                          disabled={upcomingPage === 1}
+                          onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.max(1, prev - 1)); }}
+                        >
+                          Précédent
+                        </button>
+                        <span style={paginationInfoStyle}>
+                          Page {Math.min(upcomingPage, Math.max(1, Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE)))} / {Math.max(1, Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE))}
+                        </span>
+                        <button
+                          style={paginationButtonStyle}
+                          disabled={upcomingPage >= Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE)}
+                          onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.min(Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE), prev + 1)); }}
+                        >
+                          Suivant
+                        </button>
                       </div>
-                    </div>
-                    <div style={cardStatusBlockStyle}>
-                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
-                      {renderStatusChip(
-                        isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
-                        isCompleteEvent ? '#28a745' : '#ffc107',
-                        isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
-                      )}
-                      {renderOrganizerActions(event, 'upcoming')}
-                    </div>
-                  </div>
-                );
-              })}
-              {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
-                <div style={paginationControlsStyle}>
-                  <button
-                    style={paginationButtonStyle}
-                    disabled={upcomingPage === 1}
-                    onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
-                  >
-                    Précédent
-                  </button>
-                  <span style={paginationInfoStyle}>
-                    Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
-                  </span>
-                  <button
-                    style={paginationButtonStyle}
-                    disabled={upcomingPage >= totalUpcomingPages}
-                    onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
-                  >
-                    Suivant
-                  </button>
-                </div>
-              )}
+                    )}
+                  </>
+                  )
+                : (
+                  <>
+                    {eventsToDisplay.length === 0 && !listIsLoading && !listHasError && (
+                      <p style={emptyStateStyle}>
+                        {isOrganizerView ? 'Aucun évènement à venir pour ce filtre.' : 'Aucun évènement à venir (non complet).'}
+                      </p>
+                    )}
+                    {paginatedUpcomingEvents.map((event) => {
+                      const isCompleteEvent = isEventComplete(event);
+                      const participantsRatio = getParticipantsRatio(event);
+                      const statusLabel = translateEventStatus(event.status);
+                      return (
+                        <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                          <div style={cardContentStyle}>
+                            <div style={cardHeaderRowStyle}>
+                              <div>
+                                <h3 style={eventTitleStyle}>{event.title}</h3>
+                              </div>
+                              <div style={cardHeaderActionsStyle}>
+                                <span style={cardDateBadgeStyle}>{new Date(event.date).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <div style={cardMetaGridStyle}>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Lieu</span>
+                                <span style={cardMetaValueStyle}>{formatEventLocation(event)}</span>
+                              </div>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Horaires</span>
+                                <span style={cardMetaValueStyle}>{formatEventTimeRange(event)}</span>
+                              </div>
+                              <div style={cardMetaItemStyle}>
+                                <span style={cardMetaLabelStyle}>Statut</span>
+                                <span style={cardMetaValueStyle}>{statusLabel}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={cardStatusBlockStyle}>
+                            {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                            {renderStatusChip(
+                              isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
+                              isCompleteEvent ? '#28a745' : '#ffc107',
+                              isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                            )}
+                            {renderOrganizerActions(event, 'upcoming')}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredUpcomingEvents.length > ITEMS_PER_PAGE && (
+                      <div style={paginationControlsStyle}>
+                        <button
+                          style={paginationButtonStyle}
+                          disabled={upcomingPage === 1}
+                          onClick={() => setUpcomingPage(prev => Math.max(1, prev - 1))}
+                        >
+                          Précédent
+                        </button>
+                        <span style={paginationInfoStyle}>
+                          Page {Math.min(upcomingPage, totalUpcomingPages)} / {Math.max(totalUpcomingPages, 1)}
+                        </span>
+                        <button
+                          style={paginationButtonStyle}
+                          disabled={upcomingPage >= totalUpcomingPages}
+                          onClick={() => setUpcomingPage(prev => Math.min(totalUpcomingPages, prev + 1))}
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
             </div>
           )}
 
@@ -3887,6 +4207,145 @@ useEffect(() => {
             <p style={{ color: '#aaa', marginTop: '20px', textAlign: 'center' }}>
               Aucun humoriste en favoris pour le moment. Utilisez la recherche d'humoristes pour en ajouter.
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Section Événements récurrents */}
+      {showRecurringEventsSection && (
+        <div style={sectionStyle}>
+          <h2 style={sectionTitleStyle}>Événements récurrents</h2>
+          {selectedRecurrenceGroupId ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelectedRecurrenceGroupId(null)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                }}
+              >
+                ← Retour aux groupes
+              </button>
+              {(() => {
+                const eventsInGroup = recurringGroups.get(selectedRecurrenceGroupId) || [];
+                const firstEvent = eventsInGroup[0];
+                if (eventsInGroup.length === 0) return <p style={emptyStateStyle}>Groupe introuvable.</p>;
+                return (
+                  <>
+                    <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <h3 style={{ margin: '0 0 8px 0', color: '#fff', fontSize: '1.2em' }}>{firstEvent?.title}</h3>
+                      <p style={{ margin: 0, color: '#aaa', fontSize: '0.9em' }}>
+                        {firstEvent?.location?.venue} — {firstEvent?.location?.city} · {eventsInGroup.length} date(s)
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {eventsInGroup.map((event) => {
+                        const dateStr = typeof event.date === 'string' ? event.date : (event.date as any)?.toString?.() || '';
+                        const dateFormatted = dateStr ? new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                        const timeStr = event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : '';
+                        const participantsCount = event.participants?.length ?? 0;
+                        const maxP = event.requirements?.maxPerformers ?? event.maxParticipants ?? 0;
+                        const status = event.status === 'CANCELLED' || event.status === 'cancelled' ? 'Annulé' : event.status === 'COMPLETED' || event.status === 'completed' ? 'Terminé' : 'Publié';
+                        return (
+                          <div
+                            key={event._id}
+                            onClick={() => handleCardClick(event)}
+                            style={{
+                              ...eventCardStyle,
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: isMobile ? 'column' : 'row',
+                              alignItems: isMobile ? 'flex-start' : 'center',
+                              justifyContent: 'space-between',
+                              gap: '12px',
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ ...cardDateBadgeStyle, marginBottom: '8px', display: 'inline-block' }}>{dateFormatted}</div>
+                              <div style={{ color: '#fff', fontWeight: 600, marginBottom: '4px' }}>{timeStr}</div>
+                              <div style={{ color: '#aaa', fontSize: '0.9em' }}>
+                                {event.location?.venue} · {event.location?.city}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                              <span style={{ ...statusBadgeStyle, opacity: (event.status === 'CANCELLED' || event.status === 'cancelled') ? 0.7 : 1 }}>
+                                {status}
+                              </span>
+                              <span style={{ color: '#aaa', fontSize: '0.9em' }}>
+                                {participantsCount}/{maxP} comédiens
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </>
+          ) : (
+            <>
+              {recurringGroups.size > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+                  {Array.from(recurringGroups.entries()).map(([groupId, events]) => {
+                    const first = events[0];
+                    const last = events[events.length - 1];
+                    const dateFirst = first?.date ? new Date(first.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    const dateLast = last?.date ? new Date(last.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                    return (
+                      <div
+                        key={groupId}
+                        onClick={() => setSelectedRecurrenceGroupId(groupId)}
+                        style={{
+                          padding: '16px 20px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 75, 43, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(255, 75, 43, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                          <div>
+                            <h3 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '1.1em' }}>{first?.title}</h3>
+                            <p style={{ margin: 0, color: '#aaa', fontSize: '0.9em' }}>
+                              {dateFirst} → {dateLast} · {events.length} date(s)
+                            </p>
+                            {first?.location?.city && (
+                              <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '0.85em' }}>{first.location.venue} — {first.location.city}</p>
+                            )}
+                          </div>
+                          <span style={{ ...cardDateBadgeStyle, flexShrink: 0 }}>{events.length} date(s)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p style={{ color: '#aaa', marginTop: '20px', textAlign: 'center' }}>
+                  Aucun événement récurrent. Les événements créés en série apparaîtront ici regroupés par groupe.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

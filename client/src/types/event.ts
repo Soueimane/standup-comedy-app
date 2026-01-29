@@ -21,4 +21,6 @@ export interface IEvent {
   participants: IUserData[];
   maxParticipants: number;
   cancellationReason?: string;
+  /** Groupe de récurrence (événements créés ensemble) */
+  recurrenceGroupId?: string;
 } 

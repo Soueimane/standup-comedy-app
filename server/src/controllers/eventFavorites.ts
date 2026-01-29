@@ -69,23 +69,50 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Ajouter l'évènement aux favoris
-    if (!comedian.favoriteEvents) {
-      comedian.favoriteEvents = [];
+    // Ajouter l'évènement aux favoris en utilisant $addToSet pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS_EVENT] Ajout de l'événement ${eventId} aux favoris du comédien ${comedianId}`);
+    
+    const updatedComedian = await UserModel.findByIdAndUpdate(
+      comedianObjectId,
+      { $addToSet: { favoriteEvents: eventObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedComedian) {
+      console.error(`❌ [FAVORIS_EVENT] Comédien ${comedianId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Comédien non trouvé après mise à jour'
+      });
+      return;
     }
-    comedian.favoriteEvents.push(eventObjectId);
-    await comedian.save();
+
+    // Vérifier que le favori a bien été ajouté
+    const favoriteCount = updatedComedian.favoriteEvents?.length || 0;
+    const isNowFavorite = updatedComedian.favoriteEvents?.some(
+      id => id.toString() === eventObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS_EVENT] Favori ajouté - Total favoris: ${favoriteCount}, Est favori: ${isNowFavorite}`);
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventFavoriteAdded(comedianId, eventId);
 
     res.status(201).json({
       message: 'Évènement ajouté aux favoris avec succès',
-      favoriteEvents: comedian.favoriteEvents
+      favoriteEvents: updatedComedian.favoriteEvents || []
     });
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout aux favoris:', error);
-    res.status(500).json({ message: 'Erreur lors de l\'ajout aux favoris' });
+  } catch (error: any) {
+    console.error('❌ [FAVORIS_EVENT] Erreur lors de l\'ajout aux favoris:', error);
+    console.error('❌ [FAVORIS_EVENT] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'ajout aux favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 
@@ -136,20 +163,50 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Retirer l'évènement des favoris
-    comedian.favoriteEvents?.splice(favoriteIndex, 1);
-    await comedian.save();
+    // Retirer l'évènement des favoris en utilisant $pull pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS_EVENT] Retrait de l'événement ${eventId} des favoris du comédien ${comedianId}`);
+    
+    const updatedComedian = await UserModel.findByIdAndUpdate(
+      comedianObjectId,
+      { $pull: { favoriteEvents: eventObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedComedian) {
+      console.error(`❌ [FAVORIS_EVENT] Comédien ${comedianId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Comédien non trouvé après mise à jour'
+      });
+      return;
+    }
+
+    // Vérifier que le favori a bien été retiré
+    const favoriteCount = updatedComedian.favoriteEvents?.length || 0;
+    const isStillFavorite = updatedComedian.favoriteEvents?.some(
+      id => id.toString() === eventObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS_EVENT] Favori retiré - Total favoris: ${favoriteCount}, Est encore favori: ${isStillFavorite}`);
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventFavoriteRemoved(comedianId, eventId);
 
     res.json({
       message: 'Évènement retiré des favoris avec succès',
-      favoriteEvents: comedian.favoriteEvents
+      favoriteEvents: updatedComedian.favoriteEvents || []
     });
-  } catch (error) {
-    console.error('Erreur lors du retrait des favoris:', error);
-    res.status(500).json({ message: 'Erreur lors du retrait des favoris' });
+  } catch (error: any) {
+    console.error('❌ [FAVORIS_EVENT] Erreur lors du retrait des favoris:', error);
+    console.error('❌ [FAVORIS_EVENT] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors du retrait des favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 

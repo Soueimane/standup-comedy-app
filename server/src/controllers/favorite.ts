@@ -75,23 +75,51 @@ export const addFavorite = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Ajouter l'humoriste aux favoris
-    if (!organizer.favoriteComedians) {
-      organizer.favoriteComedians = [];
+    // Ajouter l'humoriste aux favoris en utilisant $addToSet pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS] Ajout de l'humoriste ${comedianId} aux favoris de l'organisateur ${organizerId}`);
+    
+    const updatedOrganizer = await UserModel.findByIdAndUpdate(
+      organizerObjectId,
+      { $addToSet: { favoriteComedians: comedianObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedOrganizer) {
+      console.error(`❌ [FAVORIS] Organisateur ${organizerId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Organisateur non trouvé après mise à jour'
+      });
+      return;
     }
-    organizer.favoriteComedians.push(comedianObjectId);
-    await organizer.save();
+
+    // Vérifier que le favori a bien été ajouté
+    const favoriteCount = updatedOrganizer.favoriteComedians?.length || 0;
+    const isNowFavorite = updatedOrganizer.favoriteComedians?.some(
+      id => id.toString() === comedianObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS] Favori ajouté - Total favoris: ${favoriteCount}, Est favori: ${isNowFavorite}`);
+    console.log(`✅ [FAVORIS] IDs des favoris:`, updatedOrganizer.favoriteComedians?.map(id => id.toString()));
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitFavoriteComedianAdded(organizerId, comedianId);
 
     res.status(201).json({
       message: 'Humoriste ajouté aux favoris avec succès',
-      favoriteComedians: organizer.favoriteComedians
+      favoriteComedians: updatedOrganizer.favoriteComedians || []
     });
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout aux favoris:', error);
-    res.status(500).json({ message: 'Erreur lors de l\'ajout aux favoris' });
+  } catch (error: any) {
+    console.error('❌ Erreur lors de l\'ajout aux favoris:', error);
+    console.error('❌ Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'ajout aux favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 
@@ -142,20 +170,51 @@ export const removeFavorite = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Retirer l'humoriste des favoris
-    organizer.favoriteComedians?.splice(favoriteIndex, 1);
-    await organizer.save();
+    // Retirer l'humoriste des favoris en utilisant $pull pour éviter les problèmes de validation
+    console.log(`⭐ [FAVORIS] Retrait de l'humoriste ${comedianId} des favoris de l'organisateur ${organizerId}`);
+    
+    const updatedOrganizer = await UserModel.findByIdAndUpdate(
+      organizerObjectId,
+      { $pull: { favoriteComedians: comedianObjectId } },
+      { new: true, runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+    );
+
+    if (!updatedOrganizer) {
+      console.error(`❌ [FAVORIS] Organisateur ${organizerId} non trouvé après mise à jour`);
+      res.status(404).json({
+        message: 'Organisateur non trouvé après mise à jour'
+      });
+      return;
+    }
+
+    // Vérifier que le favori a bien été retiré
+    const favoriteCount = updatedOrganizer.favoriteComedians?.length || 0;
+    const isStillFavorite = updatedOrganizer.favoriteComedians?.some(
+      id => id.toString() === comedianObjectId.toString()
+    );
+    
+    console.log(`✅ [FAVORIS] Favori retiré - Total favoris: ${favoriteCount}, Est encore favori: ${isStillFavorite}`);
+    console.log(`✅ [FAVORIS] IDs des favoris restants:`, updatedOrganizer.favoriteComedians?.map(id => id.toString()));
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitFavoriteComedianRemoved(organizerId, comedianId);
 
     res.json({
       message: 'Humoriste retiré des favoris avec succès',
-      favoriteComedians: organizer.favoriteComedians
+      favoriteComedians: updatedOrganizer.favoriteComedians || []
     });
-  } catch (error) {
-    console.error('Erreur lors du retrait des favoris:', error);
-    res.status(500).json({ message: 'Erreur lors du retrait des favoris' });
+  } catch (error: any) {
+    console.error('❌ Erreur lors du retrait des favoris:', error);
+    console.error('❌ Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Erreur lors du retrait des favoris',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 

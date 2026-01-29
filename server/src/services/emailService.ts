@@ -2021,6 +2021,289 @@ L'équipe Connect Comedy Club
 };
 
 /**
+ * Envoie un seul email à un humoriste pour une série d'événements récurrents (même titre/lieu, dates différentes).
+ * Regroupe toutes les dates dans un seul mail pour éviter d'envoyer un email par date.
+ *
+ * @param comedian - L'humoriste à notifier
+ * @param events - Les événements du groupe récurrent (même recurrenceGroupId)
+ * @param organizer - Les infos de l'organisateur
+ */
+export const sendRecurringEventNotificationByMobility = async (
+  comedian: any,
+  events: any[],
+  organizer: { firstName: string; lastName: string; email: string }
+): Promise<void> => {
+  if (!events || events.length === 0) return;
+  const event = events[0];
+  try {
+    if (comedian.emailSubscriptions?.globalSubscribed === false) {
+      console.log(`⏭️ Humoriste ${comedian.email} est désabonné - email récurrent non envoyé`);
+      return;
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ Emails désactivés pour économiser la mémoire');
+      return;
+    }
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante pour notification mobilité récurrente');
+      return;
+    }
+
+    const comedianId = comedian._id?.toString() || comedian.id;
+    const unsubscribeUrl = generateUnsubscribeUrl(comedianId, comedian.email);
+
+    const subject = `Nouvel événement récurrent dans votre zone - ${event.title} · ${events.length} date(s) 🎤`;
+
+    const requirementItems: string[] = [];
+    if (event.requirements?.duration) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Durée : <strong style="color:#000000;font-weight:bold;">${event.requirements.duration} minutes</strong></li>`
+      );
+    }
+    if (event.requirements?.maxPerformers) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Performeurs max : <strong style="color:#000000;font-weight:bold;">${event.requirements.maxPerformers}</strong></li>`
+      );
+    }
+    if (event.requirements?.minExperience) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Expérience min : <strong style="color:#000000;font-weight:bold;">${event.requirements.minExperience} ans</strong></li>`
+      );
+    }
+    const requirementsSection = requirementItems.length
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'évènement</strong>
+                <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
+                  ${requirementItems.join('')}
+                </ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const descriptionSection = event.description
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#eef5ff;background:#eef5ff;border-left:4px solid #0066cc;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:8px;color:#000000;font-size:16px;font-weight:bold;">📝 Description</strong>
+                <span style="color:#000000;display:block;margin-top:6px;">${event.description}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const datesRows = events
+      .map(
+        (e) => `
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e3e6f0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+              ${new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+              ${e.startTime ? ` · ${e.startTime}${e.endTime ? ` – ${e.endTime}` : ''}` : ''}
+            </td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Événement récurrent dans votre zone</title>
+    <style>
+      body { margin: 0 !important; padding: 0 !important; background-color: #f2f2f2; }
+      table { border-spacing: 0; border-collapse: collapse; }
+      img { border: 0; line-height: 100%; text-decoration: none; }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f2f2f2;">
+    <center style="width:100%;background:#f2f2f2;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
+        <tr>
+          <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">📍 Événement récurrent dans votre zone</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">${events.length} date(s) correspondent à votre zone de mobilité.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <table role="presentation" width="100%">
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
+                  Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},<br/><br/>
+                  Un nouvel événement récurrent vient d'être publié dans votre zone. Plusieurs dates sont proposées.
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Événement récurrent</span>
+                        <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${event.title}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#ffffff;">
+                        <table role="presentation" width="100%">
+                          <tr>
+                            <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📍 Lieu :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.location?.address || ''}, ${event.location?.city || ''}</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-top:14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📅 Dates (${events.length}) :</strong>
+                            </td>
+                          </tr>
+                          ${datesRows}
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td>
+                  <table role="presentation" width="100%" style="border:2px solid #dbe8ff;border-radius:8px;background-color:#f0f5ff;">
+                    <tr>
+                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;background-color:#f0f5ff;">
+                        <strong style="display:block;font-size:16px;color:#000000;font-weight:bold;margin-bottom:8px;">👤 Organisateur</strong>
+                        <span style="display:block;margin-top:6px;color:#000000;font-size:15px;">${organizer.firstName || ''} ${organizer.lastName || ''}</span>
+                        ${organizer.email ? `<a href="mailto:${organizer.email}" style="display:inline-block;margin-top:10px;color:#0066cc;text-decoration:underline;font-weight:bold;font-size:14px;">📧 Contacter l'organisateur</a>` : ''}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ${descriptionSection}
+              ${requirementsSection}
+              <tr>
+                <td align="center" style="padding:20px 0;">
+                  <a href="${config.frontend.url}/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Voir les dates et postuler</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:20px;font-size:20px;line-height:20px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
+                  Connectez-vous à votre espace Connect Comedy Club pour candidater aux dates de votre choix.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
+              Connect Comedy Club · Restez inspiré et à l'écoute des nouvelles scènes.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 24px 20px 24px;border-top:1px solid #e0e0e0;text-align:center;">
+            <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#666;">
+              Vous recevez cet email car cet événement récurrent est dans votre zone de mobilité.
+            </p>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;">
+              <a href="${unsubscribeUrl}" style="color:#666;text-decoration:underline;">Se désabonner de tous les emails</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
+</html>
+    `;
+
+    const datesText = events
+      .map(
+        (e) =>
+          `  • ${new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}${e.startTime ? ` – ${e.startTime}${e.endTime ? ` à ${e.endTime}` : ''}` : ''}`
+      )
+      .join('\n');
+
+    const textContent = `
+Événement récurrent dans votre zone de mobilité !
+
+Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},
+
+Un nouvel événement récurrent vient d'être publié dans votre zone (${events.length} date(s)).
+
+Organisateur: ${organizer.firstName || ''} ${organizer.lastName || ''}
+Email: ${organizer.email || ''}
+
+Évènement: ${event.title}
+Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
+
+Dates:
+${datesText}
+
+${event.description ? `Description: ${event.description}` : ''}
+
+${event.requirements ? `Exigences: Durée ${event.requirements.duration || '?'} min, max ${event.requirements.maxPerformers || '?'} performeurs, exp. min ${event.requirements.minExperience || '?'} ans` : ''}
+
+Voir les dates et postuler: ${config.frontend.url}/events
+
+---
+Se désabonner: ${unsubscribeUrl}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+      replyTo: organizer?.email,
+      to: comedian.email,
+      subject,
+      html: htmlContent,
+      text: textContent,
+      mailSettings: { sandboxMode: { enable: false } },
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'X-Entity-Ref-ID': `mobility-recurring-${event._id}-${comedianId}-${Date.now()}`,
+        Precedence: 'bulk'
+      },
+      categories: ['mobility-notification', 'evenement', 'zone-mobilite', 'recurring'],
+      customArgs: {
+        eventId: event._id?.toString() || 'unknown',
+        comedianId: comedianId,
+        type: 'mobility_recurring_notification'
+      }
+    });
+
+    console.log(`✅ Email récurrent (${events.length} dates) envoyé à ${comedian.email} pour "${event.title}" à ${event.location?.city}`);
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Erreur envoi email récurrent à ${comedian.email}:`, errMsg);
+    throw error;
+  }
+};
+
+/**
  * Envoie une invitation personnelle à un humoriste pour un événement spécifique
  * Utilisé quand un organisateur invite directement un humoriste trouvé via la recherche par zone
  *

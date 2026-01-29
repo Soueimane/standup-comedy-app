@@ -70,6 +70,64 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     status: 'PUBLISHED',
   });
 
+  // Type d'événement : unique ou récurrent
+  const [eventType, setEventType] = useState<'unique' | 'recurring'>('unique');
+  // Options de récurrence (quand événement récurrent)
+  const [recurrenceStartDate, setRecurrenceStartDate] = useState(formData.date);
+  const [recurrenceType, setRecurrenceType] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [recurrenceWeeklyDays, setRecurrenceWeeklyDays] = useState<number[]>([]); // 0=dim, 1=lun, ... 6=sam
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('');
+  const [recurringDates, setRecurringDates] = useState<string[]>([]);
+  // Heures personnalisées par date (clé = date YYYY-MM-DD, valeur = { startTime, endTime })
+  const [dateTimeOverrides, setDateTimeOverrides] = useState<Record<string, { startTime: string; endTime: string }>>({});
+
+  // Formater une date en YYYY-MM-DD en heure locale (évite le décalage UTC qui affichait le jour précédent)
+  const toLocalDateString = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Recalculer les dates récurrentes quand les options changent
+  useEffect(() => {
+    if (eventType !== 'recurring' || !recurrenceStartDate || !recurrenceEndDate) {
+      setRecurringDates([]);
+      return;
+    }
+    const start = new Date(recurrenceStartDate + 'T12:00:00');
+    const end = new Date(recurrenceEndDate + 'T12:00:00');
+    if (end < start) {
+      setRecurringDates([]);
+      return;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dates: string[] = [];
+    if (recurrenceType === 'daily') {
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      while (d <= end) {
+        if (d >= today) dates.push(toLocalDateString(d));
+        d.setDate(d.getDate() + 1);
+      }
+    } else if (recurrenceType === 'weekly') {
+      const days = recurrenceWeeklyDays.length > 0 ? recurrenceWeeklyDays : [start.getDay()];
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      while (d <= end) {
+        if (d >= today && days.includes(d.getDay())) dates.push(toLocalDateString(d));
+        d.setDate(d.getDate() + 1);
+      }
+    } else if (recurrenceType === 'monthly') {
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      const dayOfMonth = d.getDate();
+      while (d <= end) {
+        if (d >= today) dates.push(toLocalDateString(d));
+        d.setMonth(d.getMonth() + 1);
+        d.setDate(Math.min(dayOfMonth, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      }
+    }
+    setRecurringDates(dates);
+  }, [eventType, recurrenceStartDate, recurrenceEndDate, recurrenceType, recurrenceWeeklyDays]);
+
   // Réinitialiser le formulaire quand initialData change
   React.useEffect(() => {
     if (initialData) {
@@ -558,24 +616,34 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
       newErrors.country = 'Le nom du pays doit contenir au moins 2 caractères';
     }
     
-    // Validation de la date
-    if (!formData.date) {
-      newErrors.date = 'La date est requise';
-    } else {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(formData.date)) {
-        newErrors.date = 'Format de date invalide. Utilisez le sélecteur de date.';
+    // Validation de la date (événement unique) ou des dates de récurrence
+    if (eventType === 'unique') {
+      if (!formData.date) {
+        newErrors.date = 'La date est requise';
       } else {
-        const selectedDate = new Date(formData.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (isNaN(selectedDate.getTime())) {
-          newErrors.date = 'Date invalide';
-        } else if (selectedDate < today) {
-          newErrors.date = 'La date ne peut pas être dans le passé';
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(formData.date)) {
+          newErrors.date = 'Format de date invalide. Utilisez le sélecteur de date.';
+        } else {
+          const selectedDate = new Date(formData.date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (isNaN(selectedDate.getTime())) {
+            newErrors.date = 'Date invalide';
+          } else if (selectedDate < today) {
+            newErrors.date = 'La date ne peut pas être dans le passé';
+          }
+        }
       }
-    }
+    } else {
+      if (!recurrenceStartDate) {
+        newErrors.recurrenceStartDate = 'La date de début est requise';
+      }
+      if (!recurrenceEndDate) {
+        newErrors.recurrenceEndDate = 'La date de fin de récurrence est requise';
+      } else if (recurrenceStartDate && recurrenceEndDate < recurrenceStartDate) {
+        newErrors.recurrenceEndDate = 'La date de fin doit être après la date de début';
+      }
     }
     
     // Validation de l'heure de début
@@ -586,25 +654,20 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
       if (!timeRegex.test(formData.startTime)) {
         newErrors.startTime = 'Format d\'heure invalide (HH:MM)';
       } else {
-        // Vérifier si l'heure de début n'est pas dans le passé si la date est aujourd'hui
-        if (formData.date) {
+        // Vérifier si l'heure de début n'est pas dans le passé (événement unique, date = aujourd'hui)
+        if (eventType === 'unique' && formData.date) {
           const selectedDate = new Date(formData.date + 'T00:00:00');
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           selectedDate.setHours(0, 0, 0, 0);
-          
-          // Si la date sélectionnée est aujourd'hui
           if (selectedDate.getTime() === today.getTime()) {
             const now = new Date();
             const [startHours, startMinutes] = formData.startTime.split(':').map(Number);
             const eventStartDateTime = new Date();
             eventStartDateTime.setHours(startHours, startMinutes, 0, 0);
-            
-            // Si l'heure de début est dans le passé (avec une marge de 1 minute pour éviter les problèmes de timing)
             if (eventStartDateTime.getTime() < (now.getTime() - 60000)) {
-              newErrors.startTime = 'L\'heure de début ne peut pas être dans le passé. Il est actuellement ' + 
-                now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + 
-                '. Veuillez sélectionner une heure future.';
+              newErrors.startTime = 'L\'heure de début ne peut pas être dans le passé. Il est actuellement ' +
+                now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '. Veuillez sélectionner une heure future.';
             }
           }
         }
@@ -653,13 +716,53 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     return isValid;
   };
 
+  // Jours de la semaine (0=dim, 1=lun, ... 6=sam) pour affichage "Ces jours-là"
+  const WEEKDAY_LABELS: { value: number; label: string }[] = [
+    { value: 1, label: 'lu' },
+    { value: 2, label: 'ma' },
+    { value: 3, label: 'me' },
+    { value: 4, label: 'je' },
+    { value: 5, label: 've' },
+    { value: 6, label: 'sa' },
+    { value: 0, label: 'di' },
+  ];
+
+  const toggleRecurrenceWeeklyDay = (day: number) => {
+    setRecurrenceWeeklyDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => a - b)
+    );
+  };
+
+  const setDateTimeForDate = (dateStr: string, startTime: string, endTime: string) => {
+    if (!startTime || !endTime) {
+      setDateTimeOverrides((prev) => {
+        const next = { ...prev };
+        delete next[dateStr];
+        return next;
+      });
+    } else {
+      setDateTimeOverrides((prev) => ({ ...prev, [dateStr]: { startTime, endTime } }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData });
+    console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData, eventType, recurringDates });
 
     if (!user || !token) {
       showWarning(WarningMessages.AUTH_REQUIRED_CREATE_EVENT);
       return;
+    }
+
+    if (eventType === 'recurring') {
+      if (!recurrenceEndDate) {
+        alert('Veuillez indiquer une date de fin pour la récurrence.');
+        return;
+      }
+      if (recurringDates.length === 0) {
+        alert('Aucune date générée. Vérifiez la date de début, la date de fin et les options (ex. jours de la semaine pour Hebdomadaire).');
+        return;
+      }
     }
 
     const isValid = await validateForm();
@@ -701,10 +804,9 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         durationInMinutes = (24 * 60 - startMinutes) + endMinutes;
       }
 
-      const eventData = {
+      const baseEventData = {
         title: formData.title,
         description: formData.description,
-        date: formData.date,
         location: {
           venue: formData.venue,
           address: formData.address,
@@ -714,7 +816,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         requirements: {
           minExperience: Number(formData.minExperience),
           maxPerformers: Number(formData.maxComedians),
-          duration: durationInMinutes, // Durée calculée automatiquement
+          duration: durationInMinutes,
           requiredExperienceLevel: formData.requiredExperienceLevel,
         },
         status: formData.status,
@@ -729,9 +831,35 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         },
       };
 
-      const response = await api.post('/events', eventData, config);
-      console.log('✅ Réponse serveur:', response.data);
-      showSuccess(SuccessMessages.EVENT_CREATED);
+      let response;
+      if (eventType === 'recurring' && recurringDates.length > 0) {
+        const dateTimes = recurringDates
+          .map((d) => {
+            const override = dateTimeOverrides[d];
+            const start = override?.startTime ?? formData.startTime;
+            const end = override?.endTime ?? formData.endTime;
+            return { date: d, startTime: start, endTime: end };
+          })
+          .filter((x) => x.startTime && x.endTime);
+        const eventData = {
+          ...baseEventData,
+          isRecurring: true,
+          dates: recurringDates,
+          dateTimes: dateTimes.length > 0 ? dateTimes : undefined,
+        };
+        response = await api.post('/events', eventData, config);
+        console.log('✅ Réponse serveur (récurrent):', response.data);
+        showSuccess(`${response.data.count || recurringDates.length} événements récurrents créés avec succès !`);
+      } else {
+        const eventData = {
+          ...baseEventData,
+          date: eventType === 'unique' ? formData.date : formData.date,
+        };
+        response = await api.post('/events', eventData, config);
+        console.log('✅ Réponse serveur:', response.data);
+        showSuccess(SuccessMessages.EVENT_CREATED);
+      }
+
       onEventCreated();
       onClose();
     } catch (error: any) {
@@ -1152,28 +1280,214 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                 <Calendar size={20} style={{ color: '#ff416c' }} />
                 <span>Informations d'évènement</span>
               </div>
-              <div style={sectionGridStyle}>
-                {/* Date */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                    Date *
+
+              {/* Choix : Événement unique ou récurrent */}
+              <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
+                  Type d'événement
+                </label>
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff' }}>
+                    <input
+                      type="radio"
+                      name="eventType"
+                      checked={eventType === 'unique'}
+                      onChange={() => setEventType('unique')}
+                      style={{ width: '18px', height: '18px', accentColor: '#ff416c' }}
+                    />
+                    <span>Événement unique</span>
                   </label>
-                  <input
-                    type="date"
-                    id="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    style={{
-                      ...inputStyle,
-                      borderColor: errors.date ? '#ef4444' : '#444'
-                    }}
-                  />
-                  {errors.date && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                      {errors.date}
-                    </p>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff' }}>
+                    <input
+                      type="radio"
+                      name="eventType"
+                      checked={eventType === 'recurring'}
+                      onChange={() => {
+                        setEventType('recurring');
+                        setRecurrenceStartDate(formData.date);
+                        if (!recurrenceEndDate) setRecurrenceEndDate(formData.date);
+                      }}
+                      style={{ width: '18px', height: '18px', accentColor: '#ff416c' }}
+                    />
+                    <span>Événement récurrent</span>
+                  </label>
+                </div>
+              </div>
+
+              {eventType === 'unique' ? (
+                <div style={sectionGridStyle}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      id="date"
+                      value={formData.date}
+                      onChange={handleChange}
+                      style={{ ...inputStyle, borderColor: errors.date ? '#ef4444' : '#444' }}
+                    />
+                    {errors.date && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.date}</p>}
+                  </div>
+                </div>
+              ) : (
+                /* Mode récurrent : date de début, type, jours, fin */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={sectionGridStyle}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Date de début *
+                      </label>
+                      <input
+                        type="date"
+                        value={recurrenceStartDate}
+                        onChange={(e) => setRecurrenceStartDate(e.target.value)}
+                        style={{ ...inputStyle, borderColor: errors.recurrenceStartDate ? '#ef4444' : '#444' }}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      {errors.recurrenceStartDate && (
+                        <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceStartDate}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                      A lieu
+                    </label>
+                    <select
+                      value={recurrenceType}
+                      onChange={(e) => setRecurrenceType(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                      style={{ ...selectStyle, maxWidth: '220px' }}
+                    >
+                      <option value="daily">Quotidien</option>
+                      <option value="weekly">Hebdomadaire</option>
+                      <option value="monthly">Mensuel</option>
+                    </select>
+                  </div>
+
+                  {recurrenceType === 'weekly' && (
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Ces jours-là
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {WEEKDAY_LABELS.map(({ value, label }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => toggleRecurrenceWeeklyDay(value)}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: recurrenceWeeklyDays.includes(value) ? '1px solid #ff416c' : '1px solid #444',
+                              background: recurrenceWeeklyDays.includes(value) ? 'rgba(255, 65, 108, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: '500',
+                              fontSize: '13px',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                      Fin
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <span style={{ color: '#aaa', fontSize: '14px' }}>Le</span>
+                      <input
+                        type="date"
+                        value={recurrenceEndDate}
+                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                        style={{
+                          ...inputStyle,
+                          maxWidth: '180px',
+                          marginBottom: 0,
+                          borderColor: errors.recurrenceEndDate ? '#ef4444' : '#444',
+                        }}
+                        min={recurrenceStartDate || new Date().toISOString().split('T')[0]}
+                      />
+                      {errors.recurrenceEndDate && (
+                        <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceEndDate}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Récap des dates générées + personnalisation des heures par date */}
+                  {recurringDates.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
+                        Dates générées ({recurringDates.length}) — personnaliser les heures par date (optionnel)
+                      </label>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        maxHeight: '280px',
+                        overflowY: 'auto',
+                        padding: '12px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                      }}>
+                        {recurringDates.map((dateStr) => {
+                          const override = dateTimeOverrides[dateStr];
+                          const startVal = override?.startTime ?? formData.startTime;
+                          const endVal = override?.endTime ?? formData.endTime;
+                          return (
+                            <div
+                              key={dateStr}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '10px 12px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <span style={{ color: '#fff', fontSize: '13px', minWidth: '160px' }}>
+                                {new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 auto' }}>
+                                <select
+                                  value={startVal}
+                                  onChange={(e) => setDateTimeForDate(dateStr, e.target.value, endVal)}
+                                  style={{ ...inputStyle, padding: '8px 10px', marginBottom: 0, minWidth: '90px' }}
+                                >
+                                  {timeSlots.map((s) => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                  ))}
+                                </select>
+                                <span style={{ color: '#888' }}>→</span>
+                                <select
+                                  value={endVal}
+                                  onChange={(e) => setDateTimeForDate(dateStr, startVal, e.target.value)}
+                                  style={{ ...inputStyle, padding: '8px 10px', marginBottom: 0, minWidth: '90px' }}
+                                >
+                                  {timeSlots.map((s) => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
+              )}
+
+              <div style={sectionGridStyle}>
 
                 {/* Heure de début - Dropdown personnalisé */}
                 <div ref={startTimeRef} style={{ position: 'relative', zIndex: 100 }}>
@@ -1259,7 +1573,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                 </div>
 
                 {/* Heure de fin - Dropdown personnalisé */}
-                <div ref={endTimeRef} style={{ position: 'relative', zIndex: 100 }}>
+                <div ref={endTimeRef} style={{ position: 'relative', zIndex: 99 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
                     Heure de fin *
                   </label>

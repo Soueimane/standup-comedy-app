@@ -30,6 +30,8 @@ export interface EventDocument extends Document {
     j2Sent?: boolean;  // Relance 2 jours avant
     j1Sent?: boolean;  // Relance 1 jour avant
   };
+  // Récurrence : ID du groupe d'événements récurrents
+  recurrenceGroupId?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -131,6 +133,13 @@ const eventSchema = new Schema<EventDocument>({
     j3Sent: { type: Boolean, default: false },
     j2Sent: { type: Boolean, default: false },
     j1Sent: { type: Boolean, default: false }
+  },
+  // Récurrence : ID du groupe d'événements récurrents
+  recurrenceGroupId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Event',
+    required: false,
+    index: true
   }
 }, {
   timestamps: true
@@ -140,5 +149,6 @@ const eventSchema = new Schema<EventDocument>({
 eventSchema.index({ date: 1 });
 eventSchema.index({ organizer: 1 });
 eventSchema.index({ status: 1 });
+eventSchema.index({ recurrenceGroupId: 1 });
 
 export const EventModel = mongoose.model<EventDocument>('Event', eventSchema); 

@@ -6,10 +6,11 @@ import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
 import { expirePendingApplicationsForEvent } from './application';
 import { sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants, sendNewEventNotificationToHumorists, sendEventInvitationToComedian } from '../services/emailService';
-import { notifyComediansByMobilityAsync } from '../services/mobilityNotificationService';
+import { notifyComediansByMobilityAsync, notifyComediansByMobilityForRecurringGroupAsync } from '../services/mobilityNotificationService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
 import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
+import { Types } from 'mongoose';
 
 // ============================================================================
 // CREATE EVENT
@@ -25,8 +26,25 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { title, description, date, location, requirements, startTime, endTime, budget, maxPerformers } = req.body;
+    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, isRecurring, dateTimes } = req.body;
 
+    // Si c'est un événement récurrent avec plusieurs dates
+    if (isRecurring && dates && Array.isArray(dates) && dates.length > 0) {
+      return await createRecurringEvents(req, res, organizerId, {
+        title,
+        description,
+        dates,
+        location,
+        requirements,
+        startTime,
+        endTime,
+        budget,
+        maxPerformers,
+        dateTimes: Array.isArray(dateTimes) ? dateTimes : undefined,
+      });
+    }
+
+    // Sinon, création d'un événement unique (comportement existant)
     console.log('📅 Date reçue:', date, 'Type:', typeof date);
     console.log('📅 Date parsée:', new Date(date));
 
@@ -79,24 +97,31 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
     }
 
     // Envoyer les notifications par mobilité aux humoristes dont la zone correspond
-    console.log('📍 Démarrage envoi notifications par mobilité...');
-    console.log('📋 Données évènement:', {
+    console.log('📍 [EVENT_UNIQUE] Démarrage envoi notifications par mobilité...');
+    console.log('📋 [EVENT_UNIQUE] Données évènement:', {
       title: event.title,
       date: event.date,
       location: event.location,
-      requirements: event.requirements
+      requirements: event.requirements,
+      eventId: event._id.toString()
     });
-    console.log('👤 Organisateur:', {
+    console.log('👤 [EVENT_UNIQUE] Organisateur:', {
       firstName: organizer.firstName,
       lastName: organizer.lastName,
       email: organizer.email
     });
 
-    notifyComediansByMobilityAsync(event, {
-      firstName: organizer.firstName,
-      lastName: organizer.lastName,
-      email: organizer.email
-    });
+    try {
+      notifyComediansByMobilityAsync(event, {
+        firstName: organizer.firstName,
+        lastName: organizer.lastName,
+        email: organizer.email
+      });
+      console.log('✅ [EVENT_UNIQUE] Notification mobilité lancée avec succès');
+    } catch (notifError) {
+      console.error('❌ [EVENT_UNIQUE] Erreur lors du lancement de la notification mobilité:', notifError);
+      // Ne pas faire échouer la création de l'événement si la notification échoue
+    }
 
     // Convertir l'évènement en objet JSON pour éviter les problèmes de sérialisation
     const eventResponse = event.toObject ? event.toObject() : event;
@@ -110,6 +135,318 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
   } catch (error) {
     console.error('Create event error:', error);
     res.status(500).json({ message: 'Error creating event' });
+  }
+};
+
+/**
+ * Crée plusieurs événements récurrents avec les mêmes informations mais des dates différentes
+ * Utilise une transaction MongoDB pour garantir l'atomicité
+ */
+const createRecurringEvents = async (
+  req: AuthRequest,
+  res: Response,
+  organizerId: string,
+  eventData: {
+    title: string;
+    description: string;
+    dates: string[];
+    location: any;
+    requirements: any;
+    startTime?: string;
+    endTime?: string;
+    budget?: any;
+    maxPerformers?: number;
+    /** Heures par date (optionnel). Si fourni, utilise startTime/endTime par date au lieu des valeurs globales. */
+    dateTimes?: Array<{ date: string; startTime: string; endTime: string }>;
+  }
+): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    console.log('🔄 [RECURRENCE] Création de', eventData.dates.length, 'événements récurrents');
+
+    // Validation : vérifier qu'il n'y a pas de doublons de dates
+    const uniqueDates = [...new Set(eventData.dates)];
+    if (uniqueDates.length !== eventData.dates.length) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les dates doivent être uniques' });
+      return;
+    }
+
+    // Validation : vérifier que toutes les dates sont dans le futur
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (const dateStr of eventData.dates) {
+      const eventDate = new Date(dateStr);
+      eventDate.setHours(0, 0, 0, 0);
+      if (eventDate < today) {
+        await session.abortTransaction();
+        session.endSession();
+        res.status(400).json({ message: `La date ${dateStr} est dans le passé` });
+        return;
+      }
+    }
+
+    // Générer un ID de groupe de récurrence (utiliser le premier événement comme référence)
+    const recurrenceGroupId = new Types.ObjectId();
+    
+    // Convertir organizerId en ObjectId si nécessaire
+    const organizerObjectId = Types.ObjectId.isValid(organizerId) 
+      ? new Types.ObjectId(organizerId) 
+      : organizerId;
+
+    // Créer tous les événements dans la transaction
+    const createdEvents = [];
+    console.log('🔄 [RECURRENCE] Données reçues:', {
+      title: eventData.title,
+      dates: eventData.dates,
+      location: eventData.location,
+      requirements: eventData.requirements,
+      startTime: eventData.startTime,
+      endTime: eventData.endTime,
+      organizerId: organizerId,
+      organizerObjectId: organizerObjectId.toString()
+    });
+    
+    // Vérifier que les champs requis sont présents
+    if (!eventData.location || !eventData.location.address || !eventData.location.city || !eventData.location.country) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les champs de localisation sont incomplets (address, city, country requis)' });
+      return;
+    }
+    
+    if (!eventData.requirements) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les exigences sont requises' });
+      return;
+    }
+    
+    if (typeof eventData.requirements.minExperience !== 'number') {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'minExperience doit être un nombre' });
+      return;
+    }
+    
+    if (typeof eventData.requirements.duration !== 'number' || eventData.requirements.duration <= 0) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'duration doit être un nombre positif (en minutes)' });
+      return;
+    }
+    
+    if (!eventData.startTime || !eventData.endTime) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'startTime et endTime sont requis' });
+      return;
+    }
+    
+    const dateTimesMap = new Map<string, { startTime: string; endTime: string }>();
+    if (eventData.dateTimes && eventData.dateTimes.length > 0) {
+      for (const dt of eventData.dateTimes) {
+        const key = typeof dt.date === 'string' ? dt.date.split('T')[0] : String(dt.date).split('T')[0];
+        dateTimesMap.set(key, { startTime: dt.startTime, endTime: dt.endTime });
+      }
+    }
+
+    for (const dateStr of eventData.dates) {
+      try {
+        console.log(`🔄 [RECURRENCE] Création de l'événement pour le ${dateStr}...`);
+        const override = dateTimesMap.get(dateStr);
+        const startTime = override?.startTime ?? eventData.startTime;
+        const endTime = override?.endTime ?? eventData.endTime;
+        if (!startTime || !endTime) {
+          await session.abortTransaction();
+          session.endSession();
+          res.status(400).json({ message: `Heures manquantes pour la date ${dateStr}` });
+          return;
+        }
+
+        const event = new EventModel({
+          title: eventData.title,
+          description: eventData.description,
+          date: new Date(dateStr),
+          location: eventData.location,
+          requirements: eventData.requirements,
+          organizer: organizerObjectId,
+          status: 'published',
+          applications: [],
+          startTime,
+          endTime,
+          venue: eventData.location?.venue,
+          budget: eventData.budget,
+          maxPerformers: eventData.maxPerformers,
+          recurrenceGroupId: recurrenceGroupId
+        });
+
+        console.log(`🔄 [RECURRENCE] Événement modèle créé, validation...`);
+        const savedEvent = await event.save({ session });
+        createdEvents.push(savedEvent);
+        console.log(`✅ [RECURRENCE] Événement créé pour le ${dateStr}:`, savedEvent._id);
+
+        // Émettre un évènement SSE pour chaque événement créé
+        emitEventCreated(savedEvent._id.toString());
+      } catch (eventError: any) {
+        console.error(`❌ [RECURRENCE] Erreur lors de la création de l'événement pour ${dateStr}:`, eventError);
+        console.error(`❌ [RECURRENCE] Détails de l'erreur:`, {
+          message: eventError?.message,
+          name: eventError?.name,
+          errors: eventError?.errors
+        });
+        throw eventError; // Re-lancer l'erreur pour que le catch principal la gère
+      }
+    }
+
+    // Récupérer l'organisateur pour les notifications (sans session pour éviter les problèmes de validation)
+    let organizer;
+    try {
+      organizer = await UserModel.findById(organizerId).select('firstName lastName email').lean();
+      if (!organizer) {
+        console.error('⚠️ [RECURRENCE] Organisateur non trouvé pour les notifications');
+      }
+    } catch (organizerError) {
+      console.error('⚠️ [RECURRENCE] Erreur lors de la récupération de l\'organisateur:', organizerError);
+    }
+
+    // Mettre à jour les statistiques de l'organisateur
+    // Utiliser findByIdAndUpdate avec $inc pour éviter les problèmes de validation
+    // car on ne modifie que les stats, pas le profil
+    try {
+      await UserModel.findByIdAndUpdate(
+        organizerId,
+        { $inc: { 'stats.totalEvents': createdEvents.length } },
+        { 
+          session,
+          runValidators: false // Ne pas valider les autres champs comme numberOfScenes
+        }
+      );
+      console.log(`✅ [RECURRENCE] Stats de l'organisateur mises à jour (+${createdEvents.length} événements)`);
+    } catch (statsError: any) {
+      console.error('❌ [RECURRENCE] Erreur lors de la mise à jour des stats:', statsError);
+      // Ne pas faire échouer la création des événements si les stats échouent
+      // Les événements sont déjà créés, on continue
+    }
+
+    // Valider la transaction
+    await session.commitTransaction();
+    await session.endSession();
+
+    console.log(`✅ [RECURRENCE] Transaction commitée - ${createdEvents.length} événements créés avec succès dans le groupe ${recurrenceGroupId}`);
+    console.log(`✅ [RECURRENCE] IDs des événements créés:`, createdEvents.map(e => e._id.toString()));
+
+    // Vérifier que les événements sont bien en base (optionnel, pour debug)
+    try {
+      const eventIds = createdEvents.map(e => e._id);
+      const verifiedEvents = await EventModel.find({ _id: { $in: eventIds } });
+      console.log(`✅ [RECURRENCE] Vérification: ${verifiedEvents.length}/${createdEvents.length} événements trouvés en base`);
+    } catch (verifyError) {
+      console.error('⚠️ [RECURRENCE] Erreur lors de la vérification (non-bloquant):', verifyError);
+    }
+
+    // Envoyer UN SEUL email par humoriste regroupant toutes les dates (au lieu d'un email par date)
+    if (organizer) {
+      console.log(`📧 [RECURRENCE] Démarrage envoi notifications groupées (1 email par humoriste, ${createdEvents.length} dates)...`);
+
+      const eventIds = createdEvents.map(e => e._id);
+      const eventsForNotification = await EventModel.find({ _id: { $in: eventIds } }).sort({ date: 1 });
+
+      console.log(`📧 [RECURRENCE] ${eventsForNotification.length} événements récupérés pour notification groupée`);
+
+      try {
+        notifyComediansByMobilityForRecurringGroupAsync(eventsForNotification, {
+          firstName: organizer.firstName || '',
+          lastName: organizer.lastName || '',
+          email: organizer.email || ''
+        });
+        console.log(`✅ [RECURRENCE] Notification groupée lancée (1 email par humoriste avec toutes les dates)`);
+      } catch (notifError) {
+        console.error(`⚠️ [RECURRENCE] Erreur notification mobilité groupée (non-bloquant):`, notifError);
+      }
+    } else {
+      console.error('⚠️ [RECURRENCE] Organisateur non trouvé, notifications non envoyées');
+    }
+
+    // Retourner le premier événement et le nombre total créé
+    try {
+      const eventsResponse = createdEvents.map(e => {
+        try {
+          return e.toObject ? e.toObject() : e;
+        } catch (toObjectError) {
+          console.error('⚠️ [RECURRENCE] Erreur toObject (non-bloquant):', toObjectError);
+          // Retourner un objet simplifié si toObject échoue
+          return {
+            _id: e._id,
+            title: e.title,
+            date: e.date,
+            status: e.status
+          };
+        }
+      });
+
+      res.status(201).json({
+        message: `${createdEvents.length} événements récurrents créés avec succès`,
+        events: eventsResponse,
+        recurrenceGroupId: recurrenceGroupId.toString(),
+        count: createdEvents.length
+      });
+      
+      console.log(`✅ [RECURRENCE] Réponse HTTP envoyée avec succès`);
+    } catch (responseError) {
+      // Si la réponse échoue mais que les événements sont créés, on doit quand même informer
+      console.error('❌ [RECURRENCE] Erreur lors de l\'envoi de la réponse HTTP:', responseError);
+      console.error('⚠️ [RECURRENCE] ATTENTION: Les événements sont créés en base mais la réponse a échoué');
+      
+      // Essayer d'envoyer une réponse simplifiée
+      try {
+        res.status(201).json({
+          message: `${createdEvents.length} événements récurrents créés avec succès`,
+          count: createdEvents.length,
+          recurrenceGroupId: recurrenceGroupId.toString(),
+          note: 'Les événements ont été créés mais certains détails n\'ont pas pu être renvoyés'
+        });
+      } catch (fallbackError) {
+        console.error('❌ [RECURRENCE] Impossible d\'envoyer une réponse de secours:', fallbackError);
+        // À ce stade, les événements sont créés mais on ne peut pas répondre
+        // Le client verra une erreur mais les événements existent en base
+      }
+    }
+
+  } catch (error: any) {
+    console.error('❌ [RECURRENCE] Erreur lors de la création des événements récurrents:', error);
+    console.error('❌ [RECURRENCE] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors,
+      eventData: {
+        title: eventData.title,
+        datesCount: eventData.dates?.length,
+        location: eventData.location,
+        requirements: eventData.requirements
+      }
+    });
+    
+    try {
+      await session.abortTransaction();
+      await session.endSession();
+    } catch (sessionError) {
+      console.error('❌ [RECURRENCE] Erreur lors de l\'abandon de la transaction:', sessionError);
+    }
+    
+    // Retourner un message d'erreur plus détaillé
+    const errorMessage = error?.message || 'Erreur lors de la création des événements récurrents';
+    const validationErrors = error?.errors ? Object.values(error.errors).map((e: any) => e.message).join(', ') : null;
+    
+    res.status(500).json({ 
+      message: 'Erreur lors de la création des événements récurrents',
+      error: errorMessage,
+      validationErrors: validationErrors || undefined
+    });
   }
 };
 
@@ -525,20 +862,32 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
     emitEventDeleted(eventId);
 
     // Décrémenter le compteur d'évènements créés de l'organisateur
-    const organizer = await UserModel.findById(organizerId);
-    if (organizer) {
-      if (organizer.stats && organizer.stats.totalEvents && organizer.stats.totalEvents > 0) {
-        organizer.stats.totalEvents -= 1;
-        organizer.markModified('stats');
-        await organizer.save();
-        console.log('Total events après décrémentation et sauvegarde:', organizer.stats.totalEvents);
-      }
+    // Utiliser findByIdAndUpdate avec $inc pour éviter les problèmes de validation
+    try {
+      await UserModel.findByIdAndUpdate(
+        organizerId,
+        { $inc: { 'stats.totalEvents': -1 } },
+        { runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+      );
+      console.log('✅ Stats de l\'organisateur décrémentées (suppression événement)');
+    } catch (statsError) {
+      console.error('⚠️ Erreur lors de la décrémentation des stats de l\'organisateur:', statsError);
+      // Ne pas faire échouer la suppression si les stats échouent
     }
 
     res.json({ message: 'Évènement supprimé avec succès' });
-  } catch (error) {
-    console.error('Delete event error:', error);
-    res.status(500).json({ message: 'Error deleting event' });
+  } catch (error: any) {
+    console.error('❌ Delete event error:', error);
+    console.error('❌ Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Error deleting event',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 

@@ -160,6 +160,7 @@ export const createEventSchema = z.object({
     .min(10, { message: 'La description doit contenir au moins 10 caractères' })
     .max(2000, { message: 'La description ne peut pas dépasser 2000 caractères' })
     .transform((val) => val.trim()),
+  // date est optionnel si isRecurring est true
   date: z.string()
     .refine((str) => {
       const date = new Date(str);
@@ -171,7 +172,38 @@ export const createEventSchema = z.object({
       today.setHours(0, 0, 0, 0);
       return date >= today;
     }, { message: 'Event date is invalid or in the past' })
-    .transform((str) => new Date(str)),
+    .transform((str) => new Date(str))
+    .optional(),
+  // dates est requis si isRecurring est true
+  dates: z.array(z.string())
+    .min(1, { message: 'Au moins une date est requise pour un événement récurrent' })
+    .refine((dates) => {
+      return dates.every(dateStr => {
+        const date = new Date(dateStr);
+        return !isNaN(date.getTime());
+      });
+    }, { message: 'Une ou plusieurs dates sont invalides' })
+    .refine((dates) => {
+      return dates.length === new Set(dates).size;
+    }, { message: 'Les dates doivent être uniques' })
+    .refine((dates) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return dates.every(dateStr => {
+        const date = new Date(dateStr);
+        date.setHours(0, 0, 0, 0);
+        return date >= today;
+      });
+    }, { message: 'Toutes les dates doivent être dans le futur' })
+    .optional(),
+  isRecurring: z.union([z.boolean(), z.string()])
+    .transform((val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return val === true;
+    })
+    .optional(),
   location: locationSchema,
   requirements: requirementsSchema,
   startTime: z.string()
@@ -189,6 +221,31 @@ export const createEventSchema = z.object({
     .min(1, { message: 'Invalid maximum number of performers' })
     .max(100, { message: 'Invalid maximum number of performers' })
     .optional(),
+  // Heures par date pour événements récurrents (optionnel)
+  dateTimes: z.array(z.object({
+    date: z.string(),
+    startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+    endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  })).optional(),
+}).refine((data) => {
+  // Validation : si isRecurring est true, dates doit être présent et date ne doit pas l'être
+  if (data.isRecurring === true) {
+    if (!data.dates || data.dates.length === 0) {
+      return false;
+    }
+    if (data.date) {
+      return false; // Ne pas permettre date et dates en même temps
+    }
+  } else {
+    // Si isRecurring est false ou undefined, date doit être présent
+    if (!data.date) {
+      return false;
+    }
+  }
+  return true;
+}, {
+  message: 'Pour un événement unique, fournissez "date". Pour un événement récurrent, fournissez "isRecurring: true" et "dates"',
+  path: ['date']
 }).refine((data) => {
   const startParts = data.startTime.split(':');
   const endParts = data.endTime.split(':');
