@@ -8,15 +8,18 @@ import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
 import EventCalendar from '../components/EventCalendar';
 import ScorePieChart from '../components/ScorePieChart';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { matchesMobilityZones, normalizeString, FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import type { IEvent } from '../types/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites, inviteComedianToEvent } from '../services/api';
 import type { ComedianSearchResult, SearchComediansByZoneResponse } from '../services/api';
-import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages, InfoMessages, ConfirmMessages } from '../services/systemMessages';
 
 const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
@@ -40,7 +43,15 @@ type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
   const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
+  const { showSuccess, showError, showWarning, showInfo } = useAlert();
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+    isDangerous?: boolean;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const isComedianView = user?.role === 'COMEDIAN';
   const isOrganizerView = user?.role === 'ORGANIZER';
   const isSuperAdminView = user?.role === 'SUPER_ADMIN';
@@ -138,6 +149,7 @@ function MyEventsPage() {
   const [organizerTab, setOrganizerTab] = useState<OrganizerTab>('upcoming');
   const [superAdminTab, setSuperAdminTab] = useState<SuperAdminTab>('full');
   const [favoriteEventIds, setFavoriteEventIds] = useState<string[]>([]);
+  const [favoriteComedianIds, setFavoriteComedianIds] = useState<string[]>([]);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
@@ -161,7 +173,6 @@ function MyEventsPage() {
   const [isSearchingComedians, setIsSearchingComedians] = useState(false);
   const [comedianSearchError, setComedianSearchError] = useState<string | null>(null);
   const [showComedianSearchSection, setShowComedianSearchSection] = useState(false);
-  const [favoriteComedianIds, setFavoriteComedianIds] = useState<string[]>([]);
   // États pour la modal d'invitation d'humoriste
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [comedianToInvite, setComedianToInvite] = useState<ComedianSearchResult | null>(null);
@@ -485,7 +496,7 @@ useEffect(() => {
         }
         return Array.from(updated);
       });
-      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+      showError(getErrorMessage(error, 'Erreur lors de la modification des favoris'));
     }
   };
 
@@ -496,9 +507,9 @@ useEffect(() => {
     const isCurrentlyFavorite = favoriteComedianIds.includes(comedianId);
 
     // Mise à jour optimiste
-    setFavoriteComedianIds(prev => {
+    setFavoriteComedianIds((prev: string[]) => {
       if (isCurrentlyFavorite) {
-        return prev.filter(id => id !== comedianId);
+        return prev.filter((id: string) => id !== comedianId);
       } else {
         return [...prev, comedianId];
       }
@@ -510,19 +521,17 @@ useEffect(() => {
       } else {
         await addFavorite(comedianId);
       }
-      // Rafraîchir les favoris depuis l'API pour s'assurer de la cohérence
-      await refetchFavoriteComedians();
     } catch (error: any) {
       console.error('Erreur lors de la modification des favoris d\'humoriste:', error);
       // Revert en cas d'erreur
-      setFavoriteComedianIds(prev => {
+      setFavoriteComedianIds((prev: string[]) => {
         if (isCurrentlyFavorite) {
           return [...prev, comedianId];
         } else {
-          return prev.filter(id => id !== comedianId);
+          return prev.filter((id: string) => id !== comedianId);
         }
       });
-      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+      showError(getErrorMessage(error, 'Erreur lors de la modification des favoris'));
     }
   };
 
@@ -1352,7 +1361,7 @@ useEffect(() => {
     
     if (!event._id) {
       console.error('❌ [MyEventsPage] Évènement sans ID - impossible de modifier', { event });
-      alert('Erreur: Impossible de modifier cet évènement. ID manquant.');
+      showError(ErrorMessages.EVENT_MISSING_ID);
       return;
     }
     
@@ -1378,20 +1387,27 @@ useEffect(() => {
   const confirmWithdrawApplication = async () => {
     if (!token || !user?._id || !eventToWithdraw) return;
     try {
+      console.log('🔄 Début de la désinscription depuis MyEventsPage pour event:', eventToWithdraw._id);
       const app = comedianApplications?.find(a => a.event && a.event._id === eventToWithdraw._id);
-      if (!app) return;
+      if (!app) {
+        console.log('❌ Application non trouvée pour cet événement');
+        return;
+      }
       const config = {
         headers: { Authorization: `Bearer ${token}` },
       };
+      console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
       await api.delete(`/applications/${app._id}`, config);
-      // alert('Vous avez été désinscrit de cet évènement.');
+      console.log('✅ API call réussi, affichage de l\'alerte de succès');
+      showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
       refetch();
       refreshUser();
       queryClient.invalidateQueries({ queryKey: ['comedianApplications'] });
       closeWithdrawModal();
     } catch (error: any) {
-      console.error('Erreur lors de la désinscription:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('❌ Erreur lors de la désinscription:', error.response?.status);
+      console.log('📢 Affichage de l\'alerte d\'erreur');
+      showError(getErrorMessage(error, ErrorMessages.APPLICATION_DELETE_FAILED));
     }
   };
 
@@ -1456,17 +1472,28 @@ useEffect(() => {
       const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
 
       if (diffDays >= 10) {
-        const proceed = window.confirm('Confirmer la suppression de cet évènement (plus de 10 jours avant) ?');
-        if (!proceed) return;
-        const config = {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Supprimer l\'évènement',
+          message: 'Confirmer la suppression de cet évènement (plus de 10 jours avant) ?',
+          isDangerous: true,
+          onConfirm: async () => {
+            try {
+              const config = {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              } as const;
+              await api.delete(`/events/${event._id}`, config);
+              showSuccess(SuccessMessages.EVENT_DELETED);
+              refetch();
+              refreshUser();
+              setConfirmDialog({ ...confirmDialog, isOpen: false });
+            } catch (error) {
+              showError(getErrorMessage(error, ErrorMessages.EVENT_DELETE_FAILED));
+            }
           },
-        } as const;
-        await api.delete(`/events/${event._id}`, config);
-        alert('Évènement supprimé avec succès.');
-        refetch();
-        refreshUser();
+        });
         return;
       }
 
@@ -1474,8 +1501,8 @@ useEffect(() => {
       setCancelReason('');
       setShowCancelModal(true);
     } catch (error: any) {
-      console.error('Erreur lors de la suppression de l\'évènement:', error.response?.data || error.message);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('Erreur lors de la suppression de l\'évènement:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.EVENT_DELETE_FAILED));
     }
   };
 
@@ -1491,7 +1518,7 @@ useEffect(() => {
 
       // Raison obligatoire si < 10 jours
       if (diffDays < 10 && !cancelReason.trim()) {
-        alert('Veuillez fournir une raison d\'annulation (évènement dans moins de 10 jours).');
+        showWarning('Veuillez fournir une raison d\'annulation (évènement dans moins de 10 jours).');
         return;
       }
 
@@ -1503,15 +1530,15 @@ useEffect(() => {
         };
         // Envoi du statut annulé; la raison est transmise si supportée par l'API
         await api.put(`/events/${eventToCancel._id}`, { status: 'cancelled', cancellationReason: cancelReason }, config);
-        alert('Évènement annulé et déplacé vers "Évènements annulés".');
+        showSuccess('Évènement annulé et déplacé vers "Évènements annulés".');
         refetch();
         refreshUser();
       } else {
-        alert('Évènement non déplacé vers "Évènements annulés" (plus de 10 jours avant).');
+        showInfo(InfoMessages.EVENT_NOT_CANCELLED_OLD);
       }
     } catch (err: any) {
       console.error("Erreur lors de l'annulation de l'évènement:", err.response?.data || err.message);
-      alert('Erreur: ' + (err.response?.data?.message || err.message));
+      showError(err.response?.data?.message || err.message);
     } finally {
       setShowCancelModal(false);
       setEventToCancel(null);
@@ -1526,29 +1553,33 @@ useEffect(() => {
 
   const handleNotifyHumorists = async (event: IEvent) => {
     if (!token) {
-      alert('Vous devez être connecté pour envoyer des notifications.');
+      showWarning(WarningMessages.AUTH_REQUIRED_SEND_NOTIFICATIONS);
       return;
     }
 
-    if (!confirm(`Voulez-vous envoyer une notification par email à tous les humoristes pour l'évènement "${event.title}" ?`)) {
-      return;
-    }
-
-    setNotifyingEventId(event._id);
-    try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      await api.post(`/events/${event._id}/notify`, {}, config);
-      alert('Les notifications ont été envoyées avec succès aux humoristes !');
-    } catch (error: any) {
-      console.error('Erreur lors de l\'envoi des notifications:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message || 'Impossible d\'envoyer les notifications'));
-    } finally {
-      setNotifyingEventId(null);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Envoyer des notifications',
+      message: `Voulez-vous envoyer une notification par email à tous les humoristes pour l'évènement "${event.title}" ?`,
+      onConfirm: async () => {
+        setNotifyingEventId(event._id);
+        try {
+          const config = {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          };
+          await api.post(`/events/${event._id}/notify`, {}, config);
+          showSuccess(SuccessMessages.NOTIFICATIONS_SENT);
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        } catch (error: any) {
+          console.error('Erreur lors de l\'envoi des notifications:', error.response?.status);
+          showError(getErrorMessage(error, ErrorMessages.PROFILE_UPDATE_FAILED));
+        } finally {
+          setNotifyingEventId(null);
+        }
+      },
+    });
   };
 
   // Handlers pour l'invitation d'humoriste
@@ -1560,20 +1591,20 @@ useEffect(() => {
 
   const handleInviteComedian = async () => {
     if (!comedianToInvite || !selectedEventForInvite || !token) {
-      alert('Veuillez sélectionner un événement.');
+      showWarning(WarningMessages.SELECT_EVENT_REQUIRED);
       return;
     }
 
     setIsInviting(true);
     try {
       await inviteComedianToEvent(selectedEventForInvite, comedianToInvite._id);
-      alert(`Invitation envoyée à ${comedianToInvite.stageName || comedianToInvite.firstName} !`);
+      showSuccess(SuccessMessages.INVITATION_SENT);
       setShowInviteModal(false);
       setComedianToInvite(null);
       setSelectedEventForInvite('');
     } catch (error: any) {
       console.error('Erreur lors de l\'envoi de l\'invitation:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message || 'Impossible d\'envoyer l\'invitation'));
+      showError(getErrorMessage(error, ErrorMessages.INVITATION_FAILED));
     } finally {
       setIsInviting(false);
     }
@@ -1603,11 +1634,11 @@ useEffect(() => {
 
   const handleMarkAbsent = async (reason: string) => {
     if (!selectedAbsenceParticipant) return;
-    
+
     try {
       await markAbsence(
-        selectedAbsenceParticipant.eventId, 
-        selectedAbsenceParticipant._id, 
+        selectedAbsenceParticipant.eventId,
+        selectedAbsenceParticipant._id,
         reason
       );
 
@@ -1630,21 +1661,23 @@ useEffect(() => {
         };
       });
 
+      showSuccess(SuccessMessages.ABSENCE_MARKED);
       // Fermer les deux modals (absence + event)
       closeAbsenceModal();
       closeModal();
     } catch (error: any) {
-      console.error('Erreur lors du marquage d\'absence:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('Erreur lors du marquage d\'absence:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.ABSENCE_MARK_FAILED));
+      throw error; // Re-throw pour que AbsenceModal sache que l'opération a échoué
     }
   };
 
   const handleCancelAbsence = async () => {
     if (!selectedAbsenceParticipant) return;
-    
+
     try {
       await cancelAbsence(
-        selectedAbsenceParticipant.eventId, 
+        selectedAbsenceParticipant.eventId,
         selectedAbsenceParticipant._id
       );
 
@@ -1667,12 +1700,14 @@ useEffect(() => {
         };
       });
 
+      showSuccess(SuccessMessages.ABSENCE_CANCELLED);
       // Fermer les deux modals (absence + event)
       closeAbsenceModal();
       closeModal();
     } catch (error: any) {
-      console.error('Erreur lors de l\'annulation d\'absence:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('Erreur lors de l\'annulation d\'absence:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.ABSENCE_CANCEL_FAILED));
+      throw error; // Re-throw pour que AbsenceModal sache que l'opération a échoué
     }
   };
 
@@ -3982,53 +4017,135 @@ useEffect(() => {
 
       {/* Modal de confirmation de retrait */}
       {showWithdrawModal && eventToWithdraw && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.target === e.currentTarget && closeWithdrawModal()}
+        >
           <div style={{
-            background: '#fff', padding: 30, borderRadius: 10,
-            minWidth: 320, maxWidth: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+            backgroundColor: '#1a1a2e',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
           }}>
-            <h2 style={{ color: '#dc3545', marginBottom: 20, fontSize: '1.5em' }}>
-              Retirer votre candidature
-            </h2>
-            <p style={{ color: '#333', fontSize: '1.05em', lineHeight: '1.6', marginBottom: 15 }}>
-              Êtes-vous sûr de vouloir retirer votre candidature pour l'évènement <strong>"{eventToWithdraw.title}"</strong> ?
-            </p>
-            <p style={{ color: '#666', fontSize: '0.95em', marginBottom: 25 }}>
-              Cette action est définitive.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button onClick={closeWithdrawModal} style={{
-                padding: '10px 20px',
-                borderRadius: '5px',
-                border: 'none',
-                background: '#6c757d',
+            {/* Header avec titre et bouton X */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+            }}>
+              <h2 style={{
+                fontSize: '20px',
+                fontWeight: '600',
                 color: '#fff',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '1em'
+                margin: 0,
               }}>
+                Retirer votre candidature
+              </h2>
+              <button
+                onClick={closeWithdrawModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                }}
+                aria-label="Fermer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Message principal */}
+            <p style={{
+              color: '#ccc',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              margin: '0 0 12px 0',
+            }}>
+              Êtes-vous sûr de vouloir retirer votre candidature pour l'évènement <strong style={{ color: '#fff' }}>"{eventToWithdraw.title}"</strong> ?
+            </p>
+
+            {/* Avertissement */}
+            <p style={{
+              color: '#ff6b6b',
+              fontSize: '14px',
+              margin: '0 0 24px 0',
+              padding: '10px 12px',
+              backgroundColor: 'rgba(220, 53, 69, 0.15)',
+              borderRadius: '8px',
+              border: '1px solid rgba(220, 53, 69, 0.3)',
+            }}>
+              ⚠️ Cette action est définitive.
+            </p>
+
+            {/* Boutons d'action */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={closeWithdrawModal}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                }}
+              >
                 Annuler
               </button>
-              <button onClick={confirmWithdrawApplication} style={{
-                padding: '10px 20px',
-                borderRadius: '5px',
-                border: 'none',
-                background: '#dc3545',
-                color: '#fff',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '1em'
-              }}>
-                Confirmer le retrait
+              <button
+                onClick={confirmWithdrawApplication}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#dc3545',
+                  color: '#fff',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                }}
+              >
+                ✕ Confirmer le retrait
               </button>
             </div>
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        isDangerous={confirmDialog.isDangerous}
+        confirmText="Confirmer"
+        cancelText="Annuler"
+      />
     </div>
   );
 }

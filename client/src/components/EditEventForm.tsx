@@ -1,7 +1,9 @@
 import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import type { IEvent } from '../types/event';
 import api from '../services/api';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditEventFormProps {
   onClose: () => void;
@@ -11,6 +13,7 @@ interface EditEventFormProps {
 
 function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormProps) {
   const { token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -259,7 +262,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     e.preventDefault();
 
     if (!token) {
-      alert("Vous devez être connecté pour modifier un évènement.");
+      showWarning(WarningMessages.AUTH_REQUIRED_EDIT_EVENT);
       return;
     }
 
@@ -270,7 +273,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     // Validation de l'ID de l'évènement
     if (!eventToEdit || !eventToEdit._id) {
       console.error('❌ [EditEventForm] Évènement invalide - pas d\'ID', { eventToEdit });
-      alert('Erreur: Impossible de modifier cet évènement. ID manquant.');
+      showError(ErrorMessages.EVENT_MISSING_ID);
       return;
     }
 
@@ -340,7 +343,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
       
       const response = await api.put(`/events/${eventToEdit._id}`, eventData, config);
       console.log('✅ [EditEventForm] Réponse serveur:', response.data);
-      alert('Évènement mis à jour avec succès !');
+      showSuccess(SuccessMessages.EVENT_UPDATED);
       onEventUpdated();
     } catch (error: any) {
       console.error('❌ [EditEventForm] Erreur lors de la mise à jour de l\'évènement:', {
@@ -351,19 +354,9 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         eventId: eventToEdit._id,
         url: error.config?.url,
       });
-      
-      let errorMessage = 'Erreur lors de la mise à jour de l\'évènement';
-      if (error.response?.status === 404) {
-        errorMessage = `Évènement non trouvé (ID: ${eventToEdit._id}). Vérifiez que l'évènement existe et que vous êtes autorisé à le modifier.`;
-      } else if (error.response?.status === 403) {
-        errorMessage = 'Vous n\'êtes pas autorisé à modifier cet évènement.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+
+      const errorMessage = getErrorMessage(error, ErrorMessages.EVENT_UPDATE_FAILED);
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

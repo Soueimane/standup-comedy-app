@@ -2,6 +2,8 @@ import { type CSSProperties, useState, useEffect } from 'react';
 import Modal from './Modal';
 import { createComedianReport, checkComedianReport } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface ReportComedianModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface ReportComedianModalProps {
 
 const ReportComedianModal = ({ isOpen, onClose, comedianId, comedianName }: ReportComedianModalProps) => {
   const { user, token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [reason, setReason] = useState<'troll' | 'fake_account' | 'inappropriate_content' | 'spam' | 'other'>('troll');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,30 +42,30 @@ const ReportComedianModal = ({ isOpen, onClose, comedianId, comedianName }: Repo
 
   const handleSubmit = async () => {
     if (!reason) {
-      alert('Veuillez sélectionner une raison de signalement');
+      showWarning(WarningMessages.REPORT_REASON_REQUIRED);
       return;
     }
 
     if (reason === 'other' && !description.trim()) {
-      alert('Veuillez fournir une description pour la raison "Autre"');
+      showWarning(WarningMessages.REPORT_DESCRIPTION_REQUIRED);
       return;
     }
 
     setIsSubmitting(true);
     try {
       await createComedianReport(comedianId, reason, description || undefined);
-      alert('✅ Signalement envoyé avec succès. Un administrateur va examiner votre demande.');
+      showSuccess(SuccessMessages.REPORT_SUBMITTED);
       setHasReported(true);
       setReason('troll');
       setDescription('');
       onClose();
     } catch (error: any) {
-      console.error('Erreur lors du signalement:', error);
+      console.error('Erreur lors du signalement:', error.response?.status);
       if (error.response?.status === 409) {
-        alert('Vous avez déjà signalé cet humoriste.');
+        showWarning(WarningMessages.ALREADY_REPORTED);
         setHasReported(true);
       } else {
-        alert('Erreur: ' + (error.response?.data?.message || error.message));
+        showError(getErrorMessage(error, ErrorMessages.REPORT_SUBMIT_FAILED));
       }
     } finally {
       setIsSubmitting(false);

@@ -2,11 +2,14 @@ import { type CSSProperties, useState, useEffect, useRef, useMemo } from 'react'
 import Navbar from '../components/Navbar';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ApplicationDetailsModal from '../components/ApplicationDetailsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addFavorite, removeFavorite, getFavorites, addApplicationFavorite, removeApplicationFavorite, getApplicationFavorites } from '../services/api';
 import { checkGeographicCompatibility, isGeographicMatch, matchesMobilityZones, normalizeString } from '../utils/geographicMatching';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages, InfoMessages, ConfirmMessages } from '../services/systemMessages';
 
 export interface IUser {
   _id: string;
@@ -136,6 +139,7 @@ function GeographicCompatibilityBadge({
 
 function ApplicationsPage() {
   const { token, user, refreshUser } = useAuth();
+  const { showSuccess, showError, showInfo } = useAlert();
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -144,6 +148,12 @@ function ApplicationsPage() {
   const [selectedTab, setSelectedTab] = useState<OrganizerApplicationTab>('all');
   const [comedianTab, setComedianTab] = useState<ComedianApplicationTab>('accepted');
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [statusToSet, setStatusToSet] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
   const [statusAppId, setStatusAppId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
@@ -308,7 +318,7 @@ function ApplicationsPage() {
         }
         return Array.from(updated);
       });
-      alert(error.response?.data?.message || 'Erreur lors de la modification des favoris');
+      showError(getErrorMessage(error, ErrorMessages.PROFILE_UPDATE_FAILED));
     }
   };
 
@@ -349,11 +359,11 @@ function ApplicationsPage() {
     const params = new URLSearchParams(location.search);
     const update = params.get('update');
     if (update === 'kept') {
-      alert("Confirmation prise en compte: l'humoriste reste inscrit.");
+      showInfo(InfoMessages.ORGANIZER_APPLICATION_CONFIRMED);
     } else if (update === 'withdrawn') {
-      alert("Désinscription confirmée: la candidature a été retirée.");
+      showInfo(InfoMessages.ORGANIZER_APPLICATION_WITHDRAWN);
     }
-  }, [location.search]);
+  }, [location.search, showInfo]);
 
   useEffect(() => {
     if (!applicationIdFromUrl) return;
@@ -439,13 +449,13 @@ function ApplicationsPage() {
         },
       };
       await api.put(`/applications/${statusAppId}/status`, { status: statusToSet, organizerMessage: statusMessage }, config);
-      alert(`Candidature ${statusToSet === 'ACCEPTED' ? 'acceptée' : 'refusée'} avec succès !`);
+      showSuccess(`Candidature ${statusToSet === 'ACCEPTED' ? 'acceptée' : 'refusée'} avec succès !`);
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       refreshUser();
       closeStatusModal();
     } catch (err: any) {
-      console.error('Erreur lors de la mise à jour du statut:', err.response?.data || err.message);
-      alert(`Échec de la mise à jour du statut: ${err.response?.data?.message || err.message}`);
+      console.error('Erreur lors de la mise à jour du statut:', err.response?.status);
+      showError(getErrorMessage(err, ErrorMessages.APPLICATION_UPDATE_FAILED));
     }
   };
 
@@ -1526,10 +1536,10 @@ function ApplicationsPage() {
                                     await api.patch(`/applications/${app._id}/confirm`, {}, {
                                       headers: { Authorization: `Bearer ${token}` }
                                     });
-                                    alert('Confirmation enregistrée !');
+                                    showSuccess(SuccessMessages.APPLICATION_CONFIRMED);
                                     queryClient.invalidateQueries({ queryKey: ['applications'] });
                                   } catch (error) {
-                                    alert('Erreur lors de la confirmation.');
+                                    showError(ErrorMessages.APPLICATION_CONFIRM_FAILED);
                                   }
                                 }}
                                 style={{ ...actionButtonStyle, backgroundColor: '#ff9800' }}
@@ -1537,19 +1547,31 @@ function ApplicationsPage() {
                                 Je reste inscrit
                               </button>
                               <button
-                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
                                   if (!token) return;
-                                  if (!confirm('Confirmer la désinscription ?')) return;
-                                  try {
-                                    const config = { headers: { Authorization: `Bearer ${token}` } };
-                                    await api.delete(`/applications/${app._id}`, config);
-                                    alert('Candidature retirée.');
-                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
-                                    refreshUser();
-                                  } catch (err: any) {
-                                    alert('Échec de la désinscription.');
-                                  }
+                                  setConfirmDialog({
+                                    isOpen: true,
+                                    title: 'Confirmer la désinscription',
+                                    message: ConfirmMessages.UNSUBSCRIBE,
+                                     onConfirm: async () => {
+                                       console.log('🔄 Début de la désinscription pour application:', app._id);
+                                       try {
+                                         const config = { headers: { Authorization: `Bearer ${token}` } };
+                                         console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
+                                         await api.delete(`/applications/${app._id}`, config);
+                                         console.log('✅ API call réussi, affichage de l\'alerte de succès');
+                                         showSuccess(SuccessMessages.APPLICATION_WITHDRAWN);
+                                         queryClient.invalidateQueries({ queryKey: ['applications'] });
+                                         refreshUser();
+                                         setConfirmDialog({ ...confirmDialog, isOpen: false });
+                                       } catch (err: any) {
+                                         console.log('❌ Erreur lors de la désinscription:', err);
+                                         console.log('📢 Affichage de l\'alerte d\'erreur');
+                                         showError(ErrorMessages.APPLICATION_WITHDRAW_FAILED);
+                                       }
+                                     },
+                                  });
                                 }}
                                 style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
                               >
@@ -1561,19 +1583,31 @@ function ApplicationsPage() {
                           {user?.role === 'COMEDIAN' && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button
-                                onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
                                   if (!token) return;
-                                  if (!confirm('Voulez-vous vous désinscrire de cet évènement ?')) return;
-                                  try {
-                                    const config = { headers: { Authorization: `Bearer ${token}` } };
-                                    await api.delete(`/applications/${app._id}`, config);
-                                    alert('Vous avez été désinscrit de cet évènement.');
-                                    queryClient.invalidateQueries({ queryKey: ['applications'] });
-                                    refreshUser();
-                                  } catch (err: any) {
-                                    alert('Échec de la désinscription.');
-                                  }
+                                  setConfirmDialog({
+                                    isOpen: true,
+                                    title: 'Confirmer la désinscription',
+                                    message: ConfirmMessages.UNSUBSCRIBE_DETAIL,
+                                     onConfirm: async () => {
+                                       console.log('🔄 Début de la désinscription (accepted) pour application:', app._id);
+                                       try {
+                                         const config = { headers: { Authorization: `Bearer ${token}` } };
+                                         console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
+                                         await api.delete(`/applications/${app._id}`, config);
+                                         console.log('✅ API call réussi, affichage de l\'alerte de succès');
+                                         showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
+                                         queryClient.invalidateQueries({ queryKey: ['applications'] });
+                                         refreshUser();
+                                         setConfirmDialog({ ...confirmDialog, isOpen: false });
+                                       } catch (err: any) {
+                                         console.log('❌ Erreur lors de la désinscription:', err);
+                                         console.log('📢 Affichage de l\'alerte d\'erreur');
+                                         showError(ErrorMessages.APPLICATION_WITHDRAW_FAILED);
+                                       }
+                                     },
+                                  });
                                 }}
                                 style={{ ...actionButtonStyle, backgroundColor: '#dc3545', width: isMobile ? '100%' : 'auto' }}
                               >
@@ -1764,32 +1798,157 @@ function ApplicationsPage() {
         />
       )}
       {showStatusModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div style={{ background: '#fff', padding: 30, borderRadius: 10, minWidth: 320, maxWidth: 400 }}>
-            <h2 style={{ color: '#ff416c', marginBottom: 15 }}>
-              {statusToSet === 'ACCEPTED' ? 'Accepter la candidature' : 'Refuser la candidature'}
-            </h2>
-            <label style={{ color: '#333', fontWeight: 500 }}>Message (optionnel) :</label>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.target === e.currentTarget && closeStatusModal()}
+        >
+          <div style={{
+            backgroundColor: '#1a1a2e',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}>
+            {/* Header avec titre et bouton X */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+            }}>
+              <h2 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                color: '#fff',
+                margin: 0,
+              }}>
+                {statusToSet === 'ACCEPTED' ? 'Accepter la candidature' : 'Refuser la candidature'}
+              </h2>
+              <button
+                onClick={closeStatusModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                }}
+                aria-label="Fermer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Description contextuelle */}
+            <p style={{
+              color: '#aaa',
+              fontSize: '14px',
+              lineHeight: '1.5',
+              margin: '0 0 20px 0',
+            }}>
+              {statusToSet === 'ACCEPTED'
+                ? "Vous pouvez ajouter un message personnel à l'humoriste pour l'informer de détails supplémentaires."
+                : "Vous pouvez indiquer la raison du refus pour aider l'humoriste à comprendre votre décision."}
+            </p>
+
+            {/* Label et textarea */}
+            <label style={{
+              color: '#ccc',
+              fontWeight: '600',
+              display: 'block',
+              marginBottom: '10px',
+              fontSize: '14px',
+            }}>
+              Message (optionnel)
+            </label>
             <textarea
               ref={messageInputRef as any}
               value={statusMessage}
               onChange={e => setStatusMessage(e.target.value)}
-              rows={4}
-              style={{ width: '100%', margin: '10px 0 20px 0', borderRadius: 6, border: '1px solid #ccc', padding: 8 }}
-              placeholder={statusToSet === 'ACCEPTED' ? 'Message pour l\'humoriste (optionnel)' : 'Motif du refus (optionnel)'}
+              rows={5}
+              placeholder={statusToSet === 'ACCEPTED'
+                ? "Ex: Nous sommes ravis de vous accueillir ! Voici quelques détails..."
+                : "Ex: Nous recherchons un profil avec plus d'expérience pour cet événement..."}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: '#2d2d44',
+                color: '#fff',
+                fontSize: '14px',
+                lineHeight: '1.5',
+                resize: 'vertical',
+                marginBottom: '24px',
+                boxSizing: 'border-box',
+                fontFamily: 'inherit',
+              }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={closeStatusModal} style={{ ...actionButtonStyle, background: '#aaa', color: '#fff' }}>Annuler</button>
-              <button onClick={handleConfirmStatus} style={{ ...actionButtonStyle, background: statusToSet === 'ACCEPTED' ? '#28a745' : '#dc3545' }}>
-                Confirmer
+
+            {/* Boutons d'action */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={closeStatusModal}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleConfirmStatus}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: statusToSet === 'ACCEPTED' ? '#28a745' : '#dc3545',
+                  color: '#fff',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                }}
+              >
+                {statusToSet === 'ACCEPTED' ? '✓ Accepter' : '✕ Refuser'}
               </button>
             </div>
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        confirmText="Confirmer"
+        cancelText="Annuler"
+      />
     </div>
   );
 }

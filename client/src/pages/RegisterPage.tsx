@@ -1,9 +1,12 @@
 import { useState, useEffect, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { Link } from 'react-router-dom';
+import { getErrorMessage, ErrorMessages } from '../services/systemMessages';
 
 function RegisterPage() {
   const { registerMutation } = useAuth();
+  const { showError } = useAlert();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -163,13 +166,7 @@ function RegisterPage() {
       await registerMutation.mutateAsync(dataToSend);
       // La redirection est gérée dans AuthContext
     } catch (error: any) {
-      // Afficher les erreurs de validation détaillées si disponibles
-      if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
-        const errorMessages = error.response.data.errors.map((err: any) => err.message).join(', ');
-        alert(errorMessages || error.response?.data?.message || 'Une erreur est survenue lors de l\'inscription');
-      } else {
-      alert(error.response?.data?.message || 'Une erreur est survenue lors de l\'inscription');
-      }
+      showError(getErrorMessage(error, ErrorMessages.SIGNUP_FAILED));
     }
   };
 

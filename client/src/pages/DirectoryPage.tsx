@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import Navbar from '../components/Navbar';
 import ComedianApplicationsModal from '../components/ComedianApplicationsModal';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
@@ -58,6 +59,7 @@ const DirectoryPage: React.FC = () => {
   const [selectedOrganizerProfile, setSelectedOrganizerProfile] = useState<IUserData | null>(null);
   const [isOrganizerProfileModalOpen, setIsOrganizerProfileModalOpen] = useState(false);
   const { user, token } = useAuth();
+  const { showError, showWarning } = useAlert();
 
   // Charger les utilisateurs avec React Query
   const { data: usersData, isLoading: loading, refetch: refetchUsers } = useQuery({
@@ -215,7 +217,7 @@ const DirectoryPage: React.FC = () => {
     e.stopPropagation();
     try {
       if (!token) {
-        alert('Vous devez être connecté pour voir le profil');
+        showWarning('Vous devez être connecté pour voir le profil');
         return;
       }
       const config = {
@@ -228,7 +230,7 @@ const DirectoryPage: React.FC = () => {
       setIsComedianProfileModalOpen(true);
     } catch (err: any) {
       console.error('Erreur lors de la récupération du profil:', err.response?.data || err.message);
-      alert('Erreur lors du chargement du profil de l\'humoriste');
+      showError(err.userFriendlyMessage || 'Erreur lors du chargement du profil de l\'humoriste');
     }
   };
 
@@ -236,7 +238,7 @@ const DirectoryPage: React.FC = () => {
     e.stopPropagation();
     try {
       if (!token) {
-        alert('Vous devez être connecté pour voir le profil');
+        showWarning('Vous devez être connecté pour voir le profil');
         return;
       }
       const config = {
@@ -249,7 +251,7 @@ const DirectoryPage: React.FC = () => {
       setIsOrganizerProfileModalOpen(true);
     } catch (err: any) {
       console.error('Erreur lors de la récupération du profil:', err.response?.data || err.message);
-      alert('Erreur lors du chargement du profil de l\'organisateur');
+      showError(err.userFriendlyMessage || 'Erreur lors du chargement du profil de l\'organisateur');
     }
   };
 

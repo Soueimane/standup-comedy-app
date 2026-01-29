@@ -1,9 +1,11 @@
 import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import type { IUserData } from '../types/user';
 import Modal from './Modal';
 import api from '../services/api';
 import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditComedianProfileFormProps {
   isOpen: boolean;
@@ -14,9 +16,9 @@ interface EditComedianProfileFormProps {
 
 function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditComedianProfileFormProps) {
   const { token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<IUserData>(currentUser);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [avatarChanged, setAvatarChanged] = useState(false); // Track if avatar was actually changed
@@ -39,13 +41,13 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     if (file) {
       // Vérifier la taille du fichier (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('L\'image est trop grande. Taille maximale : 5MB');
+        showWarning(WarningMessages.IMAGE_TOO_LARGE);
         return;
       }
-      
+
       // Vérifier le type de fichier
       if (!file.type.startsWith('image/')) {
-        setError('Le fichier doit être une image');
+        showWarning(WarningMessages.IMAGE_REQUIRED);
         return;
       }
 
@@ -56,7 +58,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         setFormData(prev => ({ ...prev, avatarUrl: base64String }));
         setAvatarRemoved(false);
         setAvatarChanged(true); // Mark avatar as changed
-        setError(null);
       };
       reader.readAsDataURL(file);
     }
@@ -67,7 +68,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     setFormData(prev => ({ ...prev, avatarUrl: null }));
     setAvatarRemoved(true);
     setAvatarChanged(true); // Mark avatar as changed (removed)
-    setError(null);
   };
 
   const searchCities = async (query: string, index: number) => {
@@ -156,7 +156,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     try {
       const config = {
         headers: {
@@ -209,10 +208,11 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
       }
 
       await api.put(`/profile/${currentUser._id}`, comedianProfileData, config);
+      showSuccess(SuccessMessages.PROFILE_UPDATED);
       onSaveSuccess();
     } catch (err: any) {
       console.error('Erreur lors de la mise à jour du profil:', err.response?.data || err.message);
-      setError(err.response?.data?.message || 'Échec de la mise à jour du profil.');
+      showError(getErrorMessage(err, ErrorMessages.PROFILE_UPDATE_FAILED));
     } finally {
       setLoading(false);
     }
@@ -785,7 +785,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           placeholder="https://www.facebook.com/votre-page"
           style={inputStyle}
         />
-        {error && <p style={{ color: '#dc3545', marginBottom: '15px' }}>{error}</p>}
         <button type="submit" style={buttonStyle} disabled={loading}>
           {loading ? 'Sauvegarde...' : 'Sauvegarder'}
         </button>

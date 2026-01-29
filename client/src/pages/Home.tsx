@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 
 function Home() {
   const { registerMutation, loginMutation } = useAuth();
+  const { showSuccess, showError } = useAlert();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -10,7 +12,7 @@ function Home() {
     lastName: '',
     role: 'comedian' as 'comedian' | 'organizer'
   });
-  
+
   const [loginData, setLoginData] = useState({
     email: '',
     password: ''
@@ -20,9 +22,9 @@ function Home() {
     e.preventDefault();
     try {
       await registerMutation.mutateAsync(formData);
-      alert('Inscription réussie !');
+      showSuccess('Inscription réussie !');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Une erreur est survenue lors de l\'inscription');
+      showError(error.userFriendlyMessage || error.response?.data?.message || 'Une erreur est survenue lors de l\'inscription');
     }
   };
 
@@ -30,9 +32,9 @@ function Home() {
     e.preventDefault();
     try {
       await loginMutation.mutateAsync(loginData);
-      alert('Connexion réussie !');
+      showSuccess('Connexion réussie !');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Une erreur est survenue lors de la connexion');
+      showError(error.userFriendlyMessage || error.response?.data?.message || 'Une erreur est survenue lors de la connexion');
     }
   };
 

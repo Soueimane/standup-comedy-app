@@ -2,7 +2,9 @@ import React, { useState, type CSSProperties, useEffect } from 'react';
 import type { IUserData } from '../types/user';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditOrganizerProfileFormProps {
   isOpen: boolean;
@@ -33,6 +35,7 @@ type OrganizerFormData = {
 
 function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditOrganizerProfileFormProps) {
   const { token, isLoading } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<OrganizerFormData>({
     firstName: currentUser.firstName || '',
     lastName: currentUser.lastName || '',
@@ -127,11 +130,11 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert("L'image est trop grande (max 5MB).");
+      showWarning(WarningMessages.IMAGE_TOO_LARGE);
       return;
     }
     if (!file.type.startsWith('image/')) {
-      alert('Merci de sélectionner un fichier image.');
+      showWarning(WarningMessages.IMAGE_REQUIRED);
       return;
     }
     const reader = new FileReader();
@@ -210,7 +213,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     console.log('token:', token, 'currentUser.id:', currentUser?.id, 'currentUser._id:', currentUser?._id, 'currentUser:', currentUser);
     if (isLoading) return;
     if (!token || !(currentUser?.id || currentUser?._id)) {
-      alert("Vous devez être connecté pour modifier votre profil.");
+      showWarning(WarningMessages.AUTH_REQUIRED_PROFILE_EDIT);
       return;
     }
 
@@ -248,14 +251,14 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       };
 
       const userId = currentUser.id || currentUser._id;
-      const res = await api.put(`/profile/${userId}`, updatedData, config); // Use PUT for update via baseURL
+      const res = await api.put(`/profile/${userId}`, updatedData, config);
       console.log('Profil mis à jour:', res.data);
-      alert('Profil mis à jour avec succès !');
-      onSaveSuccess(); // Trigger a refetch or state update in parent
+      showSuccess(SuccessMessages.PROFILE_UPDATED);
+      onSaveSuccess();
       onClose();
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour du profil:', error.response?.data || error.message);
-      alert(`Erreur lors de la mise à jour du profil: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors de la mise à jour du profil:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.PROFILE_UPDATE_FAILED));
     }
   };
 

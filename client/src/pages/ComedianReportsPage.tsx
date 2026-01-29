@@ -2,8 +2,10 @@ import { type CSSProperties, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { useNavigate } from 'react-router-dom';
 import api, { updateComedianReport } from '../services/api';
+import { getErrorMessage, ErrorMessages, SuccessMessages } from '../services/systemMessages';
 
 interface ComedianReport {
   _id: string;
@@ -37,6 +39,7 @@ interface ComedianReport {
 
 const ComedianReportsPage = () => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useAlert();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -91,14 +94,14 @@ const ComedianReportsPage = () => {
 
     try {
       await updateComedianReport(selectedReport._id, newStatus);
-      alert('✅ Signalement mis à jour avec succès');
+      showSuccess(SuccessMessages.REPORT_UPDATED);
       setIsModalOpen(false);
       setSelectedReport(null);
       await refetch();
       queryClient.invalidateQueries({ queryKey: ['comedian-reports'] });
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('Erreur lors de la mise à jour:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.REPORT_UPDATE_FAILED));
     }
   };
 

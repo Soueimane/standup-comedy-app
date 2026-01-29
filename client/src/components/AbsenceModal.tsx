@@ -33,9 +33,10 @@ function AbsenceModal({
       } else {
         await onMarkAbsent(reason);
       }
+      // Le parent gère la fermeture de la modal et les alertes de succès
       setReason('');
-      onClose();
     } catch (error) {
+      // Le parent gère les alertes d'erreur, la modal reste ouverte pour permettre de réessayer
       console.error("Erreur lors de la gestion de l'absence:", error);
     } finally {
       setIsSubmitting(false);

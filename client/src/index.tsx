@@ -19,6 +19,7 @@ import PasswordResetManagementPage from './pages/PasswordResetManagementPage'
 import PresenceAlertsPage from './pages/PresenceAlertsPage'
 import ComedianReportsPage from './pages/ComedianReportsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AlertProvider } from './contexts/AlertContext'
 // import type { IUserData } from './types/user.ts'
 import LandingPage from './pages/LandingPage'
 import OAuthCallback from './pages/OAuthCallback'
@@ -114,9 +115,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <Router>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SSEProvider>
-          <AppRouter />
-        </SSEProvider>
+        <AlertProvider>
+          <SSEProvider>
+            <AppRouter />
+          </SSEProvider>
+        </AlertProvider>
       </AuthProvider>
     </QueryClientProvider>
   </Router>,

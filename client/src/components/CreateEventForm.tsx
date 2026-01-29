@@ -1,8 +1,10 @@
 import React, { type CSSProperties, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import { X, ChevronDown, MapPin, Calendar, Users } from 'lucide-react';
 import api from '../services/api';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface CreateEventFormProps {
   onClose: () => void;
@@ -26,6 +28,7 @@ interface CreateEventFormProps {
 
 function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
   const { user, token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [isMobile, setIsMobile] = useState(false);
 
   // Fonction pour générer les créneaux de 30 minutes
@@ -655,7 +658,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData });
 
     if (!user || !token) {
-      alert('Vous devez être connecté pour créer un évènement');
+      showWarning(WarningMessages.AUTH_REQUIRED_CREATE_EVENT);
       return;
     }
 
@@ -664,9 +667,9 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     if (!isValid) {
       console.log('❌ [CreateEventForm] Validation échouée, erreurs:', errors);
       // Afficher un message d'alerte avec les erreurs
-      const errorMessages = Object.values(errors).filter(msg => msg).join('\n');
+      const errorMessages = Object.values(errors).filter(msg => msg).join(', ');
       if (errorMessages) {
-        alert('Veuillez corriger les erreurs suivantes :\n\n' + errorMessages);
+        showWarning(WarningMessages.FORM_VALIDATION_FAILED + errorMessages);
       }
       // Faire défiler vers la première erreur
       const firstErrorField = Object.keys(errors)[0];
@@ -728,12 +731,12 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
 
       const response = await api.post('/events', eventData, config);
       console.log('✅ Réponse serveur:', response.data);
-      alert('Évènement créé avec succès !');
+      showSuccess(SuccessMessages.EVENT_CREATED);
       onEventCreated();
-      onClose(); // Fermer la modale après création réussie
+      onClose();
     } catch (error: any) {
-      console.error('Erreur lors de la création de l\'évènement:', error.response?.data || error.message);
-      alert(`Erreur lors de la création de l'évènement: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors de la création de l\'évènement:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.EVENT_CREATE_FAILED));
     } finally {
       setIsSubmitting(false);
     }

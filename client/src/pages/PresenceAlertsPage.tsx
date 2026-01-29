@@ -2,8 +2,11 @@ import { type CSSProperties, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { useNavigate } from 'react-router-dom';
 import api, { acknowledgePresenceAlert, triggerPresenceCheck } from '../services/api';
+import { getErrorMessage, ErrorMessages, ConfirmMessages } from '../services/systemMessages';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface PresenceAlert {
   _id: string;
@@ -28,9 +31,16 @@ interface PresenceAlert {
 
 const PresenceAlertsPage = () => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useAlert();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
@@ -49,18 +59,22 @@ const PresenceAlertsPage = () => {
 
   // Fonction pour marquer une alerte comme prise en compte
   const handleAcknowledge = async (alertId: string) => {
-    if (!confirm('Marquer cette alerte comme prise en compte ?')) {
-      return;
-    }
-
-    try {
-      await acknowledgePresenceAlert(alertId);
-      await refetch();
-      queryClient.invalidateQueries({ queryKey: ['presence-alerts'] });
-    } catch (error: any) {
-      console.error('Erreur lors de la prise en compte de l\'alerte:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Confirmer',
+      message: ConfirmMessages.PRESENCE_ALERT_ACKNOWLEDGE,
+      onConfirm: async () => {
+        try {
+          await acknowledgePresenceAlert(alertId);
+          await refetch();
+          queryClient.invalidateQueries({ queryKey: ['presence-alerts'] });
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        } catch (error: any) {
+          console.error('Erreur lors de la prise en compte de l\'alerte:', error.response?.status);
+          showError(getErrorMessage(error, 'Impossible de mettre à jour l\'alerte'));
+        }
+      },
+    });
   };
 
   // Fonction pour déclencher manuellement la vérification
@@ -68,11 +82,11 @@ const PresenceAlertsPage = () => {
     setIsProcessing(true);
     try {
       const result = await triggerPresenceCheck();
-      alert(`✅ Vérification terminée ! ${result.alertsCreated || 0} nouvelle(s) alerte(s) créée(s).`);
+      showSuccess(`Vérification terminée ! ${result.alertsCreated || 0} nouvelle(s) alerte(s) créée(s).`);
       await refetch();
     } catch (error: any) {
-      console.error('Erreur lors de la vérification:', error);
-      alert('Erreur: ' + (error.response?.data?.message || error.message));
+      console.error('Erreur lors de la vérification:', error.response?.status);
+      showError(getErrorMessage(error, 'Impossible d\'effectuer la vérification'));
     } finally {
       setIsProcessing(false);
     }
@@ -321,6 +335,15 @@ const PresenceAlertsPage = () => {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        confirmText="Confirmer"
+        cancelText="Annuler"
+      />
     </div>
   );
 };

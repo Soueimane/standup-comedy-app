@@ -1,9 +1,11 @@
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth
-import { useNavigate } from 'react-router-dom'; // Importer useNavigate
+import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { getErrorMessage, WarningMessages } from '../services/systemMessages';
 
 interface EventStats {
   totalEvents: number;
@@ -18,9 +20,10 @@ interface EventStats {
 }
 
 const Dashboard = () => {
-  const { user } = useAuth(); // Get user from useAuth for createdEvents
+  const { user } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const navigate = useNavigate(); // Initialiser useNavigate
+  const navigate = useNavigate();
   const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
   // Récupérer les statistiques avec React Query
@@ -82,7 +85,7 @@ const Dashboard = () => {
   // Fonction pour traiter les évènements terminés (Super Admin uniquement)
   const handleProcessCompletedEvents = async () => {
     if (!user || (user as any)?.role !== 'SUPER_ADMIN') {
-      alert('Accès refusé. Seuls les super-admins peuvent effectuer cette action.');
+      showWarning(WarningMessages.ADMIN_ONLY);
       return;
     }
 
@@ -96,13 +99,13 @@ const Dashboard = () => {
       const response = await api.post('/events/process-completed-events', {});
 
       const result = response.data;
-      alert(`✅ Traitement terminé !\n${result.participationsAdded} participations ajoutées sur ${result.eventsProcessed} évènements traités.`);
+      showSuccess(`Traitement terminé ! ${result.participationsAdded} participation(s) ajoutée(s).`);
 
       // Recharger les statistiques après traitement
       await refetchStats();
     } catch (error: any) {
-      console.error('Erreur lors du traitement:', error);
-      alert(`❌ Erreur: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors du traitement:', error.response?.status);
+      showError(getErrorMessage(error, 'Impossible de traiter les événements'));
     } finally {
       setIsProcessing(false);
     }

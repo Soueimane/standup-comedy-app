@@ -2,7 +2,9 @@ import React, { useState, useEffect, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import type { IEvent } from '../types/event';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface ApplyToEventFormProps {
   event: IEvent;
@@ -12,6 +14,7 @@ interface ApplyToEventFormProps {
 
 function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEventFormProps) {
   const { token, user } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [hasApplied, setHasApplied] = useState(false);
@@ -53,17 +56,19 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
       return response.data;
     },
     onSuccess: () => {
-      alert('Candidature soumise avec succès !');
+      showSuccess(SuccessMessages.APPLICATION_SUBMITTED);
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      onApplicationSubmitted();
-      onClose();
+      setTimeout(() => {
+        onApplicationSubmitted();
+        onClose();
+      }, 2000);
     },
     onError: (error: any) => {
-      console.error('Erreur lors de la soumission de la candidature:', error.response?.data || error.message);
-      const errorMessage = error.response?.data?.message || 'Échec de la soumission de la candidature.';
-      alert(errorMessage);
+      console.error('Erreur lors de la soumission de la candidature:', error.response?.status);
+      const errorMessage = getErrorMessage(error, ErrorMessages.APPLICATION_SUBMIT_FAILED);
+      showError(errorMessage);
 
-      if (errorMessage.includes('already applied') || errorMessage.includes('E11000')) {
+      if (error.response?.status === 409) {
         setHasApplied(true);
       }
     },
@@ -72,12 +77,12 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?._id) {
-      alert("ID utilisateur non disponible. Veuillez vous reconnecter.");
+      showError(ErrorMessages.USER_ID_MISSING);
       return;
     }
 
     if (hasApplied) {
-      alert('Vous avez déjà postulé à cet évènement !');
+      showWarning(WarningMessages.ALREADY_APPLIED);
       return;
     }
 

@@ -24,6 +24,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+
 // Intercepteur pour gérer les erreurs
 api.interceptors.response.use(
   (response) => response,
@@ -48,6 +49,7 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   }
 );

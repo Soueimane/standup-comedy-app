@@ -2,12 +2,14 @@ import { type CSSProperties, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import api from '../services/api';
 import { useQuery } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function ComedianDashboardPage() {
   const { user, token } = useAuth();
+  const { showInfo } = useAlert();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -16,11 +18,11 @@ function ComedianDashboardPage() {
     const params = new URLSearchParams(location.search);
     const update = params.get('update');
     if (update === 'kept') {
-      alert("Confirmation prise en compte: vous restez inscrit à l'évènement.");
+      showInfo("Confirmation prise en compte: vous restez inscrit à l'évènement.");
     } else if (update === 'withdrawn') {
-      alert("Désinscription confirmée: votre candidature a été retirée.");
+      showInfo("Désinscription confirmée: votre candidature a été retirée.");
     }
-  }, [location.search]);
+  }, [location.search, showInfo]);
 
   // Récupère les candidatures de l'humoriste
   const { data: applications } = useQuery({
