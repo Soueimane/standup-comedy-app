@@ -1281,37 +1281,61 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                 <span>Informations d'évènement</span>
               </div>
 
-              {/* Choix : Événement unique ou récurrent */}
-              <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
-                  Type d'événement
+              {/* Choix : Événement unique ou récurrent — deux blocs séparés */}
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
+                Type d'événement
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '16px',
+                    backgroundColor: eventType === 'unique' ? 'rgba(255, 65, 108, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '8px',
+                    border: eventType === 'unique' ? '1px solid rgba(255, 65, 108, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    color: '#fff',
+                    transition: 'background-color 0.2s, border-color 0.2s',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="eventType"
+                    checked={eventType === 'unique'}
+                    onChange={() => setEventType('unique')}
+                    style={{ width: '18px', height: '18px', accentColor: '#ff416c', flexShrink: 0 }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Événement unique</span>
                 </label>
-                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff' }}>
-                    <input
-                      type="radio"
-                      name="eventType"
-                      checked={eventType === 'unique'}
-                      onChange={() => setEventType('unique')}
-                      style={{ width: '18px', height: '18px', accentColor: '#ff416c' }}
-                    />
-                    <span>Événement unique</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff' }}>
-                    <input
-                      type="radio"
-                      name="eventType"
-                      checked={eventType === 'recurring'}
-                      onChange={() => {
-                        setEventType('recurring');
-                        setRecurrenceStartDate(formData.date);
-                        if (!recurrenceEndDate) setRecurrenceEndDate(formData.date);
-                      }}
-                      style={{ width: '18px', height: '18px', accentColor: '#ff416c' }}
-                    />
-                    <span>Événement récurrent</span>
-                  </label>
-                </div>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '16px',
+                    backgroundColor: eventType === 'recurring' ? 'rgba(255, 65, 108, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '8px',
+                    border: eventType === 'recurring' ? '1px solid rgba(255, 65, 108, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    color: '#fff',
+                    transition: 'background-color 0.2s, border-color 0.2s',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="eventType"
+                    checked={eventType === 'recurring'}
+                    onChange={() => {
+                      setEventType('recurring');
+                      setRecurrenceStartDate(formData.date);
+                      if (!recurrenceEndDate) setRecurrenceEndDate(formData.date);
+                    }}
+                    style={{ width: '18px', height: '18px', accentColor: '#ff416c', flexShrink: 0 }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Événement récurrent</span>
+                </label>
               </div>
 
               {eventType === 'unique' ? (

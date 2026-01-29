@@ -20,7 +20,6 @@ import type { IApplication } from './ApplicationsPage'; // Import IApplication
 import { markAbsence, cancelAbsence, getEventAbsences, addEventFavorite, removeEventFavorite, getEventFavorites, getRecommendations, getSmartRecommendations, searchComediansByZone, addFavorite, removeFavorite, getFavorites, inviteComedianToEvent } from '../services/api';
 import type { ComedianSearchResult, SearchComediansByZoneResponse } from '../services/api';
 import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages, InfoMessages, ConfirmMessages } from '../services/systemMessages';
-import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
 import { MoreVertical } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 5;
