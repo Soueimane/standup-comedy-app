@@ -210,7 +210,7 @@ function LandingPage() {
                 <button type="button" className="btn btn-primary btn-large" onClick={goRegister}>Créer mon compte</button>
               </div>
               <div className="section-divider hero-divider" aria-hidden />
-              <div className="hero-stats animate-in delay-4">
+              {/* <div className="hero-stats animate-in delay-4">
                 <div className="stat">
                   <div className="stat-number">500+</div>
                   <div className="stat-label">Humoristes</div>
@@ -223,7 +223,7 @@ function LandingPage() {
                   <div className="stat-number">50+</div>
                   <div className="stat-label">Scènes partenaires</div>
                 </div>
-              </div>
+              </div> */}
             </div>
             <div className="hero-visual animate-in delay-2">
               <div className="profile-cards">
