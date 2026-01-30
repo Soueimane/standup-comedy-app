@@ -154,6 +154,7 @@ function MyEventsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [eventToCancel, setEventToCancel] = useState<IEvent | null>(null);
+  const [eventsGroupToCancel, setEventsGroupToCancel] = useState<IEvent[] | null>(null);
   const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [eventToWithdraw, setEventToWithdraw] = useState<IEvent | null>(null);
@@ -1277,12 +1278,12 @@ useEffect(() => {
   const showFavoriteComediansSection = isOrganizerView && organizerTab === 'favoriteComedians';
   const showRecurringEventsSection = isOrganizerView && organizerTab === 'recurringEvents';
 
-  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived') => {
+  const renderOrganizerActions = (event: IEvent, context: 'upcoming' | 'full' | 'archived', groupEvents?: IEvent[], actionKey?: string) => {
     if (user?.role !== 'ORGANIZER') {
       return null;
     }
-
-    const isOpen = openActionsEventId === event._id;
+    const menuId = actionKey ?? event._id;
+    const isOpen = openActionsEventId === menuId;
     const menuItemStyle: CSSProperties = {
       display: 'block',
       width: '100%',
@@ -1307,7 +1308,7 @@ useEffect(() => {
           type="button"
           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation();
-            setOpenActionsEventId(isOpen ? null : event._id);
+            setOpenActionsEventId(isOpen ? null : menuId);
           }}
           style={{
             display: 'flex',
@@ -1331,10 +1332,10 @@ useEffect(() => {
           <div
             style={{
               position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: '4px',
-              minWidth: '200px',
+              ...(isMobile
+                ? { right: 0, bottom: '100%', marginBottom: '8px', minWidth: '200px', maxWidth: 'min(280px, calc(100vw - 24px))' }
+                : { right: '100%', top: '-16px', marginRight: '8px', minWidth: '200px' }
+              ),
               backgroundColor: '#2a2a3a',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               borderRadius: '8px',
@@ -1365,8 +1366,8 @@ useEffect(() => {
                   style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setOpenActionsEventId(null);
-                    handleEditClick(event);
+                setOpenActionsEventId(null);
+                  handleEditClick(event);
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
@@ -1406,7 +1407,11 @@ useEffect(() => {
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenActionsEventId(null);
-                    openCancelModal(event);
+                    if (groupEvents && groupEvents.length > 0) {
+                      openCancelGroupModal(groupEvents);
+                    } else {
+                      openCancelModal(event);
+                    }
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
@@ -1661,6 +1666,7 @@ useEffect(() => {
       }
 
       setEventToCancel(event);
+      setEventsGroupToCancel(null);
       setCancelReason('');
       setShowCancelModal(true);
     } catch (error: any) {
@@ -1669,42 +1675,70 @@ useEffect(() => {
     }
   };
 
+  const openCancelGroupModal = (events: IEvent[]) => {
+    setEventsGroupToCancel(events);
+    setEventToCancel(null);
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
   const confirmCancelEvent = async () => {
-    if (!eventToCancel) return;
-    try {
-      const now = new Date();
-      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const eventDate = new Date(eventToCancel.date);
+    const isGroup = eventsGroupToCancel && eventsGroupToCancel.length > 0;
+    const eventsToProcess = isGroup ? eventsGroupToCancel : (eventToCancel ? [eventToCancel] : []);
+    if (eventsToProcess.length === 0) return;
+
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const needReason = eventsToProcess.some((ev) => {
+      const eventDate = new Date(ev.date);
       const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const diffMs = eventMidnight.getTime() - todayMidnight.getTime();
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays < 10;
+    });
 
-      // Raison obligatoire si < 10 jours
-      if (diffDays < 10 && !cancelReason.trim()) {
-        showWarning('Veuillez fournir une raison d\'annulation (évènement dans moins de 10 jours).');
-        return;
+    if (needReason && !cancelReason.trim()) {
+      showWarning(isGroup
+        ? 'Veuillez fournir une raison d\'annulation (au moins un évènement du groupe est dans moins de 10 jours).'
+        : 'Veuillez fournir une raison d\'annulation (évènement dans moins de 10 jours).');
+      return;
+    }
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+
+    try {
+      let cancelledCount = 0;
+      let skippedCount = 0;
+      for (const ev of eventsToProcess) {
+        const eventDate = new Date(ev.date);
+        const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+        const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 10) {
+          await api.put(`/events/${ev._id}`, { status: 'cancelled', cancellationReason: cancelReason }, config);
+          cancelledCount += 1;
+        } else {
+          skippedCount += 1;
+        }
       }
-
-      if (diffDays < 10) {
-        const config = {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        };
-        // Envoi du statut annulé; la raison est transmise si supportée par l'API
-        await api.put(`/events/${eventToCancel._id}`, { status: 'cancelled', cancellationReason: cancelReason }, config);
-        showSuccess('Évènement annulé et déplacé vers "Évènements annulés".');
+      if (cancelledCount > 0) {
+        showSuccess(isGroup
+          ? `Groupe annulé : ${cancelledCount} évènement(s) déplacé(s) vers "Évènements annulés".${skippedCount > 0 ? ` ${skippedCount} évènement(s) non annulé(s) (date à plus de 10 jours).` : ''}`
+          : 'Évènement annulé et déplacé vers "Évènements annulés".');
         refetch();
         refreshUser();
-      } else {
+      } else if (skippedCount > 0) {
         showInfo(InfoMessages.EVENT_NOT_CANCELLED_OLD);
       }
     } catch (err: any) {
-      console.error("Erreur lors de l'annulation de l'évènement:", err.response?.data || err.message);
+      console.error("Erreur lors de l'annulation:", err.response?.data || err.message);
       showError(err.response?.data?.message || err.message);
     } finally {
       setShowCancelModal(false);
       setEventToCancel(null);
+      setEventsGroupToCancel(null);
       setCancelReason('');
     }
   };
@@ -2089,9 +2123,10 @@ useEffect(() => {
 
   const cardStatusBlockStyle: CSSProperties = {
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: isMobile ? 'flex-start' : 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: isMobile ? 'row' : 'column',
+    flexWrap: isMobile ? 'wrap' : 'nowrap',
+    alignItems: isMobile ? 'center' : 'flex-end',
+    justifyContent: isMobile ? 'space-between' : 'space-between',
     gap: '10px',
     minWidth: isMobile ? 'auto' : '240px',
   };
@@ -2100,7 +2135,7 @@ useEffect(() => {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '8px',
-    justifyContent: isMobile ? 'flex-start' : 'flex-end',
+    justifyContent: isMobile ? 'flex-end' : 'flex-end',
   };
 
   const statusBadgeStyle: CSSProperties = {
@@ -3503,7 +3538,7 @@ useEffect(() => {
                                 <span style={{ fontSize: '0.85em', color: '#aaa' }}>Événement récurrent · {item.events.length} date(s)</span>
                               </div>
                               <div style={cardHeaderActionsStyle}>
-                                <span style={cardDateBadgeStyle}>autres dates</span>
+                                <span style={cardDateBadgeStyle}>Voir les dates</span>
                                 <span style={{ ...cardDateBadgeStyle, marginLeft: '8px' }}>{isExpanded ? '−' : '+'}</span>
                               </div>
                             </div>
@@ -3515,8 +3550,8 @@ useEffect(() => {
                             </div>
                           </div>
                           <div style={cardStatusBlockStyle}>
-                            {renderStatusChip(`Groupe · ${item.events.length} date(s)`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
-                            {first && renderOrganizerActions(first, 'upcoming')}
+                            {renderStatusChip(`Groupe · ${item.events.length} date(s)`, '#5b9bd5', 'rgba(65, 131, 215, 0.15)')}
+                            {first && renderOrganizerActions(first, 'upcoming', item.events, `upcoming-group-${item.groupId}`)}
                           </div>
                         </div>
                         {isExpanded && (
@@ -3548,7 +3583,10 @@ useEffect(() => {
                                     <span style={{ ...cardDateBadgeStyle, marginRight: '8px', fontSize: '0.8em' }}>{dateFormatted}</span>
                                     <span style={{ color: '#fff' }}>{timeStr}</span>
                                   </div>
-                                  <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} comédiens</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} comédiens</span>
+                                    {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming', undefined, `upcoming-expanded-${event._id}`)}
+                                  </div>
                                 </div>
                               );
                             })}
@@ -4277,13 +4315,14 @@ useEffect(() => {
                                 {event.location?.venue} · {event.location?.city}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                               <span style={{ ...statusBadgeStyle, opacity: (event.status === 'CANCELLED' || event.status === 'cancelled') ? 0.7 : 1 }}>
                                 {status}
                               </span>
                               <span style={{ color: '#aaa', fontSize: '0.9em' }}>
                                 {participantsCount}/{maxP} comédiens
                               </span>
+                              {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming')}
                             </div>
                           </div>
                         );
@@ -4384,18 +4423,22 @@ useEffect(() => {
       />
 
       {/* Modal d'annulation d'évènement avec raison */}
-      <Modal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} title="Annuler l'évènement">
+      <Modal isOpen={showCancelModal} onClose={() => { setShowCancelModal(false); setEventToCancel(null); setEventsGroupToCancel(null); setCancelReason(''); }} title={eventsGroupToCancel?.length ? "Annuler le groupe d'événements" : "Annuler l'évènement"}>
         <div>
           <p style={{ marginBottom: 12, color: '#ddd' }}>
             {(() => {
-              if (!eventToCancel) return "";
+              const eventsToCheck = eventsGroupToCancel?.length ? eventsGroupToCancel : (eventToCancel ? [eventToCancel] : []);
+              if (eventsToCheck.length === 0) return "";
               const now = new Date();
               const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const eventDate = new Date(eventToCancel.date);
-              const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-              const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
-              return diffDays < 10
-                ? "Veuillez indiquer la raison de l'annulation (obligatoire car l'évènement est dans moins de 10 jours)."
+              const needReason = eventsToCheck.some((ev) => {
+                const eventDate = new Date(ev.date);
+                const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+                const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+                return diffDays < 10;
+              });
+              return needReason
+                ? (eventsGroupToCancel?.length ? "Veuillez indiquer la raison de l'annulation (obligatoire car au moins un évènement du groupe est dans moins de 10 jours)." : "Veuillez indiquer la raison de l'annulation (obligatoire car l'évènement est dans moins de 10 jours).")
                 : "Vous pouvez indiquer une raison (facultatif).";
             })()}
           </p>
