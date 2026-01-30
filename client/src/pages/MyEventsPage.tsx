@@ -41,6 +41,7 @@ interface SmartRecommendationsResponse {
   limit: number;
 }
 type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar' | 'favoriteComedians' | 'recurringEvents';
+type EventsSubTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'recurringEvents';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
@@ -1975,6 +1976,7 @@ useEffect(() => {
 
   const comedianTabs: ComedianTab[] = ['opportunities', 'accepted', 'favorites', 'recommendations'];
   const organizerTabs: OrganizerTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'calendar', 'favoriteComedians', 'recurringEvents'];
+  const eventsSubTabs: EventsSubTab[] = ['upcoming', 'full', 'archived', 'cancelled', 'recurringEvents'];
   const superAdminTabs: SuperAdminTab[] = ['full', 'upcoming', 'archived', 'cancelled'];
 
   const comedianTabsContainerStyle: CSSProperties = {
@@ -2038,6 +2040,38 @@ useEffect(() => {
     padding: '2px 8px',
     borderRadius: '999px',
   };
+
+  const dropdownContainerStyle: CSSProperties = {
+    position: 'relative',
+    display: 'inline-block',
+  };
+
+  const dropdownSelectStyle = (isActive: boolean): CSSProperties => ({
+    padding: '10px 18px',
+    paddingRight: '40px',
+    borderRadius: '999px',
+    border: isActive ? '1px solid #ff4b2b' : '1px solid rgba(255, 255, 255, 0.25)',
+    backgroundColor: isActive ? 'rgba(255, 75, 43, 0.25)' : 'rgba(0, 0, 0, 0.25)',
+    color: isActive ? '#ffffff' : '#ddd',
+    fontWeight: isActive ? 700 : 500,
+    cursor: 'pointer',
+    fontSize: '1em',
+    fontFamily: 'inherit',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'%3e%3cpath d='M6 9l6 6 6-6' stroke='%23${isActive ? 'ffffff' : 'dddddd'}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    backgroundSize: '14px',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    minWidth: isMobile ? '100%' : '220px',
+    boxShadow: isActive
+      ? '0 4px 12px rgba(255, 75, 43, 0.25), 0 0 0 1px rgba(255, 75, 43, 0.1) inset'
+      : '0 2px 4px rgba(0, 0, 0, 0.1)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    WebkitFontSmoothing: 'antialiased',
+    MozOsxFontSmoothing: 'grayscale',
+  } as CSSProperties);
 
   const eventCardStyle: CSSProperties = {
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
@@ -2846,20 +2880,67 @@ useEffect(() => {
             <>
               <div style={{ maxWidth: '1200px', margin: '0 auto 20px auto', padding: '0 20px' }}>
                 <div style={organizerTabsContainerStyle}>
-                  {organizerTabs.map(tabId => (
-                    <button
-                      key={tabId}
-                      style={organizerTabButtonStyle(organizerTab === tabId)}
-                      onClick={() => {
-                        if (tabId !== 'recurringEvents') setSelectedRecurrenceGroupId(null);
-                        if (tabId !== 'upcoming') setExpandedUpcomingGroupId(null);
-                        setOrganizerTab(tabId);
+                  {/* Dropdown pour les événements */}
+                  <div style={dropdownContainerStyle}>
+                    <style>{`
+                      .organizer-events-dropdown option {
+                        background-color: #1a1a2e !important;
+                        color: #ffffff !important;
+                        padding: 12px 16px;
+                        font-size: 1em;
+                      }
+                      .organizer-events-dropdown option:hover {
+                        background-color: rgba(255, 75, 43, 0.2) !important;
+                      }
+                      .organizer-events-dropdown option:checked {
+                        background-color: rgba(255, 75, 43, 0.3) !important;
+                        color: #ffffff !important;
+                        font-weight: 700;
+                      }
+                    `}</style>
+                    <select
+                      className="organizer-events-dropdown"
+                      value={organizerTab}
+                      onChange={(e) => {
+                        const newTab = e.target.value as OrganizerTab;
+                        if (newTab !== 'recurringEvents') setSelectedRecurrenceGroupId(null);
+                        if (newTab !== 'upcoming') setExpandedUpcomingGroupId(null);
+                        setOrganizerTab(newTab);
                       }}
+                      style={dropdownSelectStyle(eventsSubTabs.includes(organizerTab as EventsSubTab))}
                     >
-                      <span>{organizerTabTitles[tabId]}</span>
-                      <span style={organizerTabCountStyle}>{organizerTabCounts[tabId]}</span>
-                    </button>
-                  ))}
+                      {eventsSubTabs.map(tabId => (
+                        <option key={tabId} value={tabId}>
+                          {organizerTabTitles[tabId]} ({organizerTabCounts[tabId]})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tabs normaux pour Calendrier et Humoristes favoris */}
+                  <button
+                    style={organizerTabButtonStyle(organizerTab === 'calendar')}
+                    onClick={() => {
+                      setSelectedRecurrenceGroupId(null);
+                      setExpandedUpcomingGroupId(null);
+                      setOrganizerTab('calendar');
+                    }}
+                  >
+                    <span>{organizerTabTitles['calendar']}</span>
+                    <span style={organizerTabCountStyle}>{organizerTabCounts['calendar']}</span>
+                  </button>
+
+                  <button
+                    style={organizerTabButtonStyle(organizerTab === 'favoriteComedians')}
+                    onClick={() => {
+                      setSelectedRecurrenceGroupId(null);
+                      setExpandedUpcomingGroupId(null);
+                      setOrganizerTab('favoriteComedians');
+                    }}
+                  >
+                    <span>{organizerTabTitles['favoriteComedians']}</span>
+                    <span style={organizerTabCountStyle}>{organizerTabCounts['favoriteComedians']}</span>
+                  </button>
                 </div>
               </div>
               
