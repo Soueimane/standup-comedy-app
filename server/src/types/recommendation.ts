@@ -77,14 +77,15 @@ export const CRITERION_DESCRIPTIONS: Record<RecommendationCriterion, string> = {
 // ============================================================================
 
 // Type de match pour les recommandations intelligentes
-export type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'both';
+export type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'recurring_event_group';
 
 // Résultat d'une recommandation intelligente
 export interface SmartRecommendation {
   event: any; // EventDocument populé
   matchType: SmartRecommendationMatchType;
-  matchedEventTitle?: string;     // Nom de l'événement original qui a déclenché le match
-  matchedOrganizerName?: string;  // Nom de l'organisateur
+  matchedEventTitle?: string;           // Nom de l'événement original qui a déclenché le match
+  matchedOrganizerName?: string;        // Nom de l'organisateur
+  matchedRecurrenceEventTitle?: string; // Titre de l'événement du groupe récurrent auquel l'utilisateur a participé
 }
 
 // Réponse de l'API de recommandations intelligentes

@@ -26,12 +26,13 @@ const ITEMS_PER_PAGE = 5;
 type ComedianTab = 'opportunities' | 'accepted' | 'favorites' | 'recommendations';
 
 // Types pour les recommandations intelligentes
-type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'both';
+type SmartRecommendationMatchType = 'same_event_name' | 'same_organizer' | 'recurring_event_group';
 interface SmartRecommendation {
   event: IEvent;
   matchType: SmartRecommendationMatchType;
   matchedEventTitle?: string;
   matchedOrganizerName?: string;
+  matchedRecurrenceEventTitle?: string;
 }
 interface SmartRecommendationsResponse {
   recommendations: SmartRecommendation[];
@@ -2761,9 +2762,9 @@ useEffect(() => {
                   {/* Badge pour les recommandations intelligentes */}
                   {isRecommendationsTab && smartRecommendationMap.has(String(event._id)) && (() => {
                     const smartRec = smartRecommendationMap.get(String(event._id));
-                    if (smartRec?.matchType === 'both') {
+                    if (smartRec?.matchType === 'recurring_event_group') {
                       return renderStatusChip(
-                        `Même orga et événement`,
+                        `Événement récurrent: ${smartRec.matchedRecurrenceEventTitle || event.title}`,
                         '#c084fc',
                         'rgba(192, 132, 252, 0.25)'
                       );

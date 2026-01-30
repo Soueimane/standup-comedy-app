@@ -446,9 +446,13 @@ export const getRecommendedEvents = async (
   const existingApps = await ApplicationModel.find({ comedian: comedianId }).select('event');
   const appliedEventIds = existingApps.map(app => app.event.toString());
 
+  // Utiliser le début de la journée pour inclure les événements d'aujourd'hui
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const events = await EventModel.find({
     status: 'published',
-    date: { $gte: new Date() },
+    date: { $gte: todayStart },
     _id: { $nin: appliedEventIds }
   }).populate('organizer', 'firstName lastName email organizerProfile');
 
@@ -522,6 +526,10 @@ export const getSmartRecommendedEvents = async (
   const organizerIdsSet = new Set<string>();
   const organizerNamesMap = new Map<string, string>(); // organizerId -> name
 
+  // Extraire les groupes d'événements récurrents
+  const recurrenceGroupIdsSet = new Set<string>();
+  const recurrenceGroupTitlesMap = new Map<string, string>(); // recurrenceGroupId -> original event title
+
   // IDs des événements déjà postulés (à exclure)
   const appliedEventIds: string[] = [];
 
@@ -550,10 +558,18 @@ export const getSmartRecommendedEvents = async (
                       'Organisateur';
       organizerNamesMap.set(organizerId, orgName);
     }
+
+    // Collecter les groupes d'événements récurrents
+    if (event.recurrenceGroupId) {
+      const recurrenceGroupId = event.recurrenceGroupId.toString();
+      recurrenceGroupIdsSet.add(recurrenceGroupId);
+      // Stocker le titre de l'événement auquel l'utilisateur a participé
+      recurrenceGroupTitlesMap.set(recurrenceGroupId, event.title);
+    }
   }
 
   // Si l'utilisateur n'a pas d'historique, retourner une liste vide
-  if (eventNamesSet.size === 0 && organizerIdsSet.size === 0) {
+  if (eventNamesSet.size === 0 && organizerIdsSet.size === 0 && recurrenceGroupIdsSet.size === 0) {
     return {
       recommendations: [],
       total: 0,
@@ -563,9 +579,13 @@ export const getSmartRecommendedEvents = async (
   }
 
   // Récupérer les événements futurs publiés, excluant ceux déjà postulés
+  // Utiliser le début de la journée pour inclure les événements d'aujourd'hui
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const futureEvents = await EventModel.find({
     status: 'published',
-    date: { $gte: new Date() },
+    date: { $gte: todayStart },
     _id: { $nin: appliedEventIds }
   }).populate('organizer', 'firstName lastName organizerProfile');
 
@@ -581,19 +601,20 @@ export const getSmartRecommendedEvents = async (
 
     const normalizedTitle = normalizeString(event.title || '');
     const organizerId = (event.organizer as any)?._id?.toString();
+    const recurrenceGroupId = event.recurrenceGroupId?.toString();
 
-    // Vérifier les deux critères
+    // Vérifier les critères
     const matchesByName = eventNamesSet.has(normalizedTitle);
     const matchesByOrganizer = organizerId && organizerIdsSet.has(organizerId);
+    const matchesByRecurrence = recurrenceGroupId && recurrenceGroupIdsSet.has(recurrenceGroupId);
 
-    // Cas 1: Match sur les deux critères
-    if (matchesByName && matchesByOrganizer) {
+    // Cas 1: Match par groupe d'événements récurrent - PRIORITÉ MAXIMALE
+    if (matchesByRecurrence) {
       addedEventIds.add(eventId);
       smartRecommendations.push({
         event: event.toObject(),
-        matchType: 'both',
-        matchedEventTitle: eventNamesMap.get(normalizedTitle) || event.title,
-        matchedOrganizerName: organizerNamesMap.get(organizerId)
+        matchType: 'recurring_event_group',
+        matchedRecurrenceEventTitle: recurrenceGroupTitlesMap.get(recurrenceGroupId) || event.title
       });
       continue;
     }
@@ -620,8 +641,21 @@ export const getSmartRecommendedEvents = async (
     }
   }
 
-  // Trier par date (événements les plus proches en premier)
+  // Trier par priorité de match, puis par date (événements les plus proches en premier)
+  const matchTypePriority: Record<string, number> = {
+    'recurring_event_group': 1,   // Groupe d'événements récurrent
+    'same_event_name': 2,         // Même nom d'événement
+    'same_organizer': 3           // Même organisateur
+  };
+
   smartRecommendations.sort((a, b) => {
+    // Comparaison par priorité de matchType
+    const priorityDiff = (matchTypePriority[a.matchType] || 999) - (matchTypePriority[b.matchType] || 999);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    // Si même priorité, trier par date (événements les plus proches en premier)
     const dateA = new Date(a.event.date).getTime();
     const dateB = new Date(b.event.date).getTime();
     return dateA - dateB;
