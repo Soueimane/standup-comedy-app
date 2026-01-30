@@ -1280,7 +1280,6 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                 <Calendar size={20} style={{ color: '#ff416c' }} />
                 <span>Informations d'évènement</span>
               </div>
-
               {/* Choix : Événement unique ou récurrent — deux blocs séparés */}
               <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
                 Type d'événement
@@ -1355,9 +1354,10 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   </div>
                 </div>
               ) : (
-                /* Mode récurrent : date de début, type, jours, fin */
+                /* Mode récurrent : Date de début et Fin côte à côte, puis A lieu, jours, dates générées */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={sectionGridStyle}>
+                  {/* Date de début et Fin sur la même ligne */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
                     <div>
                       <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
                         Date de début *
@@ -1372,6 +1372,30 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       {errors.recurrenceStartDate && (
                         <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceStartDate}</p>
                       )}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Fin
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#aaa', fontSize: '14px' }}>Le</span>
+                        <input
+                          type="date"
+                          value={recurrenceEndDate}
+                          onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                          style={{
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                            marginBottom: 0,
+                            borderColor: errors.recurrenceEndDate ? '#ef4444' : '#444',
+                          }}
+                          min={recurrenceStartDate || new Date().toISOString().split('T')[0]}
+                        />
+                        {errors.recurrenceEndDate && (
+                          <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceEndDate}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1418,30 +1442,6 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       </div>
                     </div>
                   )}
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                      Fin
-                    </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <span style={{ color: '#aaa', fontSize: '14px' }}>Le</span>
-                      <input
-                        type="date"
-                        value={recurrenceEndDate}
-                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
-                        style={{
-                          ...inputStyle,
-                          maxWidth: '180px',
-                          marginBottom: 0,
-                          borderColor: errors.recurrenceEndDate ? '#ef4444' : '#444',
-                        }}
-                        min={recurrenceStartDate || new Date().toISOString().split('T')[0]}
-                      />
-                      {errors.recurrenceEndDate && (
-                        <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceEndDate}</p>
-                      )}
-                    </div>
-                  </div>
 
                   {/* Récap des dates générées + personnalisation des heures par date */}
                   {recurringDates.length > 0 && (
