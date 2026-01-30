@@ -3584,7 +3584,7 @@ useEffect(() => {
                                     <span style={{ color: '#fff' }}>{timeStr}</span>
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} comédiens</span>
+                                    <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} humoristes</span>
                                     {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming', undefined, `upcoming-expanded-${event._id}`)}
                                   </div>
                                 </div>
@@ -4320,7 +4320,7 @@ useEffect(() => {
                                 {status}
                               </span>
                               <span style={{ color: '#aaa', fontSize: '0.9em' }}>
-                                {participantsCount}/{maxP} comédiens
+                                {participantsCount}/{maxP} humoristes
                               </span>
                               {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming')}
                             </div>
