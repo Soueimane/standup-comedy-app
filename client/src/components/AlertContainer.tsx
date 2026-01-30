@@ -24,7 +24,7 @@ function AlertContainer({ alerts, onDismiss }: AlertContainerProps) {
 
   const toastContainerStyle: CSSProperties = {
     position: 'fixed',
-    top: '20px',
+    bottom: '20px',
     right: '20px',
     zIndex: 9999,
     display: 'flex',
