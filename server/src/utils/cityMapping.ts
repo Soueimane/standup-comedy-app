@@ -7,10 +7,12 @@
 
 // Cache en mémoire pour éviter les appels API répétitifs
 const cityCache: Map<string, { department: string | null; region: string | null }> = new Map();
+const postalCodeCache: Map<string, { department: string | null; region: string | null }> = new Map();
 
 // Durée de vie du cache: 24 heures
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 const cacheTimestamps: Map<string, number> = new Map();
+const postalCodeCacheTimestamps: Map<string, number> = new Map();
 
 /**
  * Normalise une chaîne de caractères pour la comparaison
@@ -173,6 +175,63 @@ export const getCityGeoInfo = async (city: string): Promise<{ department: string
 };
 
 /**
+ * Récupère les informations géographiques d'une commune via l'API Geo Gouv
+ * en utilisant le code postal (5 chiffres). Utiliser en priorité quand disponible
+ * pour éviter les ambiguïtés (ex. plusieurs "Grigny" : 91 Essonne vs 62 Pas-de-Calais).
+ *
+ * @param postalCode - Code postal français (5 chiffres)
+ * @returns Les informations de département et région, ou null si non trouvé
+ */
+export const getCityGeoInfoByPostalCode = async (postalCode: string): Promise<{ department: string | null; region: string | null }> => {
+  const trimmed = String(postalCode || '').trim();
+  if (!/^\d{5}$/.test(trimmed)) {
+    return { department: null, region: null };
+  }
+
+  const cached = postalCodeCache.get(trimmed);
+  const cacheTime = postalCodeCacheTimestamps.get(trimmed);
+  if (cached && cacheTime && (Date.now() - cacheTime) < CACHE_TTL) {
+    return cached;
+  }
+
+  try {
+    const url = `https://geo.api.gouv.fr/communes?codePostal=${encodeURIComponent(trimmed)}&fields=departement,region&limit=1`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      console.warn(`[GeoGouv] API error for codePostal "${trimmed}": ${response.status}`);
+      return { department: null, region: null };
+    }
+
+    const data = await response.json() as GeoGouvCommune[];
+    if (!data || data.length === 0) {
+      const result = { department: null, region: null };
+      postalCodeCache.set(trimmed, result);
+      postalCodeCacheTimestamps.set(trimmed, Date.now());
+      return result;
+    }
+
+    const commune = data[0];
+    const result = {
+      department: commune.departement?.code || commune.codeDepartement || null,
+      region: commune.region?.nom || null,
+    };
+    postalCodeCache.set(trimmed, result);
+    postalCodeCacheTimestamps.set(trimmed, Date.now());
+    console.log(`[GeoGouv] Code postal "${trimmed}" → Département: ${result.department}, Région: ${result.region}`);
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error.message : String(error);
+    console.warn(`[GeoGouv] Error for codePostal "${trimmed}":`, err);
+    return { department: null, region: null };
+  }
+};
+
+/**
  * Obtient le code département d'une ville (version async)
  *
  * @param city - Le nom de la ville
@@ -289,4 +348,6 @@ export const preloadCities = async (cities: string[]): Promise<void> => {
 export const clearCache = (): void => {
   cityCache.clear();
   cacheTimestamps.clear();
+  postalCodeCache.clear();
+  postalCodeCacheTimestamps.clear();
 };

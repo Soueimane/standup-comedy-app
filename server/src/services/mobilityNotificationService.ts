@@ -7,7 +7,7 @@
 import { sendEventNotificationByMobility, sendRecurringEventNotificationByMobility } from './emailService';
 import { UserModel } from '../models/User';
 import { EventDocument } from '../models/Event';
-import { getCityGeoInfo } from '../utils/cityMapping';
+import { getCityGeoInfo, getCityGeoInfoByPostalCode } from '../utils/cityMapping';
 
 /**
  * Notifie par email les humoristes dont la zone de mobilité
@@ -40,9 +40,18 @@ export const notifyComediansByMobility = async (
       return 0;
     }
 
-    // 3. Récupérer les infos géographiques de la ville de l'événement (un seul appel API)
-    console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" via API Geo Gouv...`);
-    const geoInfo = await getCityGeoInfo(event.location.city);
+    // 3. Récupérer les infos géographiques : priorité au code postal si présent dans l'adresse
+    //    (évite les ambiguïtés : ex. Grigny 91 vs Grigny 62)
+    let geoInfo: { department: string | null; region: string | null };
+    const postalCodeMatch = event.location.address?.match(/\b(\d{5})\b/);
+    const postalCode = postalCodeMatch ? postalCodeMatch[1] : null;
+    if (postalCode) {
+      console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCode}" (événement: ${event.location.city}) via API Geo Gouv...`);
+      geoInfo = await getCityGeoInfoByPostalCode(postalCode);
+    } else {
+      console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" via API Geo Gouv...`);
+      geoInfo = await getCityGeoInfo(event.location.city);
+    }
     
     // Normaliser la ville de l'événement pour le matching (gérer les arrondissements)
     // Ex: "Paris 10e Arrondissement" → "paris"
@@ -189,8 +198,16 @@ export const notifyComediansByMobilityForRecurringGroup = async (
       return 0;
     }
 
-    console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" (groupe récurrent, ${events.length} dates)...`);
-    const geoInfo = await getCityGeoInfo(event.location.city);
+    const postalCodeMatchRec = event.location.address?.match(/\b(\d{5})\b/);
+    const postalCodeRec = postalCodeMatchRec ? postalCodeMatchRec[1] : null;
+    if (postalCodeRec) {
+      console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCodeRec}" (groupe récurrent: ${event.location.city}, ${events.length} dates)...`);
+    } else {
+      console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" (groupe récurrent, ${events.length} dates)...`);
+    }
+    const geoInfo = postalCodeRec
+      ? await getCityGeoInfoByPostalCode(postalCodeRec)
+      : await getCityGeoInfo(event.location.city);
 
     let eventCity = event.location.city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     if (eventCity.includes('paris') && (eventCity.includes('arrondissement') || /paris\s+\d+/.test(eventCity))) {

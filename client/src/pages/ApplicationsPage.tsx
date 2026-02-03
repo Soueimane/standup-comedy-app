@@ -33,7 +33,7 @@ export interface IEventPopulated {
   date: string;
   startTime: string;
   endTime?: string;
-  location: { address: string; city: string; };
+  location: { address: string; city: string; venue?: string; };
   organizer: IUser; // Change to IUser
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
   requirements: { minExperience: number; maxPerformers: number; duration: number; };
@@ -1499,10 +1499,34 @@ function ApplicationsPage() {
                             · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
                           </p>
 
-                          {/* Ligne 3 : Prestation (si disponible) */}
-                          {app.performanceDetails && (
+                          {/* Heure de l'évènement */}
+                          {(app.event.startTime || app.event.endTime) && (
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                              · Heure: {[app.event.startTime, app.event.endTime].filter(Boolean).join(' – ')}
+                            </p>
+                          )}
+
+                          {/* Lieu */}
+                          {app.event.location && (app.event.location.venue || app.event.location.city || app.event.location.address) && (
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                              · Lieu: {[app.event.location.venue, app.event.location.city, app.event.location.address].filter(Boolean).join(' — ')}
+                            </p>
+                          )}
+
+                          {/* Durée de l'évènement */}
+                          {app.event.requirements?.duration != null && (
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                              · Durée de l'évènement: {app.event.requirements.duration} min
+                            </p>
+                          )}
+
+                          {/* Ligne 3 : Prestation = durée (min) et/ou description indiquées par l'humoriste en candidatant */}
+                          {app.performanceDetails && (app.performanceDetails.duration != null || app.performanceDetails.description) && (
                             <p style={{ ...cardDetailStyle, color: '#9ad7ff', margin: 0, marginBottom: '4px' }}>
-                              · Prestation: {app.performanceDetails.duration} min • {app.performanceDetails.description}
+                              · Prestation: {[
+                                app.performanceDetails.duration != null ? `${app.performanceDetails.duration} min` : null,
+                                app.performanceDetails.description || null
+                              ].filter(Boolean).join(' • ')}
                             </p>
                           )}
 
