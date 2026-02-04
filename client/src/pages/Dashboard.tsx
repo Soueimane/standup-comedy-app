@@ -67,6 +67,9 @@ const Dashboard = () => {
   });
 
   const presenceAlertsCount = presenceAlertsData?.count || 0;
+  // Alertes non marquées : affichées dans "Notifications importantes" ; les marquées restent sur la page Alertes de Présence tant que score < 75%
+  const presenceAlertsUnacknowledged = (presenceAlertsData?.alerts || []).filter((a: any) => !a.acknowledgedAt);
+  const presenceAlertsUnacknowledgedCount = presenceAlertsUnacknowledged.length;
 
   // Récupérer les signalements d'humoristes avec React Query (Super Admin uniquement)
   const { data: comedianReportsData } = useQuery({
@@ -299,8 +302,8 @@ const Dashboard = () => {
       <div style={{ marginTop: '80px' }}>
         <h1 style={dashboardHeaderStyle}>{dashboardTitle}</h1>
         
-        {/* Section Notifications pour Super Admin */}
-        {isSuperAdmin && (presenceAlertsCount > 0 || pendingReportsCount > 0) && (
+        {/* Section Notifications pour Super Admin (uniquement alertes non marquées) */}
+        {isSuperAdmin && (presenceAlertsUnacknowledgedCount > 0 || pendingReportsCount > 0) && (
           <div style={{
             maxWidth: '1200px',
             margin: '0 auto 30px auto',
@@ -322,8 +325,8 @@ const Dashboard = () => {
             </h2>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {/* Notifications pour les alertes de présence */}
-              {presenceAlertsCount > 0 && presenceAlerts.slice(0, 3).map((alert: any) => (
+              {/* Notifications pour les alertes de présence (non marquées uniquement) */}
+              {presenceAlertsUnacknowledgedCount > 0 && presenceAlertsUnacknowledged.slice(0, 3).map((alert: any) => (
                 <div
                   key={alert._id}
                   onClick={() => navigate('/admin/presence-alerts')}
@@ -444,7 +447,7 @@ const Dashboard = () => {
               ))}
               
               {/* Lien vers toutes les notifications */}
-              {(presenceAlertsCount > 3 || pendingReportsCount > 3) && (
+              {(presenceAlertsUnacknowledgedCount > 3 || pendingReportsCount > 3) && (
                 <div style={{
                   textAlign: 'center',
                   padding: '10px',
@@ -453,7 +456,7 @@ const Dashboard = () => {
                   <button
                     onClick={() => {
                       // Naviguer vers la page avec le plus de notifications
-                      if (presenceAlertsCount >= pendingReportsCount) {
+                      if (presenceAlertsUnacknowledgedCount >= pendingReportsCount) {
                         navigate('/admin/presence-alerts');
                       } else {
                         navigate('/admin/comedian-reports');
@@ -477,7 +480,7 @@ const Dashboard = () => {
                       e.currentTarget.style.background = 'rgba(255, 65, 108, 0.2)';
                     }}
                   >
-                    Voir toutes les notifications ({presenceAlertsCount + pendingReportsCount})
+                    Voir toutes les notifications ({presenceAlertsUnacknowledgedCount + pendingReportsCount})
                   </button>
                 </div>
               )}
@@ -489,7 +492,7 @@ const Dashboard = () => {
                 marginTop: '15px',
                 flexWrap: 'wrap'
               }}>
-                {presenceAlertsCount > 0 && (
+                {presenceAlertsUnacknowledgedCount > 0 && (
                   <button
                     onClick={() => navigate('/admin/presence-alerts')}
                     style={{
@@ -510,7 +513,7 @@ const Dashboard = () => {
                       e.currentTarget.style.background = 'rgba(255, 193, 7, 0.1)';
                     }}
                   >
-                    Voir toutes les alertes de présence ({presenceAlertsCount})
+                    Voir toutes les alertes de présence ({presenceAlertsUnacknowledgedCount})
                   </button>
                 )}
                 {pendingReportsCount > 0 && (

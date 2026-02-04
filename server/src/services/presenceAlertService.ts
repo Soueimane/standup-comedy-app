@@ -21,30 +21,38 @@ export const calculatePresenceScore = async (comedianId: string): Promise<{
   absences: number;
 } | null> => {
   try {
-    // Récupérer l'humoriste
+    // Récupérer l'humoriste (avec stats pour cohérence avec l'affichage Répertoire)
     const comedian = await UserModel.findById(comedianId);
     if (!comedian || comedian.role !== 'COMEDIAN') {
       return null;
     }
 
-    // Compter les absences réelles depuis la base de données
+    // Utiliser User.stats en priorité : même source que le "Taux de participation" affiché dans le Répertoire
+    const statsTotalEvents = comedian.stats?.totalEvents ?? 0;
+    const statsAbsences = comedian.stats?.absences ?? 0;
+    const statsTotal = statsTotalEvents + statsAbsences;
+    if (statsTotal > 0) {
+      const score = Math.round((statsTotalEvents / statsTotal) * 100);
+      return {
+        score,
+        totalEvents: statsTotalEvents,
+        absences: statsAbsences
+      };
+    }
+
+    // Fallback : compter depuis la BDD (Application + Absence)
     const absences = await AbsenceModel.countDocuments({ comedian: comedianId });
 
-    // Compter les événements où l'humoriste a été accepté et l'événement est terminé
-    // On considère que totalEvents = nombre d'événements où l'humoriste était présent
-    // Présent = accepté ET pas d'absence pour cet événement
     const acceptedApplications = await ApplicationModel.find({
       comedian: comedianId,
       status: 'ACCEPTED'
     }).populate('event');
 
-    // Filtrer les événements terminés (date passée)
     const now = new Date();
     const completedEvents = acceptedApplications.filter(app => {
       const event = (app.event as any);
       if (!event || !event.date) return false;
       const eventDate = new Date(event.date);
-      // Si l'événement a une endTime, l'utiliser, sinon fin de journée
       if (event.endTime) {
         const [hours, minutes] = event.endTime.split(':').map(Number);
         eventDate.setHours(hours, minutes, 0, 0);
@@ -54,20 +62,18 @@ export const calculatePresenceScore = async (comedianId: string): Promise<{
       return eventDate < now;
     });
 
-    // Pour chaque événement complété, vérifier s'il y a une absence
     let totalEvents = 0;
     for (const app of completedEvents) {
       const eventId = (app.event as any)._id;
       const hasAbsence = await AbsenceModel.exists({ event: eventId, comedian: comedianId });
       if (!hasAbsence) {
-        totalEvents++; // L'humoriste était présent
+        totalEvents++;
       }
     }
 
-    // Calculer le score
     const total = totalEvents + absences;
     if (total === 0) {
-      return null; // Pas assez de données
+      return null;
     }
 
     const score = Math.round((totalEvents / total) * 100);
@@ -112,8 +118,8 @@ export const checkAndCreatePresenceAlerts = async (): Promise<number> => {
 
       const { score, totalEvents, absences } = result;
 
-      // Vérifier si le score est < 75%
-      if (score < 75 && totalEvents + absences >= 3) { // Au moins 3 événements pour avoir une statistique significative
+      // Vérifier si le score est < 75% (au moins 1 événement pour avoir un taux significatif)
+      if (score < 75 && totalEvents + absences >= 1) {
         // Vérifier si une alerte active existe déjà
         const existingAlert = await PresenceAlertModel.findOne({
           comedian: comedian._id,

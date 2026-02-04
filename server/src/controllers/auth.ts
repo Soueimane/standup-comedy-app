@@ -4,6 +4,12 @@ import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { UserModel } from '../models/User';
 import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
+import { ApplicationModel } from '../models/Application';
+import { AbsenceModel } from '../models/Absence';
+import { EventModel } from '../models/Event';
+import { PresenceAlertModel } from '../models/PresenceAlert';
+import { ComedianReportModel } from '../models/ComedianReport';
+import { NotificationModel } from '../models/Notification';
 import { config } from '../config/env';
 import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
@@ -753,5 +759,60 @@ export const reactivateUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la reactivation:', error);
     res.status(500).json({ message: 'Erreur lors de la reactivation du compte' });
+  }
+};
+
+// ============================================================================
+// DELETE USER - Supprimer définitivement un compte (Super Admin uniquement)
+// ============================================================================
+export const deleteUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+
+    const { userId } = req.params;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    if (user.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Impossible de supprimer un Super Admin' });
+    }
+
+    const id = new Types.ObjectId(userId);
+
+    if (user.role === 'COMEDIAN') {
+      await ApplicationModel.deleteMany({ comedian: id });
+      await AbsenceModel.deleteMany({ comedian: id });
+      await PresenceAlertModel.deleteMany({ comedian: id });
+      await ComedianReportModel.deleteMany({ comedian: id });
+      await UserModel.updateMany(
+        { favoriteComedians: id },
+        { $pull: { favoriteComedians: id } }
+      );
+    } else if (user.role === 'ORGANIZER') {
+      const organizerEvents = await EventModel.find({ organizer: id }).select('_id');
+      const eventIds = organizerEvents.map((e) => e._id);
+      await ApplicationModel.deleteMany({ event: { $in: eventIds } });
+      await AbsenceModel.deleteMany({ event: { $in: eventIds } });
+      await AbsenceModel.deleteMany({ organizer: id });
+      await EventModel.deleteMany({ organizer: id });
+    }
+
+    await PasswordResetRequestModel.deleteMany({ user: id });
+    await NotificationModel.deleteMany({ user: id });
+    await UserModel.findByIdAndDelete(userId);
+
+    console.log(`✅ Compte supprimé: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} supprimé définitivement`,
+      userId,
+    });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du compte:', error);
+    res.status(500).json({ message: 'Erreur lors de la suppression du compte' });
   }
 };

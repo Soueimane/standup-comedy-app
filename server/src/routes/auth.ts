@@ -9,7 +9,8 @@ import {
   getPasswordResetRequests,
   adminResetPassword,
   deactivateUser,
-  reactivateUser
+  reactivateUser,
+  deleteUser,
 } from '../controllers/auth';
 import { authMiddleware, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -31,8 +32,9 @@ router.get('/users', authMiddleware, authorizeRoles('SUPER_ADMIN'), getAllUsers)
 router.get('/admin/password-reset-requests', authMiddleware, authorizeRoles('SUPER_ADMIN'), getPasswordResetRequests);
 router.post('/admin/reset-password', authMiddleware, authorizeRoles('SUPER_ADMIN'), adminResetPassword);
 
-// Routes Super Admin pour desactiver/reactiver des comptes
+// Routes Super Admin pour desactiver/reactiver/supprimer des comptes
 router.patch('/users/:userId/deactivate', authMiddleware, authorizeRoles('SUPER_ADMIN'), deactivateUser);
 router.patch('/users/:userId/reactivate', authMiddleware, authorizeRoles('SUPER_ADMIN'), reactivateUser);
+router.delete('/users/:userId', authMiddleware, authorizeRoles('SUPER_ADMIN'), deleteUser);
 
 export default router; 

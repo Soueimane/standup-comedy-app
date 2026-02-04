@@ -299,4 +299,20 @@ export const inviteComedianToEvent = async (eventId: string, comedianId: string)
   await api.post(`/events/${eventId}/invite-comedian/${comedianId}`);
 };
 
+// Gestion des comptes (Super Admin uniquement)
+export const deactivateUser = async (userId: string, reason?: string) => {
+  const response = await api.patch(`/auth/users/${userId}/deactivate`, { reason });
+  return response.data;
+};
+
+export const reactivateUser = async (userId: string) => {
+  const response = await api.patch(`/auth/users/${userId}/reactivate`);
+  return response.data;
+};
+
+export const deleteUser = async (userId: string) => {
+  const response = await api.delete(`/auth/users/${userId}`);
+  return response.data;
+};
+
 export default api;

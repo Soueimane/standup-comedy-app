@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import Navbar from '../components/Navbar';
 import ComedianApplicationsModal from '../components/ComedianApplicationsModal';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import OrganizerDetailsModal from '../components/OrganizerDetailsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import type { IUserData } from '../types/user';
-import api from '../services/api';
+import api, { deactivateUser as apiDeactivateUser, reactivateUser as apiReactivateUser, deleteUser as apiDeleteUser } from '../services/api';
 
 interface UserStats {
   totalEvents?: number;
@@ -36,8 +37,11 @@ interface User {
   stageName?: string;
   experienceLevel?: string;
   companyName?: string;
-  address?: string; // Added for organizers
-  stats?: UserStats; // Ajout des statistiques
+  address?: string;
+  stats?: UserStats;
+  isActive?: boolean;
+  deactivatedAt?: string | null;
+  deactivationReason?: string | null;
 }
 
 const DirectoryPage: React.FC = () => {
@@ -58,8 +62,18 @@ const DirectoryPage: React.FC = () => {
   const [isComedianProfileModalOpen, setIsComedianProfileModalOpen] = useState(false);
   const [selectedOrganizerProfile, setSelectedOrganizerProfile] = useState<IUserData | null>(null);
   const [isOrganizerProfileModalOpen, setIsOrganizerProfileModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+    confirmText?: string;
+    isDangerous?: boolean;
+    isLoading?: boolean;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const { user, token } = useAuth();
-  const { showError, showWarning } = useAlert();
+  const { showError, showWarning, showSuccess } = useAlert();
+  const queryClient = useQueryClient();
 
   // Charger les utilisateurs avec React Query
   const { data: usersData, isLoading: loading, refetch: refetchUsers } = useQuery({
@@ -303,6 +317,68 @@ const DirectoryPage: React.FC = () => {
     setSelectedUser(null);
   };
 
+  const handleDeactivateUser = (u: User) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Désactiver le compte',
+      message: `Êtes-vous sûr de vouloir désactiver le compte de ${u.firstName} ${u.lastName} ? L'utilisateur ne pourra plus se connecter.`,
+      confirmText: 'Désactiver',
+      isDangerous: true,
+      onConfirm: async () => {
+        try {
+          await apiDeactivateUser(u.id);
+          showSuccess(`Compte de ${u.firstName} ${u.lastName} désactivé.`);
+          queryClient.invalidateQueries({ queryKey: ['users'] });
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+          setSelectedUser((prev) => (prev?.id === u.id ? { ...prev, isActive: false } : prev));
+        } catch (err: any) {
+          showError(err.response?.data?.message || 'Impossible de désactiver le compte.');
+        }
+      },
+    });
+  };
+
+  const handleReactivateUser = (u: User) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Réactiver le compte',
+      message: `Réactiver le compte de ${u.firstName} ${u.lastName} ?`,
+      confirmText: 'Réactiver',
+      onConfirm: async () => {
+        try {
+          await apiReactivateUser(u.id);
+          showSuccess(`Compte de ${u.firstName} ${u.lastName} réactivé.`);
+          queryClient.invalidateQueries({ queryKey: ['users'] });
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+          setSelectedUser((prev) => (prev?.id === u.id ? { ...prev, isActive: true, deactivatedAt: undefined, deactivationReason: undefined } : prev));
+        } catch (err: any) {
+          showError(err.response?.data?.message || 'Impossible de réactiver le compte.');
+        }
+      },
+    });
+  };
+
+  const handleDeleteUser = (u: User) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Supprimer le compte',
+      message: `Supprimer définitivement le compte de ${u.firstName} ${u.lastName} ? Cette action est irréversible (données, candidatures, événements liés seront supprimés).`,
+      confirmText: 'Supprimer définitivement',
+      isDangerous: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteUser(u.id);
+          showSuccess(`Compte de ${u.firstName} ${u.lastName} supprimé.`);
+          queryClient.invalidateQueries({ queryKey: ['users'] });
+          setConfirmDialog((d) => ({ ...d, isOpen: false }));
+          closeStatsModal();
+        } catch (err: any) {
+          showError(err.response?.data?.message || 'Impossible de supprimer le compte.');
+        }
+      },
+    });
+  };
+
   const calculateSuccessRate = (stats?: UserStats) => {
     if (!stats || !stats.applicationsSent) return 0;
     const accepted = stats.applicationsAccepted || 0;
@@ -476,9 +552,23 @@ const DirectoryPage: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <span style={badgeStyle(userData.role)}>
-                    {getRoleLabel(userData.role)}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {userData.isActive === false && (
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        backgroundColor: '#f8d7da',
+                        color: '#721c24',
+                      }}>
+                        Désactivé
+                      </span>
+                    )}
+                    <span style={badgeStyle(userData.role)}>
+                      {getRoleLabel(userData.role)}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ gap: '10px' }}>
@@ -731,6 +821,84 @@ const DirectoryPage: React.FC = () => {
                   </span>
                 </div>
               )}
+
+              {/* Gestion du compte (Super Admin) */}
+              <div style={{ marginTop: '24px', marginBottom: '24px', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  ⚙️ Gestion du compte
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    backgroundColor: selectedUser.isActive !== false ? '#d4edda' : '#f8d7da',
+                    color: selectedUser.isActive !== false ? '#155724' : '#721c24',
+                  }}>
+                    {selectedUser.isActive !== false ? '✓ Compte actif' : '✕ Compte désactivé'}
+                  </span>
+                  {selectedUser.deactivatedAt && (
+                    <span style={{ fontSize: '13px', color: '#666' }}>
+                      Désactivé le {new Date(selectedUser.deactivatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {selectedUser.deactivationReason ? ` — ${selectedUser.deactivationReason}` : ''}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {selectedUser.isActive !== false ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeactivateUser(selectedUser); }}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        border: '1px solid #dc3545',
+                        backgroundColor: '#fff',
+                        color: '#dc3545',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Désactiver le compte
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleReactivateUser(selectedUser); }}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        border: '1px solid #28a745',
+                        backgroundColor: '#28a745',
+                        color: '#fff',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Réactiver le compte
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteUser(selectedUser); }}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      border: '1px solid #721c24',
+                      backgroundColor: '#dc3545',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Supprimer le compte
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Statistiques de performance */}
@@ -892,8 +1060,8 @@ const DirectoryPage: React.FC = () => {
 
             {/* Note si pas de statistiques */}
             {(!selectedUser.stats || Object.keys(selectedUser.stats).length === 0) && (
-              <div style={{ 
-                textAlign: 'center', 
+              <div style={{
+                textAlign: 'center',
                 padding: '40px 20px',
                 backgroundColor: '#f8f9fa',
                 borderRadius: '8px',
@@ -911,6 +1079,17 @@ const DirectoryPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog((d) => ({ ...d, isOpen: false }))}
+        confirmText={confirmDialog.confirmText}
+        cancelText="Annuler"
+        isDangerous={confirmDialog.isDangerous}
+      />
     </div>
   );
 };

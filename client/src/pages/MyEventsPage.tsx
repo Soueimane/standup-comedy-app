@@ -800,6 +800,21 @@ useEffect(() => {
     return map;
   }, [fetchedEvents, user?._id, user?.role]);
 
+  // Groupes d'événements récurrents pour le super admin (tous organisateurs)
+  const recurringGroupsSuperAdmin = useMemo(() => {
+    if (!fetchedEvents || !Array.isArray(fetchedEvents) || user?.role !== 'SUPER_ADMIN') return new Map<string, IEvent[]>();
+    const map = new Map<string, IEvent[]>();
+    (fetchedEvents as IEvent[]).forEach((event: IEvent) => {
+      const groupId = (event as IEvent & { recurrenceGroupId?: string }).recurrenceGroupId;
+      if (!groupId) return;
+      const list = map.get(groupId) || [];
+      list.push(event);
+      map.set(groupId, list);
+    });
+    map.forEach((list) => list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    return map;
+  }, [fetchedEvents, user?.role]);
+
   const totalCancelledPages = Math.max(1, Math.ceil(cancelledEvents.length / ITEMS_PER_PAGE));
   const paginatedCancelledEvents = cancelledEvents.slice(
     (cancelledPage - 1) * ITEMS_PER_PAGE,
@@ -1120,6 +1135,41 @@ useEffect(() => {
     return items;
   }, [isOrganizerView, filteredOrganizerUpcomingEvents, recurringGroups]);
 
+  // Liste d'affichage "Évènements à venir" pour le super admin : événements uniques + groupes récurrents (comme côté organisateur)
+  const superAdminUpcomingDisplayItems = useMemo((): UpcomingDisplayItem[] => {
+    if (!isSuperAdminView || !incompleteUpcomingEvents?.length) return [];
+    const groupIdsSeen = new Set<string>();
+    const items: UpcomingDisplayItem[] = [];
+    incompleteUpcomingEvents.forEach((event: IEvent) => {
+      const groupId = (event as IEvent & { recurrenceGroupId?: string }).recurrenceGroupId;
+      if (groupId) {
+        if (!groupIdsSeen.has(groupId)) {
+          groupIdsSeen.add(groupId);
+          const groupEvents = recurringGroupsSuperAdmin.get(groupId) || [];
+          const upcomingInGroup = groupEvents.filter((e) => {
+            if (e.status === 'CANCELLED' || e.status === 'cancelled') return false;
+            const d = new Date(e.date);
+            d.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return d >= today;
+          });
+          if (upcomingInGroup.length > 0) {
+            items.push({ type: 'group', groupId, events: upcomingInGroup.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) });
+          }
+        }
+        return;
+      }
+      items.push({ type: 'event', event });
+    });
+    items.sort((a, b) => {
+      const dateA = a.type === 'event' ? new Date(a.event.date).getTime() : new Date(a.events[0]?.date ?? 0).getTime();
+      const dateB = b.type === 'event' ? new Date(b.event.date).getTime() : new Date(b.events[0]?.date ?? 0).getTime();
+      return dateA - dateB;
+    });
+    return items;
+  }, [isSuperAdminView, incompleteUpcomingEvents, recurringGroupsSuperAdmin]);
+
   const eventsToDisplay = useMemo(() => {
     if (isComedianView) {
       switch (comedianTab) {
@@ -1208,10 +1258,10 @@ useEffect(() => {
 
   const superAdminTabCounts: Record<SuperAdminTab, number> = useMemo(() => ({
     full: completedUpcomingEvents.length,
-    upcoming: incompleteUpcomingEvents.length,
+    upcoming: superAdminUpcomingDisplayItems.length,
     archived: archivedEventsToShow.length,
     cancelled: cancelledEvents.length,
-  }), [completedUpcomingEvents, incompleteUpcomingEvents, archivedEventsToShow, cancelledEvents]);
+  }), [completedUpcomingEvents, superAdminUpcomingDisplayItems.length, archivedEventsToShow, cancelledEvents]);
 
   const comedianTabTitles: Record<ComedianTab, string> = {
     opportunities: 'Opportunités à venir',
@@ -2834,9 +2884,7 @@ useEffect(() => {
                           ? 'Évènement complet'
                           : 'Postuler'}
                       </button>
-                    ) : isWithdrawn ? (
-                      null
-                    ) : (
+                    ) : isWithdrawn ? null : (
                       <button
                         onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
@@ -3552,13 +3600,19 @@ useEffect(() => {
               </div>
               {listIsLoading && <p style={emptyStateStyle}>Chargement des évènements...</p>}
               {listHasError && <p style={{ ...emptyStateStyle, color: '#dc3545' }}>Erreur: {listErrorMessage}</p>}
-              {isOrganizerView && organizerTab === 'upcoming'
+              {((isOrganizerView && organizerTab === 'upcoming') || (isSuperAdminView && superAdminTab === 'upcoming'))
                 ? (
                   <>
-                    {upcomingDisplayItems.length === 0 && !listIsLoading && !listHasError && (
-                      <p style={emptyStateStyle}>Aucun évènement à venir pour ce filtre.</p>
-                    )}
-                    {upcomingDisplayItems.slice((upcomingPage - 1) * ITEMS_PER_PAGE, upcomingPage * ITEMS_PER_PAGE).map((item) => {
+                    {(() => {
+                      const upcomingSectionItems = isOrganizerView ? upcomingDisplayItems : superAdminUpcomingDisplayItems;
+                      return (
+                        <>
+                          {upcomingSectionItems.length === 0 && !listIsLoading && !listHasError && (
+                            <p style={emptyStateStyle}>
+                              {isOrganizerView ? 'Aucun évènement à venir pour ce filtre.' : 'Aucun évènement à venir (non complet).'}
+                            </p>
+                          )}
+                          {upcomingSectionItems.slice((upcomingPage - 1) * ITEMS_PER_PAGE, upcomingPage * ITEMS_PER_PAGE).map((item) => {
                     if (item.type === 'event') {
                       const event = item.event;
                       const isCompleteEvent = isEventComplete(event);
@@ -3677,27 +3731,30 @@ useEffect(() => {
                       </div>
                     );
                   })}
-                    {upcomingDisplayItems.length > ITEMS_PER_PAGE && (
-                      <div style={paginationControlsStyle}>
-                        <button
-                          style={paginationButtonStyle}
-                          disabled={upcomingPage === 1}
-                          onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.max(1, prev - 1)); }}
-                        >
-                          Précédent
-                        </button>
-                        <span style={paginationInfoStyle}>
-                          Page {Math.min(upcomingPage, Math.max(1, Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE)))} / {Math.max(1, Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE))}
-                        </span>
-                        <button
-                          style={paginationButtonStyle}
-                          disabled={upcomingPage >= Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE)}
-                          onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.min(Math.ceil(upcomingDisplayItems.length / ITEMS_PER_PAGE), prev + 1)); }}
-                        >
-                          Suivant
-                        </button>
-                      </div>
-                    )}
+                          {upcomingSectionItems.length > ITEMS_PER_PAGE && (
+                            <div style={paginationControlsStyle}>
+                              <button
+                                style={paginationButtonStyle}
+                                disabled={upcomingPage === 1}
+                                onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.max(1, prev - 1)); }}
+                              >
+                                Précédent
+                              </button>
+                              <span style={paginationInfoStyle}>
+                                Page {Math.min(upcomingPage, Math.max(1, Math.ceil(upcomingSectionItems.length / ITEMS_PER_PAGE)))} / {Math.max(1, Math.ceil(upcomingSectionItems.length / ITEMS_PER_PAGE))}
+                              </span>
+                              <button
+                                style={paginationButtonStyle}
+                                disabled={upcomingPage >= Math.ceil(upcomingSectionItems.length / ITEMS_PER_PAGE)}
+                                onClick={() => { setExpandedUpcomingGroupId(null); setUpcomingPage(prev => Math.min(Math.ceil(upcomingSectionItems.length / ITEMS_PER_PAGE), prev + 1)); }}
+                              >
+                                Suivant
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </>
                   )
                 : (
