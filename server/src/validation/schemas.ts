@@ -119,6 +119,14 @@ export const locationSchema = z.object({
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(50, { message: 'Le nom de la ville est trop long' })
     .transform((val) => val.trim()),
+  postalCode: z.string()
+    .regex(/^\d{5}$/, { message: 'Le code postal doit contenir 5 chiffres' })
+    .optional()
+    .transform((val) => val?.trim()),
+  department: z.string()
+    .max(3, { message: 'Le code département est invalide' })
+    .optional()
+    .transform((val) => val?.trim()),
   country: z.string()
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(50, { message: 'Le nom du pays est trop long' })
@@ -129,8 +137,9 @@ export const updateLocationSchema = z.object({
   venue: z.string().max(100).optional().transform((val) => val?.trim()),
   address: z.string().max(200).optional().transform((val) => val?.trim()),
   city: z.string().max(50).optional().transform((val) => val?.trim()),
+  postalCode: z.string().optional().transform((val) => val?.trim()),
+  department: z.string().max(3).optional().transform((val) => val?.trim()),
   country: z.string().max(50).optional().transform((val) => val?.trim()),
-  postalCode: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 }).strict().partial();

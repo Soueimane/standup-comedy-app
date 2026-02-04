@@ -30,6 +30,12 @@ const cronJobs: CronJob[] = [
     enabled: config.cron.enabled
   },
   {
+    name: 'Relances humoristes (événements incomplets J-2 et J-1)',
+    schedule: config.cron.organizerReminderSchedule,
+    endpoint: '/api/email/jobs/incomplete-event-reminders',
+    enabled: config.cron.enabled
+  },
+  {
     name: 'Marquage évènements terminés',
     schedule: config.cron.markCompletedSchedule,
     endpoint: '/api/events/jobs/mark-completed',

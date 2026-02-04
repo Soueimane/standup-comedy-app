@@ -1,7 +1,7 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
 import { config } from '../config/env';
-import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron } from '../controllers/email';
+import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron, sendMobilityRemindersForIncompleteEventsCron } from '../controllers/email';
 import {
   handleOneClickUnsubscribe,
   handleUnsubscribeConfirmation,
@@ -68,6 +68,14 @@ router.post('/jobs/reminders', sendRemindersCron);
  * Header: X-CRON-KEY (authentification)
  */
 router.post('/jobs/organizer-reminders', sendOrganizerRemindersCron);
+
+/**
+ * POST /jobs/incomplete-event-reminders
+ * Cron job pour relancer les humoristes correspondant à la zone de mobilité
+ * des événements incomplets (à J-2 et J-1)
+ * Header: X-CRON-KEY (authentification)
+ */
+router.post('/jobs/incomplete-event-reminders', sendMobilityRemindersForIncompleteEventsCron);
 
 // ============================================================================
 // RFC 8058 - ONE-CLICK UNSUBSCRIBE ROUTES

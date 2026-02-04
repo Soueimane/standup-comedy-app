@@ -8,7 +8,7 @@ export interface IEvent {
   time?: string;
   startTime?: string;
   endTime?: string;
-  location: { venue?: string; address: string; city: string; country: string; };
+  location: { venue?: string; address: string; city: string; postalCode?: string; department?: string; country: string; };
   organizer: IUserData;
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED' | 'draft' | 'published' | 'cancelled' | 'completed';
   requirements: { 

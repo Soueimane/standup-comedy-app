@@ -4,6 +4,7 @@ import { ApplicationModel } from '../models/Application';
 import { sendEventReminder, sendNewEventNotificationToHumorists, sendOrganizerEventReminder } from '../services/emailService';
 import { UserModel } from '../models/User';
 import { EventModel } from '../models/Event';
+import { notifyComediansByMobility } from '../services/mobilityNotificationService';
 
 /**
  * Envoie un email via POST /api/email/send
@@ -402,6 +403,158 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
     console.error('❌ Erreur CRON organizer-reminders:', error);
     res.status(500).json({
       message: 'Erreur lors du traitement des relances organisateurs',
+      error: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+};
+
+/**
+ * Relances aux humoristes pour les événements incomplets à J-2 et J-1
+ * Envoie des notifications aux humoristes correspondant à la zone de mobilité
+ * des événements publiés qui n'ont pas atteint leur quota
+ *
+ * Utilise notifyComediansByMobility existant avec exclusion des candidats
+ *
+ * Cron job: s'exécute 1x par jour
+ */
+export const sendMobilityRemindersForIncompleteEventsCron = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // --- SÉCURITÉ: Vérifier l'authentification du cron ---
+    const cronKey = req.header('X-CRON-KEY');
+    if (!cronKey || cronKey !== config.cron.secret) {
+      console.error('❌ Tentative d\'accès non autorisée à l\'endpoint cron incomplete-event-reminders');
+      res.status(401).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    console.log('🔔 Démarrage du job cron: relances humoristes par mobilité pour événements incomplets');
+    const now = new Date();
+
+    // Récupérer tous les événements publiés avec date future
+    const events = await EventModel.find({
+      status: 'published',
+      date: { $gt: now }
+    })
+      .populate('organizer')
+      .populate('participants');
+
+    console.log(`📊 ${events.length} événements publiés trouvés`);
+
+    let sentCount = 0;
+    const processedEvents: { title: string; daysUntil: number; notifiedCount: number }[] = [];
+
+    // Traiter chaque événement
+    for (const event of events as any[]) {
+      try {
+        const organizer = event.organizer;
+
+        // Vérifier que l'organisateur existe
+        if (!organizer || !organizer.email) {
+          console.log(`⚠️ Événement ${event._id}: organisateur manquant ou sans email`);
+          continue;
+        }
+
+        // Vérifier qu'il y a un quota défini
+        const targetCount = event.requirements?.maxPerformers;
+        if (!targetCount || targetCount === 0) {
+          continue;  // Pas de quota défini, on ne relance pas
+        }
+
+        // Calculer le nombre de participants acceptés
+        const currentCount = event.participants?.length || 0;
+
+        // --- CONDITION DE RELANCE ---
+        // On relance SI : quota non atteint
+        if (currentCount >= targetCount) {
+          continue;  // Événement complet
+        }
+
+        // Calculer la différence en jours
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+
+        const todayDate = new Date(now);
+        todayDate.setHours(0, 0, 0, 0);
+
+        const diffDays = Math.ceil((eventDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Vérifier si on doit envoyer une relance (J-2 ou J-1)
+        if (diffDays !== 2 && diffDays !== 1) {
+          continue;  // N'est pas à J-2 ou J-1
+        }
+
+        // Vérifier si la relance a déjà été envoyée pour ce jour
+        const reminderKey = diffDays === 2 ? 'j2' : 'j1';
+        if (event.mobilityReminders?.[reminderKey]?.sentAt) {
+          console.log(`⏭️ Relance J-${diffDays} déjà envoyée pour "${event.title}" - ignoré`);
+          continue;
+        }
+
+        console.log(`📧 Traitement de l'événement "${event.title}" à ${event.location?.city} - J-${diffDays}`);
+
+        // Récupérer les IDs des comédiens qui ont déjà candidaté (à exclure)
+        const existingApplications = await ApplicationModel.find({
+          event: event._id
+        }).select('comedian');
+        const excludeIds = existingApplications
+          .map(app => app.comedian?.toString())
+          .filter((id): id is string => !!id);
+
+        // Utiliser notifyComediansByMobility existant avec exclusion
+        const result = await notifyComediansByMobility(
+          event,
+          {
+            firstName: organizer.firstName,
+            lastName: organizer.lastName,
+            email: organizer.email
+          },
+          excludeIds
+        );
+
+        // Sauvegarder les relances en DB pour tracking
+        if (result.count > 0) {
+          if (!event.mobilityReminders) {
+            event.mobilityReminders = {};
+          }
+          event.mobilityReminders[reminderKey] = {
+            sentAt: new Date(),
+            comedianIds: result.comedians.map(c => c._id),
+            emails: result.comedians.map(c => c.email)
+          };
+          await event.save();
+          console.log(`💾 Relance J-${diffDays} sauvegardée en DB: ${result.comedians.map(c => c.email).join(', ')}`);
+        }
+
+        sentCount += result.count;
+        processedEvents.push({
+          title: event.title,
+          daysUntil: diffDays,
+          notifiedCount: result.count
+        });
+
+        console.log(`✅ ${result.count} humoristes notifiés pour l'événement "${event.title}" à J-${diffDays}`);
+
+      } catch (eventError) {
+        // Ne pas bloquer le traitement des autres évènements en cas d'erreur
+        console.error(`❌ Erreur lors du traitement de l'évènement ${event._id}:`, eventError);
+      }
+    }
+
+    const response = {
+      message: 'Relances humoristes par mobilité traitées',
+      sent: sentCount,
+      totalEvents: events.length,
+      processedEvents: processedEvents,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📊 Résumé: ${sentCount} relances envoyées pour ${processedEvents.length} événements`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ Erreur CRON incomplete-event-reminders:', error);
+    res.status(500).json({
+      message: 'Erreur lors du traitement des relances mobilité',
       error: error instanceof Error ? error.message : 'Erreur inconnue'
     });
   }

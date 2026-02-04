@@ -11,6 +11,7 @@ import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
 import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
 import { Types } from 'mongoose';
+import { extractPostalCode, getDepartmentFromPostalCode } from '../utils/cityMapping';
 
 // ============================================================================
 // CREATE EVENT
@@ -48,11 +49,25 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
     console.log('📅 Date reçue:', date, 'Type:', typeof date);
     console.log('📅 Date parsée:', new Date(date));
 
+    // Extraire le code postal de l'adresse et calculer le département
+    let enhancedLocation = { ...location };
+    if (location?.address) {
+      const postalCode = extractPostalCode(location.address);
+      if (postalCode) {
+        enhancedLocation.postalCode = postalCode;
+        const department = getDepartmentFromPostalCode(postalCode);
+        if (department) {
+          enhancedLocation.department = department;
+          console.log(`📍 [DEBUG] Code postal extrait: ${postalCode} → Département: ${department}`);
+        }
+      }
+    }
+
     const event = new EventModel({
       title,
       description,
       date,
-      location,
+      location: enhancedLocation,
       requirements,
       organizer: organizerId,
       status: 'published',
@@ -254,6 +269,20 @@ const createRecurringEvents = async (
       }
     }
 
+    // Extraire le code postal et le département de l'adresse (une seule fois pour tous les événements)
+    let enhancedLocation = { ...eventData.location };
+    if (eventData.location?.address) {
+      const postalCode = extractPostalCode(eventData.location.address);
+      if (postalCode) {
+        enhancedLocation.postalCode = postalCode;
+        const department = getDepartmentFromPostalCode(postalCode);
+        if (department) {
+          enhancedLocation.department = department;
+          console.log(`📍 [RECURRENCE] Code postal extrait: ${postalCode} → Département: ${department}`);
+        }
+      }
+    }
+
     for (const dateStr of eventData.dates) {
       try {
         console.log(`🔄 [RECURRENCE] Création de l'événement pour le ${dateStr}...`);
@@ -271,14 +300,14 @@ const createRecurringEvents = async (
           title: eventData.title,
           description: eventData.description,
           date: new Date(dateStr),
-          location: eventData.location,
+          location: enhancedLocation,
           requirements: eventData.requirements,
           organizer: organizerObjectId,
           status: 'published',
           applications: [],
           startTime,
           endTime,
-          venue: eventData.location?.venue,
+          venue: enhancedLocation.venue,
           budget: eventData.budget,
           maxPerformers: eventData.maxPerformers,
           recurrenceGroupId: recurrenceGroupId
@@ -647,9 +676,24 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     // Sauvegarder l'ancienne ville pour détecter le changement
     const oldCity = event.location?.city;
 
+    // Préparer les données de mise à jour avec extraction du code postal/département si la location est fournie
+    let updateData = { ...req.body, modifiedByOrganizer: true };
+    
+    if (req.body.location?.address) {
+      const postalCode = extractPostalCode(req.body.location.address);
+      if (postalCode) {
+        updateData.location = {
+          ...req.body.location,
+          postalCode: postalCode,
+          department: getDepartmentFromPostalCode(postalCode)
+        };
+        console.log(`📍 [DEBUG updateEvent] Code postal extrait: ${postalCode} → Département: ${updateData.location.department}`);
+      }
+    }
+
     const updatedEvent = await EventModel.findByIdAndUpdate(
       eventId,
-      { $set: { ...req.body, modifiedByOrganizer: true } },
+      { $set: updateData },
       { new: true }
     );
 

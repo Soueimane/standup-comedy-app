@@ -10,47 +10,77 @@ import { EventDocument } from '../models/Event';
 import { getCityGeoInfo, getCityGeoInfoByPostalCode } from '../utils/cityMapping';
 
 /**
+ * Résultat d'une notification par mobilité
+ */
+export interface MobilityNotificationResult {
+  count: number;
+  comedians: { _id: string; email: string }[];
+}
+
+/**
  * Notifie par email les humoristes dont la zone de mobilité
  * correspond à la localisation de l'événement
  *
  * @param event - L'événement publié
  * @param organizer - Les infos de l'organisateur (optionnel)
- * @returns Le nombre d'humoristes notifiés
+ * @param excludeComedianIds - IDs des comédiens à exclure (ex: ceux qui ont déjà candidaté)
+ * @returns Objet avec le nombre d'humoristes notifiés et leurs détails
  */
 export const notifyComediansByMobility = async (
   event: EventDocument,
-  organizer?: { firstName: string; lastName: string; email: string }
-): Promise<number> => {
+  organizer?: { firstName: string; lastName: string; email: string },
+  excludeComedianIds?: string[]
+): Promise<MobilityNotificationResult> => {
   try {
     // 1. Vérifier que l'événement a une ville définie
     if (!event.location?.city) {
       console.log('[MobilityNotification] Événement sans ville définie, notification ignorée');
-      return 0;
+      return { count: 0, comedians: [] };
     }
 
     // 2. Trouver tous les comédiens avec une zone de mobilité définie et abonnés aux emails
-    const comedians = await UserModel.find({
+    // Exclure ceux déjà dans la liste d'exclusion
+    const query: any = {
       role: 'COMEDIAN',
       'profile.mobilityZone': { $exists: true, $not: { $size: 0 } },
       'emailSubscriptions.globalSubscribed': { $ne: false }
-    }).lean();
+    };
+
+    if (excludeComedianIds && excludeComedianIds.length > 0) {
+      query._id = { $nin: excludeComedianIds };
+    }
+
+    const comedians = await UserModel.find(query).lean();
 
     if (comedians.length === 0) {
       console.log('[MobilityNotification] Aucun comédien avec zone de mobilité trouvé');
-      return 0;
+      return { count: 0, comedians: [] };
     }
 
-    // 3. Récupérer les infos géographiques : priorité au code postal si présent dans l'adresse
+    // 3. Récupérer les infos géographiques : priorité au département stocké en base
+    //    Puis au code postal stocké ou extrait de l'adresse
     //    (évite les ambiguïtés : ex. Grigny 91 vs Grigny 62)
     let geoInfo: { department: string | null; region: string | null };
-    const postalCodeMatch = event.location.address?.match(/\b(\d{5})\b/);
-    const postalCode = postalCodeMatch ? postalCodeMatch[1] : null;
-    if (postalCode) {
-      console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCode}" (événement: ${event.location.city}) via API Geo Gouv...`);
-      geoInfo = await getCityGeoInfoByPostalCode(postalCode);
+    
+    // Priorité 1: Utiliser le département stocké en base
+    if (event.location.department) {
+      console.log(`[MobilityNotification] Utilisation du département stocké en base: ${event.location.department}`);
+      // On récupère quand même la région via l'API
+      const cityGeoInfo = await getCityGeoInfo(event.location.city);
+      geoInfo = {
+        department: event.location.department,
+        region: cityGeoInfo.region
+      };
     } else {
-      console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" via API Geo Gouv...`);
-      geoInfo = await getCityGeoInfo(event.location.city);
+      // Priorité 2: Utiliser le code postal stocké ou extraire de l'adresse
+      const postalCode = event.location.postalCode || event.location.address?.match(/\b(\d{5})\b/)?.[1] || null;
+      if (postalCode) {
+        console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCode}" (événement: ${event.location.city}) via API Geo Gouv...`);
+        geoInfo = await getCityGeoInfoByPostalCode(postalCode);
+      } else {
+        console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" via API Geo Gouv...`);
+        geoInfo = await getCityGeoInfo(event.location.city);
+      }
     }
     
     // Normaliser la ville de l'événement pour le matching (gérer les arrondissements)
@@ -118,7 +148,7 @@ export const notifyComediansByMobility = async (
 
     if (matchingComedians.length === 0) {
       console.log(`[MobilityNotification] Aucun comédien ne matche pour l'événement à ${event.location.city}`);
-      return 0;
+      return { count: 0, comedians: [] };
     }
 
     console.log(`[MobilityNotification] ${matchingComedians.length} comédiens matchent pour l'événement "${event.title}" à ${event.location.city}`);
@@ -130,17 +160,27 @@ export const notifyComediansByMobility = async (
       )
     );
 
-    // Compter les succès et échecs
-    const successCount = emailResults.filter(r => r.status === 'fulfilled').length;
+    // Identifier les comedians notifiés avec succès
+    const notifiedComedians: { _id: string; email: string }[] = [];
+    emailResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const comedian = matchingComedians[index] as any;
+        notifiedComedians.push({
+          _id: comedian._id?.toString() || '',
+          email: comedian.email || ''
+        });
+      }
+    });
+
     const failureCount = emailResults.filter(r => r.status === 'rejected').length;
 
     if (failureCount > 0) {
       console.warn(`[MobilityNotification] ${failureCount} emails ont échoué sur ${matchingComedians.length}`);
     }
 
-    console.log(`[MobilityNotification] ${successCount} humoristes notifiés avec succès pour l'événement "${event.title}" à ${event.location.city}`);
+    console.log(`[MobilityNotification] ${notifiedComedians.length} humoristes notifiés avec succès pour l'événement "${event.title}" à ${event.location.city}`);
 
-    return successCount;
+    return { count: notifiedComedians.length, comedians: notifiedComedians };
   } catch (error) {
     console.error('[MobilityNotification] Erreur lors de la notification:', error);
     throw error;
@@ -198,16 +238,27 @@ export const notifyComediansByMobilityForRecurringGroup = async (
       return 0;
     }
 
-    const postalCodeMatchRec = event.location.address?.match(/\b(\d{5})\b/);
-    const postalCodeRec = postalCodeMatchRec ? postalCodeMatchRec[1] : null;
-    if (postalCodeRec) {
-      console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCodeRec}" (groupe récurrent: ${event.location.city}, ${events.length} dates)...`);
+    // Priorité 1: Utiliser le département stocké en base
+    let geoInfo: { department: string | null; region: string | null };
+    
+    if (event.location.department) {
+      console.log(`[MobilityNotification] Utilisation du département stocké en base pour groupe récurrent: ${event.location.department}`);
+      const cityGeoInfo = await getCityGeoInfo(event.location.city);
+      geoInfo = {
+        department: event.location.department,
+        region: cityGeoInfo.region
+      };
     } else {
-      console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" (groupe récurrent, ${events.length} dates)...`);
+      // Priorité 2: Utiliser le code postal stocké ou extraire de l'adresse
+      const postalCodeRec = event.location.postalCode || event.location.address?.match(/\b(\d{5})\b/)?.[1] || null;
+      if (postalCodeRec) {
+        console.log(`[MobilityNotification] Récupération des infos géo pour code postal "${postalCodeRec}" (groupe récurrent: ${event.location.city}, ${events.length} dates)...`);
+        geoInfo = await getCityGeoInfoByPostalCode(postalCodeRec);
+      } else {
+        console.log(`[MobilityNotification] Récupération des infos géo pour "${event.location.city}" (groupe récurrent, ${events.length} dates)...`);
+        geoInfo = await getCityGeoInfo(event.location.city);
+      }
     }
-    const geoInfo = postalCodeRec
-      ? await getCityGeoInfoByPostalCode(postalCodeRec)
-      : await getCityGeoInfo(event.location.city);
 
     let eventCity = event.location.city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     if (eventCity.includes('paris') && (eventCity.includes('arrondissement') || /paris\s+\d+/.test(eventCity))) {

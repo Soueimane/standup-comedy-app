@@ -5,6 +5,8 @@ export interface Location {
   venue?: string;
   address: string;
   city: string;
+  postalCode?: string;
+  department?: string;
   country: string;
 }
 

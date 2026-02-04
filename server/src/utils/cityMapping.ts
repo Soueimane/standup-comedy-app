@@ -351,3 +351,51 @@ export const clearCache = (): void => {
   postalCodeCache.clear();
   postalCodeCacheTimestamps.clear();
 };
+
+/**
+ * Extrait le code postal d'une adresse française
+ * Pattern: 5 chiffres consécutifs (ex: 75001, 69001)
+ * 
+ * @param address - L'adresse contenant potentiellement un code postal
+ * @returns Le code postal extrait ou null si non trouvé
+ */
+export const extractPostalCode = (address: string): string | null => {
+  if (!address) return null;
+  
+  // Recherche un pattern de 5 chiffres consécutifs
+  const postalCodeMatch = address.match(/\b(\d{5})\b/);
+  return postalCodeMatch ? postalCodeMatch[1] : null;
+};
+
+/**
+ * Extrait le code département à partir d'un code postal
+ * Pour les codes postaux français:
+ * - Corse: 20000-20199 → 2A, 20200-20999 → 2B
+ * - Outre-mer: 97XXX → 971, 972, etc.
+ * - Métropole: les 2 premiers chiffres (sauf cas spéciaux)
+ * 
+ * @param postalCode - Le code postal (5 chiffres)
+ * @returns Le code département ou null si non valide
+ */
+export const getDepartmentFromPostalCode = (postalCode: string): string | null => {
+  if (!postalCode || postalCode.length !== 5 || !/^\d{5}$/.test(postalCode)) {
+    return null;
+  }
+  
+  const numericCode = parseInt(postalCode, 10);
+  
+  // Corse
+  if (numericCode >= 20000 && numericCode <= 20199) return '2A';
+  if (numericCode >= 20200 && numericCode <= 20999) return '2B';
+  
+  // Outre-mer (DOM-TOM)
+  if (postalCode.startsWith('97')) {
+    // Les 3 premiers chiffres pour l'outre-mer (971, 972, 973, 974, 976, 977, 978, 986, 987, 988)
+    return postalCode.substring(0, 3);
+  }
+  
+  // Métropole: les 2 premiers chiffres
+  // Cas particulier: codes 01-09 deviennent 1-9 (mais avec padding)
+  const dept = postalCode.substring(0, 2);
+  return dept;
+};

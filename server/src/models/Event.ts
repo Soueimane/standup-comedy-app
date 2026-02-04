@@ -30,6 +30,11 @@ export interface EventDocument extends Document {
     j2Sent?: boolean;  // Relance 2 jours avant
     j1Sent?: boolean;  // Relance 1 jour avant
   };
+  // Tracking des relances envoyées aux humoristes par zone de mobilité (événements incomplets)
+  mobilityReminders?: {
+    j2?: { sentAt: Date; comedianIds: Types.ObjectId[]; emails: string[] };
+    j1?: { sentAt: Date; comedianIds: Types.ObjectId[]; emails: string[] };
+  };
   // Récurrence : ID du groupe d'événements récurrents
   recurrenceGroupId?: Types.ObjectId;
   createdAt?: Date;
@@ -40,6 +45,8 @@ const locationSchema = new Schema<Location>({
   venue: { type: String, required: false },
   address: { type: String, required: true },
   city: { type: String, required: true },
+  postalCode: { type: String, required: false },
+  department: { type: String, required: false },
   country: { type: String, required: true }
 });
 
@@ -133,6 +140,19 @@ const eventSchema = new Schema<EventDocument>({
     j3Sent: { type: Boolean, default: false },
     j2Sent: { type: Boolean, default: false },
     j1Sent: { type: Boolean, default: false }
+  },
+  // Schéma pour le tracking des relances humoristes par mobilité (événements incomplets)
+  mobilityReminders: {
+    j2: {
+      sentAt: { type: Date },
+      comedianIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      emails: [{ type: String }]
+    },
+    j1: {
+      sentAt: { type: Date },
+      comedianIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      emails: [{ type: String }]
+    }
   },
   // Récurrence : ID du groupe d'événements récurrents
   recurrenceGroupId: {

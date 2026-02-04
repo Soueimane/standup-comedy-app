@@ -804,6 +804,33 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         durationInMinutes = (24 * 60 - startMinutes) + endMinutes;
       }
 
+      // Extraire le code postal depuis l'adresse s'il n'est pas déjà présent
+      let postalCode = formData.postalCode;
+      if (!postalCode && formData.address) {
+        const postalCodeMatch = formData.address.match(/\b(\d{5})\b/);
+        if (postalCodeMatch) {
+          postalCode = postalCodeMatch[1];
+        }
+      }
+
+      // Calculer le département à partir du code postal
+      let department: string | undefined = undefined;
+      if (postalCode) {
+        // Corse
+        const numericCode = parseInt(postalCode, 10);
+        if (numericCode >= 20000 && numericCode <= 20199) {
+          department = '2A';
+        } else if (numericCode >= 20200 && numericCode <= 20999) {
+          department = '2B';
+        } else if (postalCode.startsWith('97')) {
+          // Outre-mer
+          department = postalCode.substring(0, 3);
+        } else {
+          // Métropole
+          department = postalCode.substring(0, 2);
+        }
+      }
+
       const baseEventData = {
         title: formData.title,
         description: formData.description,
@@ -811,6 +838,8 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           venue: formData.venue,
           address: formData.address,
           city: formData.city,
+          postalCode: postalCode || undefined,
+          department: department,
           country: formData.country,
         },
         requirements: {
