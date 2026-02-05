@@ -1,19 +1,49 @@
-import { type CSSProperties, useState, useMemo, useEffect } from 'react';
+import React, { type CSSProperties, useState, useMemo, useEffect } from 'react';
 import type { IEvent } from '../types/event';
+import Modal from './Modal';
+import EventDetailModal from './EventDetailModal';
+import { translateEventStatus } from '../utils/eventHelpers';
 
 interface EventCalendarProps {
   events?: IEvent[];
   onEventClick: (event: IEvent) => void;
+  useInternalModal?: boolean; // Si false, utilise uniquement onEventClick
+  user?: any; // Utilisateur connecté
+  eventAbsences?: any[]; // Liste des absences
+  onAbsenceClick?: (participant: any, event: IEvent) => void; // Handler pour marquer absent/présent
+  onComedianClick?: (participant: any) => void; // Handler pour cliquer sur un humoriste
+  shouldCloseModal?: number; // Incrémenter pour fermer le modal depuis l'extérieur
 }
 
 type ViewMode = 'month' | 'week' | 'day';
 
-const EventCalendar = ({ events = [], onEventClick }: EventCalendarProps) => {
+const EventCalendar = ({
+  events = [],
+  onEventClick,
+  useInternalModal = true,
+  user,
+  eventAbsences = [],
+  onAbsenceClick,
+  onComedianClick,
+  shouldCloseModal
+}: EventCalendarProps) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedEvent(null);
+  };
+
+  // Fermer le modal quand shouldCloseModal change
+  useEffect(() => {
+    if (shouldCloseModal && shouldCloseModal > 0) {
+      closeModal();
+    }
+  }, [shouldCloseModal]);
 
   // --- Responsive detection hook ---
   useEffect(() => {
@@ -288,7 +318,13 @@ const EventCalendar = ({ events = [], onEventClick }: EventCalendarProps) => {
                     key={i}
                     style={badgeStyle(ev.status||'draft')}
                     title={ev.title}
-                    onClick={() => { setSelectedEvent(ev); setIsModalOpen(true); onEventClick(ev); }}
+                    onClick={() => {
+                      if (useInternalModal) {
+                        setSelectedEvent(ev);
+                        setIsModalOpen(true);
+                      }
+                      onEventClick(ev);
+                    }}
                   >
                     {displayTitle}
                   </span>
@@ -300,68 +336,15 @@ const EventCalendar = ({ events = [], onEventClick }: EventCalendarProps) => {
       </div>
 
       {/* Modal */}
-      {isModalOpen && selectedEvent && (
-        <div
-          style={{
-            position:'fixed', top:0, left:0, right:0, bottom:0,
-            backgroundColor:'rgba(0,0,0,0.5)',
-            display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999,
-            padding: getResponsiveValue('16px', '20px', '20px')
-          }}
-          onClick={()=>{ setIsModalOpen(false); setSelectedEvent(null); }}
-        >
-          <div
-            style={{
-              backgroundColor:'#1a1a2e',
-              color:'#fff',
-              padding: getResponsiveValue('16px', '20px', '20px'),
-              borderRadius:'12px',
-              minWidth: getResponsiveValue('auto', '300px', '300px'),
-              maxWidth: getResponsiveValue('100%', '500px', '600px'),
-              width: getResponsiveValue('100%', 'auto', 'auto'),
-              maxHeight: getResponsiveValue('90vh', '80vh', '80vh'),
-              overflowY:'auto',
-              fontSize: getResponsiveValue('0.9em', '1em', '1em'),
-              boxSizing: 'border-box'
-            }}
-            onClick={e=>e.stopPropagation()}
-          >
-            <h3 style={{marginTop:0}}>{selectedEvent.title}</h3>
-            <p><strong>Date :</strong> {new Date(selectedEvent.date).toLocaleString()}</p>
-            <p><strong>Heure :</strong> {selectedEvent.startTime||'—'} - {selectedEvent.endTime||'—'}</p>
-            <p>
-              <strong>Organisateur :</strong>{' '}
-              {selectedEvent.organizer
-                ? selectedEvent.organizer.firstName
-                  ? `${selectedEvent.organizer.firstName} ${selectedEvent.organizer.lastName}`
-                  : selectedEvent.organizer.companyName || '—'
-                : '—'}
-            </p>
-            {selectedEvent.location && <p><strong>Lieu :</strong> {selectedEvent.location.venue ? selectedEvent.location.venue+', ' : ''}{selectedEvent.location.city}</p>}
-            <p><strong>Status :</strong> {selectedEvent.status}</p>
-            {selectedEvent.description && <p><strong>Description :</strong> {selectedEvent.description}</p>}
-            {selectedEvent.requirements && (
-              <p><strong>Exigences :</strong> minExp {selectedEvent.requirements.minExperience}, durée {selectedEvent.requirements.duration} min</p>
-            )}
-            <button
-              onClick={()=>{ setIsModalOpen(false); setSelectedEvent(null); }}
-              style={{
-                marginTop:'10px',
-                padding:'8px 16px',
-                borderRadius:'8px',
-                border:'none',
-                background:'#ff416c',
-                color:'#fff',
-                fontWeight:'bold',
-                cursor:'pointer',
-                minWidth:'44px',
-                minHeight:'44px',
-                WebkitTapHighlightColor:'rgba(255,65,108,0.3)'
-              }}
-            >Fermer</button>
-          </div>
-        </div>
-      )}
+      <EventDetailModal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setSelectedEvent(null); }}
+        event={selectedEvent}
+        user={user}
+        eventAbsences={eventAbsences}
+        onAbsenceClick={onAbsenceClick}
+        onComedianClick={onComedianClick}
+      />
     </div>
   );
 };

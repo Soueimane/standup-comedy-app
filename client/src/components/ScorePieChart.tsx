@@ -46,8 +46,8 @@ const ScorePieChart: React.FC<ScorePieChartProps> = ({
   // Background circle color (light gray)
   const backgroundColor = '#e5e7eb';
 
-  // Font size responsive to chart size
-  const fontSize = size * 0.3;
+  // Font size responsive to chart size (smaller for 100% to avoid touching the circle)
+  const fontSize = normalizedScore >= 100 ? size * 0.28 : size * 0.30;
 
   return (
     <>
@@ -98,7 +98,7 @@ const ScorePieChart: React.FC<ScorePieChartProps> = ({
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          strokeLinecap="round"
+          strokeLinecap={displayScore >= 100 ? "butt" : "round"}
           style={{
             transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.3s ease',
             animation: 'fadeIn 0.5s ease-in-out',

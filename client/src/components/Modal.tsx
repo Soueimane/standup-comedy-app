@@ -26,15 +26,19 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
   const modalStyle: CSSProperties = {
     background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
     padding: '25px',
-    borderRadius: '10px',
-    width: '90%',
+    borderRadius: '12px',
+    minWidth: 'auto',
     maxWidth: '600px',
-    boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)',
+    width: '100%',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
     position: 'relative',
     color: '#ffffff',
     border: '1px solid rgba(255, 255, 255, 0.1)',
-    maxHeight: '90vh',
+    maxHeight: '85vh',
     overflowY: 'auto',
+    overflowX: 'hidden',
+    scrollbarWidth: 'none' as any,
+    msOverflowStyle: 'none' as any,
   };
 
   const closeButtonStyle: CSSProperties = {
@@ -50,7 +54,12 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
 
   return (
     <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+      <style>{`
+        .modal-content::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
+      <div className="modal-content" style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} style={closeButtonStyle}>&times;</button>
         {children}
       </div>

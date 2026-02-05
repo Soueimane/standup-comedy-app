@@ -95,6 +95,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
     case 'ABSENCE_MARKED':
       console.log('⚠️ [SSE] Absence marquée:', event.data.eventId, event.data.comedianId);
       queryClient.invalidateQueries({ queryKey: ['absences'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
@@ -104,6 +105,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
     case 'ABSENCE_CANCELLED':
       console.log('✅ [SSE] Absence annulée:', event.data.eventId, event.data.comedianId);
       queryClient.invalidateQueries({ queryKey: ['absences'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });

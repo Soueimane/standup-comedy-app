@@ -7,9 +7,11 @@ import ApplyToEventForm from '../components/ApplyToEventForm';
 import ComedianDetailsModal from '../components/ComedianDetailsModal';
 import AbsenceModal from '../components/AbsenceModal';
 import EventCalendar from '../components/EventCalendar';
+import EventDetailModal from '../components/EventDetailModal';
 import ScorePieChart from '../components/ScorePieChart';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { matchesMobilityZones, normalizeString, FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
+import { getOrganizerName, translateEventStatus } from '../utils/eventHelpers';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
@@ -583,12 +585,6 @@ useEffect(() => {
   };
 
   // Fonction utilitaire pour obtenir le nom de l'organisateur de manière sécurisée
-  const getOrganizerName = (organizer: any): string => {
-    if (!organizer) return 'Organisateur inconnu';
-    if (typeof organizer === 'string') return organizer;
-    return `${organizer.firstName || ''} ${organizer.lastName || ''}`.trim() || 'Organisateur inconnu';
-  };
-
   const getOrganizerIdFromEvent = (organizer: any): string | undefined => {
     if (!organizer) return undefined;
     if (typeof organizer === 'string') return organizer;
@@ -3972,172 +3968,16 @@ useEffect(() => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Détails de l'évènement">
-        {selectedEvent && (
-          <div>
-            <h2 style={{ fontSize: '1.8em', color: '#ff4b2b', marginBottom: '15px' }}>{selectedEvent.title}</h2>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Description:</span> <span style={modalValueStyle}>{selectedEvent.description}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Date:</span> <span style={modalValueStyle}>{new Date(selectedEvent.date).toLocaleDateString()}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Heure:</span> <span style={modalValueStyle}>{selectedEvent.startTime || ''}{selectedEvent.startTime && selectedEvent.endTime ? ' - ' : ''}{selectedEvent.endTime || ''}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Lieu:</span> <span style={modalValueStyle}>
-              {(() => {
-                const location = selectedEvent.location;
-                if (typeof location === 'object' && location !== null) {
-                  const venue = location.venue || '';
-                  const address = location.address || '';
-                  const city = location.city || '';
-                  return `${venue}${venue && address ? ', ' : ''}${address}${(venue || address) && city ? ', ' : ''}${city}`.trim();
-                }
-                return 'Lieu non spécifié';
-              })()}
-            </span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Organisateur:</span> <span style={modalValueStyle}>{getOrganizerName(selectedEvent.organizer)}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Email:</span> <span style={modalValueStyle}>{selectedEvent.organizer?.email || 'Non disponible'}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Statut:</span> <span style={modalValueStyle}>{translateEventStatus(selectedEvent.status)}</span></p>
-            {selectedEvent.status?.toLowerCase() === 'cancelled' && selectedEvent.cancellationReason && (
-              <p style={modalDetailStyle}>
-                <span style={modalLabelStyle}>Raison de l'annulation:</span> 
-                <span style={modalValueStyle}>{selectedEvent.cancellationReason}</span>
-              </p>
-            )}
-            
-            <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>Exigences:</h3>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Expérience Minimale:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.minExperience ?? 'Non spécifié'} ans</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Niveau d'expérience:</span> <span style={modalValueStyle}>
-              {(() => {
-                const level = selectedEvent.requirements?.requiredExperienceLevel;
-                if (!level || level === 'all') return 'Tous les niveaux';
-                if (level === '0-50') return 'Débutant (0-50 scènes)';
-                if (level === '50-200') return 'Expérimenté (50-200 scènes)';
-                if (level === '200+') return 'Pro (200+ scènes)';
-                return 'Non spécifié';
-              })()}
-            </span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Nombre Max. Performers:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.maxPerformers ?? 'Non spécifié'}</span></p>
-            <p style={modalDetailStyle}><span style={modalLabelStyle}>Durée Proposée:</span> <span style={modalValueStyle}>{selectedEvent.requirements?.duration ?? 'Non spécifié'} min</span></p>
-
-            {user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN' ? (
-              <div ref={participantsSectionRef}>
-                <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
-                  Participants ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
-                </h3>
-
-                {selectedEvent.participants && selectedEvent.participants.length > 0 ? (
-                  <div>
-                    {selectedEvent.participants.map((participant: any, index: number) => {
-                        const isAbsent = isParticipantAbsent(participant._id);
-                        const absence = eventAbsences.find(absence => absence.comedian._id === participant._id);
-                        
-                        return (
-                        <div key={index} style={{
-                          marginBottom: '12px',
-                          padding: '10px',
-                          backgroundColor: isAbsent ? 'rgba(220, 53, 69, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                          borderRadius: '8px',
-                          border: isAbsent ? '1px solid rgba(220, 53, 69, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isAbsent && absence?.reason ? '8px' : '0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                              {isAbsent && (
-                                <span style={{ 
-                                  color: '#dc3545', 
-                                  marginRight: '8px', 
-                                  fontSize: '16px',
-                                  fontWeight: 'bold' 
-                                }}>
-                                  🚫
-                                </span>
-                              )}
-                              <span 
-                                style={{
-                                  color: '#ff4b2b',
-                                  cursor: 'pointer',
-                                  textDecoration: 'underline',
-                                  fontWeight: 'bold'
-                                }}
-                                onClick={() => handleComedianClick(participant)}
-                              >
-                                {participant.firstName} {participant.lastName}
-                              </span>
-                              {isAbsent && (
-                                <span style={{ 
-                                  marginLeft: '10px',
-                                  color: '#dc3545',
-                                  fontSize: '12px',
-                                  fontStyle: 'italic'
-                                }}>
-                                  (Absent)
-                                </span>
-                              )}
-                            </div>
-                            
-                            {user?.role === 'ORGANIZER' && (
-                              <button
-                                style={{
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  border: 'none',
-                                  backgroundColor: isAbsent ? '#28a745' : '#dc3545',
-                                  color: '#ffffff',
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.3s ease',
-                                  marginLeft: '10px'
-                                }}
-                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                  e.stopPropagation();
-                                  handleAbsenceClick(participant, selectedEvent);
-                                }}
-                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                  e.currentTarget.style.opacity = '0.8';
-                                }}
-                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                  e.currentTarget.style.opacity = '1';
-                                }}
-                              >
-                                {isAbsent ? '✅ Marquer présent' : '🚫 Marquer absent'}
-                              </button>
-                            )}
-                          </div>
-                          
-                          {/* Message d'absence */}
-                          {isAbsent && absence?.reason && (
-                            <div style={{
-                              marginTop: '8px',
-                              padding: '8px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                              borderRadius: '4px',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
-                              borderLeft: '3px solid #dc3545'
-                            }}>
-                              <div style={{ fontSize: '0.8em', color: '#ffc107', marginBottom: '2px', fontWeight: 'bold' }}>
-                                💬 Raison de l'absence:
-                              </div>
-                              <div style={{ fontSize: '0.8em', color: '#ffffff', fontStyle: 'italic' }}>
-                                "{absence.reason}"
-                              </div>
-                              <div style={{ fontSize: '0.7em', color: '#aaa', marginTop: '4px' }}>
-                                Marqué le {new Date(absence.markedAt).toLocaleDateString('fr-FR')}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        );
-                      })}
-                  </div>
-                ) : (
-                  <p style={modalValueStyle}>Aucun participant pour l'instant.</p>
-                )}
-              </div>
-            ) : (
-              <h3 style={{ ...modalLabelStyle, fontSize: '1.2em', marginTop: '20px', color: '#28a745' }}>
-                Participants confirmés ({selectedEvent.participants?.length || 0}/{selectedEvent.requirements?.maxPerformers ?? 0})
-              </h3>
-            )}
-          </div>
-        )}
-      </Modal>
+      <EventDetailModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        event={selectedEvent}
+        user={user}
+        eventAbsences={eventAbsences}
+        onAbsenceClick={handleAbsenceClick}
+        onComedianClick={handleComedianClick}
+        participantsSectionRef={participantsSectionRef}
+      />
 
       <Modal isOpen={showEditEventForm} onClose={() => setShowEditEventForm(false)} title="Modifier l'évènement">
         {eventToEdit && (
@@ -4247,6 +4087,7 @@ useEffect(() => {
           <EventCalendar
             events={[...upcomingEvents, ...archivedEventsToShow, ...cancelledEvents]}
             onEventClick={handleCardClick}
+            useInternalModal={false}
           />
         </div>
       )}

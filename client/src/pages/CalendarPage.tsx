@@ -1,14 +1,24 @@
 import { type CSSProperties, useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import EventCalendar from '../components/EventCalendar';
-import { useQuery } from '@tanstack/react-query';
-import api from '../services/api';
+import AbsenceModal from '../components/AbsenceModal';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api, { markAbsence, cancelAbsence } from '../services/api';
 import type { IEvent } from '../types/event';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
+import { ErrorMessages, SuccessMessages } from '../services/systemMessages';
 
 const CalendarPage = () => {
   const { token, user } = useAuth();
+  const { showSuccess, showError } = useAlert();
+  const queryClient = useQueryClient();
   const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+  const [selectedComedian, setSelectedComedian] = useState<any>(null);
+  const [isComedianModalOpen, setIsComedianModalOpen] = useState(false);
+  const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
+  const [selectedAbsenceParticipant, setSelectedAbsenceParticipant] = useState<any>(null);
+  const [closeModalTrigger, setCloseModalTrigger] = useState(0);
 
   // --- Responsive detection hook ---
   useEffect(() => {
@@ -82,9 +92,109 @@ const CalendarPage = () => {
 
   const allEvents = [...upcomingEvents, ...archivedEvents, ...cancelledEvents];
 
+  // Récupérer les absences pour tous les événements affichés
+  const { data: eventAbsences = [] } = useQuery({
+    queryKey: ['event-absences', allEvents.map(e => e._id)],
+    queryFn: async () => {
+      if (!token || allEvents.length === 0) return [];
+      const allAbsences: any[] = [];
+      for (const event of allEvents) {
+        try {
+          const res = await api.get(`/absences/event/${event._id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (Array.isArray(res.data)) {
+            allAbsences.push(...res.data);
+          }
+        } catch (err) {
+          // Ignorer les erreurs individuelles
+        }
+      }
+      return allAbsences;
+    },
+    enabled: !!token && (user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN') && allEvents.length > 0,
+  });
+
+  // Mutation pour marquer absent
+  const markAbsenceMutation = useMutation({
+    mutationFn: async ({ eventId, comedianId, reason }: { eventId: string; comedianId: string; reason?: string }) => {
+      return await markAbsence(eventId, comedianId, reason);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event-absences', token] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?._id, token] });
+    },
+  });
+
+  // Mutation pour annuler absence
+  const cancelAbsenceMutation = useMutation({
+    mutationFn: async ({ eventId, comedianId }: { eventId: string; comedianId: string }) => {
+      return await cancelAbsence(eventId, comedianId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event-absences', token] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?._id, token] });
+    },
+  });
+
   const handleEventClick = (event: IEvent) => {
     console.log('Événement cliqué :', event);
-    // Ici tu peux ouvrir un modal global ou faire une redirection
+  };
+
+  const handleAbsenceClick = (participant: any, event: IEvent) => {
+    setSelectedAbsenceParticipant({
+      ...participant,
+      eventId: event._id,
+      eventTitle: event.title
+    });
+    setIsAbsenceModalOpen(true);
+  };
+
+  const closeAbsenceModal = () => {
+    setIsAbsenceModalOpen(false);
+    setSelectedAbsenceParticipant(null);
+  };
+
+  const handleMarkAbsent = async (reason: string) => {
+    if (!selectedAbsenceParticipant) return;
+
+    try {
+      await markAbsenceMutation.mutateAsync({
+        eventId: selectedAbsenceParticipant.eventId,
+        comedianId: selectedAbsenceParticipant._id,
+        reason
+      });
+      showSuccess(SuccessMessages.ABSENCE_MARKED);
+      closeAbsenceModal();
+      setCloseModalTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error('Erreur lors du marquage de l\'absence:', error);
+      showError(ErrorMessages.ABSENCE_MARK_FAILED);
+      throw error;
+    }
+  };
+
+  const handleCancelAbsence = async () => {
+    if (!selectedAbsenceParticipant) return;
+
+    try {
+      await cancelAbsenceMutation.mutateAsync({
+        eventId: selectedAbsenceParticipant.eventId,
+        comedianId: selectedAbsenceParticipant._id
+      });
+      showSuccess(SuccessMessages.ABSENCE_CANCELLED);
+      closeAbsenceModal();
+      setCloseModalTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error('Erreur lors de l\'annulation de l\'absence:', error);
+      showError(ErrorMessages.ABSENCE_CANCEL_FAILED);
+      throw error;
+    }
+  };
+
+  const handleComedianClick = (participant: any) => {
+    setSelectedComedian(participant);
+    setIsComedianModalOpen(true);
   };
 
   const mainContainerStyle: CSSProperties = {
@@ -116,6 +226,35 @@ const CalendarPage = () => {
         <EventCalendar
           events={allEvents}
           onEventClick={handleEventClick}
+          user={user}
+          eventAbsences={eventAbsences}
+          onAbsenceClick={handleAbsenceClick}
+          onComedianClick={handleComedianClick}
+          shouldCloseModal={closeModalTrigger}
+        />
+      )}
+
+      {/* Modal d'absence */}
+      {selectedAbsenceParticipant && (
+        <AbsenceModal
+          isOpen={isAbsenceModalOpen}
+          onClose={closeAbsenceModal}
+          comedianName={`${selectedAbsenceParticipant.firstName} ${selectedAbsenceParticipant.lastName}`}
+          eventTitle={selectedAbsenceParticipant.eventTitle || ''}
+          isAlreadyAbsent={eventAbsences.some(
+            (absence: any) =>
+              absence.comedian._id === selectedAbsenceParticipant._id &&
+              absence.event === selectedAbsenceParticipant.eventId
+          )}
+          onMarkAbsent={handleMarkAbsent}
+          onCancelAbsence={handleCancelAbsence}
+          existingReason={
+            eventAbsences.find(
+              (absence: any) =>
+                absence.comedian._id === selectedAbsenceParticipant._id &&
+                absence.event === selectedAbsenceParticipant.eventId
+            )?.reason || ''
+          }
         />
       )}
     </div>
