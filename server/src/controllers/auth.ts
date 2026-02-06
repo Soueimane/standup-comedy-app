@@ -18,7 +18,7 @@ import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter'
 export const register = async (req: Request, res: Response) => {
   try {
     console.log('📝 [REGISTER] Données reçues:', JSON.stringify(req.body, null, 2));
-    const { email, phone, password, firstName, lastName, role, city, profile: profileData } = req.body;
+    const { email, phone, password, firstName, lastName, role, city, profile: profileData, consent } = req.body;
 
     console.log('📝 [REGISTER] Rôle:', role);
     console.log('📝 [REGISTER] Profile data:', profileData);
@@ -77,8 +77,18 @@ export const register = async (req: Request, res: Response) => {
       lastName,
       role,
       city: city || '',
+      // Enregistrement du consentement RGPD
+      consent: {
+        termsAccepted: consent?.termsAccepted || false,
+        termsAcceptedAt: consent?.termsAccepted ? new Date() : undefined,
+        termsVersion: '1.0',
+        privacyAccepted: consent?.privacyAccepted || false,
+        privacyAcceptedAt: consent?.privacyAccepted ? new Date() : undefined,
+        privacyVersion: '1.0',
+        isAdult: consent?.isAdult || false,
+      },
     };
-    
+
     if (profile) {
       userData.profile = profile;
     }
@@ -199,10 +209,33 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // Verifier si le compte est actif
+    // Vérifier si le compte est désactivé
     if ((user as any).isActive === false) {
+      const deactivatedAt = (user as any).deactivatedAt;
+      const deactivationReason = (user as any).deactivationReason;
+
+      // Vérifier si c'est une demande de suppression RGPD (grace period actif)
+      if (deactivationReason?.includes('RGPD') && deactivatedAt) {
+        const daysSinceDeactivation = Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24));
+        const daysRemaining = 30 - daysSinceDeactivation;
+
+        if (daysRemaining > 0) {
+          // Le compte peut encore être réactivé
+          return res.status(403).json({
+            code: 'ACCOUNT_PENDING_DELETION',
+            message: 'Votre compte est en cours de suppression',
+            canReactivate: true,
+            deactivatedAt: deactivatedAt.toISOString(),
+            daysRemaining,
+            deletionDate: new Date(deactivatedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          });
+        }
+      }
+
+      // Compte désactivé par un admin ou grace period expiré
       return res.status(403).json({
-        message: 'Votre compte a ete desactive. Veuillez contacter le support.'
+        code: 'ACCOUNT_DEACTIVATED',
+        message: 'Votre compte a été désactivé. Veuillez contacter le support.'
       });
     }
 
@@ -243,6 +276,75 @@ export const login = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la connexion:', error);
     res.status(500).json({ message: 'Erreur lors de la connexion' });
+  }
+};
+
+/**
+ * Réactive un compte en cours de suppression (grace period RGPD)
+ * L'utilisateur doit fournir son email et mot de passe pour confirmer
+ */
+export const reactivateAccount = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await UserModel.findOne({ email }).select('+password');
+
+    if (!user) {
+      return res.status(401).json({
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    // Vérifier que le compte est bien en attente de suppression RGPD
+    if ((user as any).isActive !== false) {
+      return res.status(400).json({
+        message: 'Ce compte est déjà actif'
+      });
+    }
+
+    const deactivationReason = (user as any).deactivationReason;
+    if (!deactivationReason?.includes('RGPD')) {
+      return res.status(403).json({
+        message: 'Ce compte a été désactivé par un administrateur. Veuillez contacter le support.'
+      });
+    }
+
+    // Vérifier que le grace period n'est pas expiré
+    const deactivatedAt = (user as any).deactivatedAt;
+    if (deactivatedAt) {
+      const daysSinceDeactivation = Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceDeactivation >= 30) {
+        return res.status(403).json({
+          message: 'Le délai de réactivation de 30 jours est expiré. Votre compte a été supprimé.'
+        });
+      }
+    }
+
+    // Réactiver le compte
+    (user as any).isActive = true;
+    (user as any).deactivatedAt = undefined;
+    (user as any).deactivatedBy = undefined;
+    (user as any).deactivationReason = undefined;
+
+    await user.save();
+
+    console.log(`✅ [reactivateAccount] Compte ${user.email} réactivé avec succès`);
+
+    // Retourner un message de succès (l'utilisateur devra se reconnecter)
+    res.status(200).json({
+      message: 'Votre compte a été réactivé avec succès. Vous pouvez maintenant vous connecter.',
+      reactivated: true
+    });
+  } catch (error) {
+    console.error('Erreur lors de la réactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la réactivation du compte' });
   }
 };
 

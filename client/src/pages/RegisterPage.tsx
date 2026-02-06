@@ -23,6 +23,7 @@ function RegisterPage() {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     uppercase: false,
@@ -137,7 +138,12 @@ function RegisterPage() {
         newErrors.experience = 'L\'expérience ne peut pas dépasser 50 ans';
       }
     }
-    
+
+    // Validation du consentement CGU/RGPD
+    if (!acceptTerms) {
+      newErrors.acceptTerms = 'Vous devez accepter les CGU et la politique de confidentialité';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -159,10 +165,16 @@ function RegisterPage() {
         profile: {
           ...registerData.profile,
           experience: parseInt(registerData.profile.experience) || 0
+        },
+        // Envoyer le consentement RGPD
+        consent: {
+          termsAccepted: acceptTerms,
+          privacyAccepted: acceptTerms,
+          isAdult: true, // Confirmé par l'acceptation des CGU (âge minimum 18 ans)
         }
       };
-      
-      // Envoyer les données avec profile au backend
+
+      // Envoyer les données avec profile et consentement au backend
       await registerMutation.mutateAsync(dataToSend);
       // La redirection est gérée dans AuthContext
     } catch (error: any) {
@@ -471,6 +483,35 @@ function RegisterPage() {
             <option value="COMEDIAN">Humoriste</option>
             <option value="ORGANIZER">Organisateur</option>
           </select>
+          </div>
+
+          {/* Consentement CGU/RGPD */}
+          <div style={{ marginTop: '15px', marginBottom: '10px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              fontSize: '0.9em',
+              textAlign: 'left',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                style={{
+                  marginTop: '4px',
+                  width: '18px',
+                  height: '18px',
+                  cursor: 'pointer'
+                }}
+              />
+              <span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>
+                J'accepte les <Link to="/cgu" style={linkStyle}>CGU</Link> et la{' '}
+                <Link to="/politique-confidentialite" style={linkStyle}>politique de confidentialité</Link> *
+              </span>
+            </label>
+            {errors.acceptTerms && <div style={errorStyle}>{errors.acceptTerms}</div>}
           </div>
 
           <button type="submit" style={buttonStyle} disabled={registerMutation.isPending}>

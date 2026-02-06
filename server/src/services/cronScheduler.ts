@@ -46,6 +46,12 @@ const cronJobs: CronJob[] = [
     schedule: config.cron.presenceAlertSchedule,
     endpoint: '/api/presence-alerts/jobs/check',
     enabled: config.cron.enabled
+  },
+  {
+    name: 'Nettoyage comptes désactivés (RGPD 30j)',
+    schedule: config.cron.accountCleanupSchedule,
+    endpoint: '/api/users/jobs/cleanup-deactivated',
+    enabled: config.cron.enabled
   }
 ];
 

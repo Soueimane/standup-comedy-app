@@ -25,6 +25,9 @@ import LandingPage from './pages/LandingPage'
 import OAuthCallback from './pages/OAuthCallback'
 import { SSEProvider } from './components/SSEProvider'
 import CalendarPage from './pages/CalendarPage';
+import LegalMentionsPage from './pages/LegalMentionsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +60,9 @@ const AppRouter: React.FC = () => {
       <Route path="/admin/comedian-reports" element={<ComedianReportsPage />} />
       
 <Route path="/calendar" element={<CalendarPage/>} />
+      <Route path="/mentions-legales" element={<LegalMentionsPage />} />
+      <Route path="/politique-confidentialite" element={<PrivacyPolicyPage />} />
+      <Route path="/cgu" element={<TermsOfServicePage />} />
     </Routes>
   );
 };

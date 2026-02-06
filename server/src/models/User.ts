@@ -314,6 +314,35 @@ const userSchema = new Schema<UserDocument>({
     type: String,
     trim: true
   },
+  // Consentement RGPD
+  consent: {
+    termsAccepted: {
+      type: Boolean,
+      default: false
+    },
+    termsAcceptedAt: {
+      type: Date
+    },
+    termsVersion: {
+      type: String,
+      default: '1.0'
+    },
+    privacyAccepted: {
+      type: Boolean,
+      default: false
+    },
+    privacyAcceptedAt: {
+      type: Date
+    },
+    privacyVersion: {
+      type: String,
+      default: '1.0'
+    },
+    isAdult: {
+      type: Boolean,
+      default: false
+    }
+  },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
 }, {
