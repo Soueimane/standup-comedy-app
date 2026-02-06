@@ -80,25 +80,25 @@ function LegalMentionsPage() {
         {/* Définitions */}
         <h2 style={sectionTitleStyle}>Définitions</h2>
         <p style={textStyle}>
-          <strong>Client :</strong> tout professionnel ou personne physique capable au sens des articles 1123 et suivants du Code civil, ou personne morale, qui visite le Site objet des présentes conditions générales.
+          <strong>Client :</strong> Toute personne majeure ou toute entreprise qui utilise notre plateforme pour trouver des comédiens ou proposer des spectacles.
         </p>
         <p style={textStyle}>
-          <strong>Prestations et Services :</strong> <a href={siteUrl} style={linkStyle}>{siteUrl}</a> met à disposition des Clients une plateforme de mise en relation entre comédiens et organisateurs d'événements de stand-up comedy.
+          <strong>Prestations et Services :</strong> <a href={siteUrl} style={linkStyle}>{siteUrl}</a> vous propose une plateforme qui met en relation les comédiens avec les organisateurs d'événements de stand-up comedy.
         </p>
         <p style={textStyle}>
-          <strong>Contenu :</strong> Ensemble des éléments constituants l'information présente sur le Site, notamment textes – images – vidéos.
+          <strong>Contenu :</strong> Toutes les informations que vous trouvez sur notre site : les textes, les images et les vidéos.
         </p>
         <p style={textStyle}>
-          <strong>Informations clients :</strong> Ci-après dénommé « Information(s) » qui correspondent à l'ensemble des données personnelles susceptibles d'être détenues par <a href={siteUrl} style={linkStyle}>{siteUrl}</a> pour la gestion de votre compte, de la gestion de la relation client et à des fins d'analyses et de statistiques.
+          <strong>Informations clients :</strong> Vos données personnelles que nous utilisons pour gérer votre compte, communiquer avec vous et améliorer notre service grâce à des analyses.
         </p>
         <p style={textStyle}>
-          <strong>Utilisateur :</strong> Internaute se connectant, utilisant le site susnommé.
+          <strong>Utilisateur :</strong> Toute personne qui visite ou utilise notre site.
         </p>
         <p style={textStyle}>
-          <strong>Informations personnelles :</strong> « Les informations qui permettent, sous quelque forme que ce soit, directement ou non, l'identification des personnes physiques auxquelles elles s'appliquent » (article 4 de la loi n° 78-17 du 6 janvier 1978).
+          <strong>Informations personnelles :</strong> Toutes les informations qui permettent de vous identifier, comme votre nom, votre email ou votre numéro de téléphone.
         </p>
         <p style={textStyle}>
-          Les termes « données à caractère personnel », « personne concernée », « sous-traitant » et « données sensibles » ont le sens défini par le Règlement Général sur la Protection des Données (RGPD : n° 2016-679).
+          Les termes « données à caractère personnel », « personne concernée », « sous-traitant » et « données sensibles » sont définis par la loi sur la protection des données (RGPD).
         </p>
 
         {/* 1. Présentation du site internet */}
