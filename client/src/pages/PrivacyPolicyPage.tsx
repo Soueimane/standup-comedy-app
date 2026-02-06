@@ -1,7 +1,10 @@
-import { type CSSProperties } from 'react';
+import { type CSSProperties, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 function PrivacyPolicyPage() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const pageStyle: CSSProperties = {
     minHeight: '100vh',
     backgroundColor: '#1a1a2e',

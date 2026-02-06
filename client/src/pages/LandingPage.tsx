@@ -135,7 +135,7 @@ const LANDING_CSS = `
   .landing-dark .cta-content p { font-size: 22px; color: var(--text-secondary); margin-bottom: 48px; line-height: 1.6; }
   .landing-dark .cta-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
   .landing-dark footer { background: rgba(0,0,0,0.3); color: white; padding: 80px 0 40px; border-top: 1px solid var(--border); }
-  .landing-dark .footer-content { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 60px; margin-bottom: 60px; }
+  .landing-dark .footer-content { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 60px; }
   .landing-dark .footer-brand p { color: rgba(255, 255, 255, 0.7); font-size: 15px; line-height: 1.7; }
   .landing-dark .footer-links h4 { font-size: 14px; font-weight: 700; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary); }
   .landing-dark .footer-links ul { list-style: none; padding: 0; margin: 0; }
