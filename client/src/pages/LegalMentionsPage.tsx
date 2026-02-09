@@ -1,10 +1,34 @@
 import { type CSSProperties, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import TableOfContents, { type TocSection } from '../components/TableOfContents';
 
 function LegalMentionsPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const legalMentionsSections: TocSection[] = [
+    { id: 'definitions', title: 'Définitions', level: 'h2' },
+    { id: 'presentation', title: '1. Présentation du site internet', level: 'h2' },
+    { id: 'cgu', title: '2. Conditions générales d\'utilisation', level: 'h2' },
+    { id: 'services', title: '3. Description des services fournis', level: 'h2' },
+    { id: 'limitations-techniques', title: '4. Limitations contractuelles sur les données techniques', level: 'h2' },
+    { id: 'propriete-intellectuelle', title: '5. Propriété intellectuelle et contrefaçons', level: 'h2' },
+    { id: 'responsabilite', title: '6. Limitations de responsabilité', level: 'h2' },
+    { id: 'gestion-donnees', title: '7. Gestion des données personnelles', level: 'h2' },
+    { id: 'responsables-collecte', title: '7.1 Responsables de la collecte des données', level: 'h3' },
+    { id: 'finalite-donnees', title: '7.2 Finalité des données collectées', level: 'h3' },
+    { id: 'droits-acces', title: '7.3 Droit d\'accès, de rectification et d\'opposition', level: 'h3' },
+    { id: 'non-communication', title: '7.4 Non-communication des données personnelles', level: 'h3' },
+    { id: 'types-donnees', title: '7.5 Types de données collectées', level: 'h3' },
+    { id: 'notification-incident', title: '8. Notification d\'incident', level: 'h2' },
+    { id: 'securite', title: 'Sécurité', level: 'h3' },
+    { id: 'liens-cookies', title: '9. Liens hypertextes, cookies et balises internet', level: 'h2' },
+    { id: 'cookies', title: '9.1 Cookies', level: 'h3' },
+    { id: 'balises', title: '9.2 Balises ("tags") internet', level: 'h3' },
+    { id: 'droit-applicable', title: '10. Droit applicable et attribution de juridiction', level: 'h2' },
+  ];
+
   const pageStyle: CSSProperties = {
     minHeight: '100vh',
     backgroundColor: '#1a1a2e',
@@ -14,13 +38,21 @@ function LegalMentionsPage() {
     padding: '40px 20px',
   };
 
+  const wrapperStyle: CSSProperties = {
+    display: 'flex',
+    gap: '40px',
+    maxWidth: '1400px',
+    margin: '0 auto',
+    padding: '0',
+  };
+
   const containerStyle: CSSProperties = {
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     padding: '40px',
     borderRadius: '15px',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
-    maxWidth: '900px',
-    margin: '0 auto',
+    flex: 1,
+    minWidth: 0,
   };
 
   const headingStyle: CSSProperties = {
@@ -72,13 +104,16 @@ function LegalMentionsPage() {
 
   return (
     <div style={pageStyle}>
-      <div style={containerStyle}>
-        <Link to="/" style={backLinkStyle}>&larr; Retour à l'accueil</Link>
+      <div style={wrapperStyle}>
+        <TableOfContents sections={legalMentionsSections} />
 
-        <h1 style={headingStyle}>Mentions Légales</h1>
+        <div style={containerStyle}>
+          <Link to="/" style={backLinkStyle}>&larr; Retour à l'accueil</Link>
 
-        {/* Définitions */}
-        <h2 style={sectionTitleStyle}>Définitions</h2>
+          <h1 style={headingStyle}>Mentions Légales</h1>
+
+          {/* Définitions */}
+          <h2 id="definitions" style={sectionTitleStyle}>Définitions</h2>
         <p style={textStyle}>
           <strong>Client :</strong> Toute personne majeure ou toute entreprise qui utilise notre plateforme pour trouver des comédiens ou proposer des spectacles.
         </p>
@@ -102,7 +137,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 1. Présentation du site internet */}
-        <h2 style={sectionTitleStyle}>1. Présentation du site internet</h2>
+        <h2 id="presentation" style={sectionTitleStyle}>1. Présentation du site internet</h2>
         <p style={textStyle}>
           En vertu de l'article 6 de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique, il est précisé aux utilisateurs du site internet <a href={siteUrl} style={linkStyle}>{siteUrl}</a> l'identité des différents intervenants dans le cadre de sa réalisation et de son suivi :
         </p>
@@ -128,7 +163,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 2. Conditions générales d'utilisation */}
-        <h2 style={sectionTitleStyle}>2. Conditions générales d'utilisation du site et des services proposés</h2>
+        <h2 id="cgu" style={sectionTitleStyle}>2. Conditions générales d'utilisation du site et des services proposés</h2>
         <p style={textStyle}>
           Le Site constitue une œuvre de l'esprit protégée par les dispositions du Code de la Propriété Intellectuelle et des Réglementations Internationales applicables. Le Client ne peut en aucune manière réutiliser, céder ou exploiter pour son propre compte tout ou partie des éléments ou travaux du Site.
         </p>
@@ -143,7 +178,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 3. Description des services fournis */}
-        <h2 style={sectionTitleStyle}>3. Description des services fournis</h2>
+        <h2 id="services" style={sectionTitleStyle}>3. Description des services fournis</h2>
         <p style={textStyle}>
           Le site internet <a href={siteUrl} style={linkStyle}>{siteUrl}</a> a pour objet de fournir une plateforme de mise en relation entre comédiens (humoristes) et organisateurs d'événements de stand-up comedy. Le service permet aux comédiens de trouver des opportunités de spectacles et aux organisateurs de recruter des talents pour leurs événements.
         </p>
@@ -155,7 +190,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 4. Limitations contractuelles sur les données techniques */}
-        <h2 style={sectionTitleStyle}>4. Limitations contractuelles sur les données techniques</h2>
+        <h2 id="limitations-techniques" style={sectionTitleStyle}>4. Limitations contractuelles sur les données techniques</h2>
         <p style={textStyle}>
           Le site utilise les technologies JavaScript et React.
         </p>
@@ -173,7 +208,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 5. Propriété intellectuelle et contrefaçons */}
-        <h2 style={sectionTitleStyle}>5. Propriété intellectuelle et contrefaçons</h2>
+        <h2 id="propriete-intellectuelle" style={sectionTitleStyle}>5. Propriété intellectuelle et contrefaçons</h2>
         <p style={textStyle}>
           Connect Comedy Club est propriétaire des droits de propriété intellectuelle et détient les droits d'usage sur tous les éléments accessibles sur le site internet, notamment les textes, images, graphismes, logos, vidéos, icônes et sons. Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite, sauf autorisation écrite préalable de Connect Comedy Club.
         </p>
@@ -182,7 +217,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 6. Limitations de responsabilité */}
-        <h2 style={sectionTitleStyle}>6. Limitations de responsabilité</h2>
+        <h2 id="responsabilite" style={sectionTitleStyle}>6. Limitations de responsabilité</h2>
         <p style={textStyle}>
           Connect Comedy Club agit en tant qu'éditeur du site et est responsable de la qualité et de la véracité du Contenu qu'il publie.
         </p>
@@ -197,12 +232,12 @@ function LegalMentionsPage() {
         </p>
 
         {/* 7. Gestion des données personnelles */}
-        <h2 style={sectionTitleStyle}>7. Gestion des données personnelles</h2>
+        <h2 id="gestion-donnees" style={sectionTitleStyle}>7. Gestion des données personnelles</h2>
         <p style={textStyle}>
           Le Client est informé des réglementations concernant la communication marketing, la loi du 21 Juin 2014 pour la confiance dans l'Économie Numérique, la Loi Informatique et Liberté du 06 Août 2004 ainsi que du Règlement Général sur la Protection des Données (RGPD : n° 2016-679).
         </p>
 
-        <h3 style={subSectionTitleStyle}>7.1 Responsables de la collecte des données personnelles</h3>
+        <h3 id="responsables-collecte" style={subSectionTitleStyle}>7.1 Responsables de la collecte des données personnelles</h3>
         <p style={textStyle}>
           Pour les Données Personnelles collectées dans le cadre de la création du compte personnel de l'Utilisateur et de sa navigation sur le Site, le responsable du traitement des Données Personnelles est : START IA. <a href={siteUrl} style={linkStyle}>{siteUrl}</a> est représenté par Hedi Magdelonnette, son représentant légal.
         </p>
@@ -213,7 +248,7 @@ function LegalMentionsPage() {
           Chaque fois que Connect Comedy Club traite des Données Personnelles, Connect Comedy Club prend toutes les mesures raisonnables pour s'assurer de l'exactitude et de la pertinence des Données Personnelles au regard des finalités pour lesquelles Connect Comedy Club les traite.
         </p>
 
-        <h3 style={subSectionTitleStyle}>7.2 Finalité des données collectées</h3>
+        <h3 id="finalite-donnees" style={subSectionTitleStyle}>7.2 Finalité des données collectées</h3>
         <p style={textStyle}>
           Connect Comedy Club est susceptible de traiter tout ou partie des données :
         </p>
@@ -229,7 +264,7 @@ function LegalMentionsPage() {
           Connect Comedy Club ne commercialise pas vos données personnelles qui sont donc uniquement utilisées par nécessité ou à des fins statistiques et d'analyses.
         </p>
 
-        <h3 style={subSectionTitleStyle}>7.3 Droit d'accès, de rectification et d'opposition</h3>
+        <h3 id="droits-acces" style={subSectionTitleStyle}>7.3 Droit d'accès, de rectification et d'opposition</h3>
         <p style={textStyle}>
           Conformément à la réglementation européenne en vigueur, les Utilisateurs de Connect Comedy Club disposent des droits suivants :
         </p>
@@ -261,7 +296,7 @@ function LegalMentionsPage() {
           Les demandes de suppression de Données Personnelles seront soumises aux obligations qui sont imposées à Connect Comedy Club par la loi, notamment en matière de conservation ou d'archivage des documents. Enfin, les Utilisateurs de Connect Comedy Club peuvent déposer une réclamation auprès des autorités de contrôle, et notamment de la CNIL (<a href="https://www.cnil.fr/fr/plaintes" style={linkStyle} target="_blank" rel="noopener noreferrer">https://www.cnil.fr/fr/plaintes</a>).
         </p>
 
-        <h3 style={subSectionTitleStyle}>7.4 Non-communication des données personnelles</h3>
+        <h3 id="non-communication" style={subSectionTitleStyle}>7.4 Non-communication des données personnelles</h3>
         <p style={textStyle}>
           Connect Comedy Club s'interdit de traiter, héberger ou transférer les Informations collectées sur ses Clients vers un pays situé en dehors de l'Union européenne ou reconnu comme « non adéquat » par la Commission européenne sans en informer préalablement le client. Pour autant, Connect Comedy Club reste libre du choix de ses sous-traitants techniques et commerciaux à la condition qu'ils présentent les garanties suffisantes au regard des exigences du Règlement Général sur la Protection des Données (RGPD : n° 2016-679).
         </p>
@@ -275,7 +310,7 @@ function LegalMentionsPage() {
           Dans la limite de leurs attributions respectives et pour les finalités rappelées ci-dessus, les principales personnes susceptibles d'avoir accès aux données des Utilisateurs de Connect Comedy Club sont principalement les membres de notre équipe technique et support.
         </p>
 
-        <h3 style={subSectionTitleStyle}>7.5 Types de données collectées</h3>
+        <h3 id="types-donnees" style={subSectionTitleStyle}>7.5 Types de données collectées</h3>
         <p style={textStyle}>
           Concernant les utilisateurs du Site Connect Comedy Club, nous collectons les données suivantes qui sont indispensables au fonctionnement du service :
         </p>
@@ -291,7 +326,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 8. Notification d'incident */}
-        <h2 style={sectionTitleStyle}>8. Notification d'incident</h2>
+        <h2 id="notification-incident" style={sectionTitleStyle}>8. Notification d'incident</h2>
         <p style={textStyle}>
           Quels que soient les efforts fournis, aucune méthode de transmission sur Internet et aucune méthode de stockage électronique n'est complètement sûre. Nous ne pouvons en conséquence pas garantir une sécurité absolue.
         </p>
@@ -302,7 +337,7 @@ function LegalMentionsPage() {
           Aucune information personnelle de l'utilisateur du site Connect Comedy Club n'est publiée à l'insu de l'utilisateur, échangée, transférée, cédée ou vendue sur un support quelconque à des tiers. Seule l'hypothèse du rachat de Connect Comedy Club et de ses droits permettrait la transmission des dites informations à l'éventuel acquéreur qui serait à son tour tenu de la même obligation de conservation et de modification des données vis à vis de l'utilisateur du site.
         </p>
 
-        <h3 style={subSectionTitleStyle}>Sécurité</h3>
+        <h3 id="securite" style={subSectionTitleStyle}>Sécurité</h3>
         <p style={textStyle}>
           Pour assurer la sécurité et la confidentialité des Données Personnelles, Connect Comedy Club utilise des réseaux protégés par des dispositifs standards tels que par pare-feu, la pseudonymisation, l'encryption et mot de passe.
         </p>
@@ -311,7 +346,7 @@ function LegalMentionsPage() {
         </p>
 
         {/* 9. Liens hypertextes, cookies et balises */}
-        <h2 style={sectionTitleStyle}>9. Liens hypertextes, cookies et balises internet</h2>
+        <h2 id="liens-cookies" style={sectionTitleStyle}>9. Liens hypertextes, cookies et balises internet</h2>
         <p style={textStyle}>
           Le site Connect Comedy Club contient un certain nombre de liens hypertextes vers d'autres sites, mis en place avec l'autorisation de Connect Comedy Club. Cependant, Connect Comedy Club n'a pas la possibilité de vérifier le contenu des sites ainsi visités, et n'assumera en conséquence aucune responsabilité de ce fait.
         </p>
@@ -319,7 +354,7 @@ function LegalMentionsPage() {
           Sauf si vous décidez de désactiver les cookies, vous acceptez que le site puisse les utiliser. Vous pouvez à tout moment désactiver ces cookies et ce gratuitement à partir des possibilités de désactivation qui vous sont offertes et rappelées ci-après, sachant que cela peut réduire ou empêcher l'accessibilité à tout ou partie des Services proposés par le site.
         </p>
 
-        <h3 style={subSectionTitleStyle}>9.1 Cookies</h3>
+        <h3 id="cookies" style={subSectionTitleStyle}>9.1 Cookies</h3>
         <p style={textStyle}>
           Un « cookie » est un petit fichier d'information envoyé sur le navigateur de l'Utilisateur et enregistré au sein du terminal de l'Utilisateur (ex : ordinateur, smartphone). Ce fichier comprend des informations telles que le nom de domaine de l'Utilisateur, le fournisseur d'accès Internet de l'Utilisateur, le système d'exploitation de l'Utilisateur, ainsi que la date et l'heure d'accès. Les Cookies ne risquent en aucun cas d'endommager le terminal de l'Utilisateur.
         </p>
@@ -340,7 +375,7 @@ function LegalMentionsPage() {
           <Link to="/politique-confidentialite" style={linkStyle}>Politique de confidentialité</Link>.
         </p>
 
-        <h3 style={subSectionTitleStyle}>9.2 Balises ("tags") internet</h3>
+        <h3 id="balises" style={subSectionTitleStyle}>9.2 Balises ("tags") internet</h3>
         <p style={textStyle}>
           Connect Comedy Club peut employer occasionnellement des balises Internet (également appelées « tags », ou balises d'action, GIF à un pixel, GIF transparents, GIF invisibles et GIF un à un) et les déployer par l'intermédiaire d'un partenaire spécialiste d'analyses Web susceptible de se trouver (et donc de stocker les informations correspondantes, y compris l'adresse IP de l'Utilisateur) dans un pays étranger.
         </p>
@@ -349,15 +384,16 @@ function LegalMentionsPage() {
         </p>
 
         {/* 10. Droit applicable et attribution de juridiction */}
-        <h2 style={sectionTitleStyle}>10. Droit applicable et attribution de juridiction</h2>
+        <h2 id="droit-applicable" style={sectionTitleStyle}>10. Droit applicable et attribution de juridiction</h2>
         <p style={textStyle}>
           Tout litige en relation avec l'utilisation du site Connect Comedy Club est soumis au droit français. En dehors des cas où la loi ne le permet pas, il est fait attribution exclusive de juridiction aux tribunaux compétents de Versailles.
         </p>
 
         {/* Date de mise à jour */}
-        <p style={{ ...textStyle, marginTop: '40px', fontStyle: 'italic', color: 'rgba(255,255,255,0.6)' }}>
+        {/* <p style={{ ...textStyle, marginTop: '40px', fontStyle: 'italic', color: 'rgba(255,255,255,0.6)' }}>
           Dernière mise à jour : {new Date().toLocaleDateString('fr-FR')}
-        </p>
+        </p> */}
+        </div>
       </div>
     </div>
   );
