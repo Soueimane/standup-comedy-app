@@ -1,5 +1,6 @@
 name: Deploy DEV
 
+# Déclenche le workflow à chaque push sur la branche dev_brach_env2
 on:
   push:
     branches:
@@ -10,16 +11,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1️⃣ Récupère le code du repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Deploy DEV
+      # 2️⃣ Connexion SSH au VPS
+      - name: Deploy to DEV VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           script: |
+            echo "✅ Connecté au VPS"
+
+            # 3️⃣ Se placer dans le dossier DEV sur le VPS
             cd ${{ secrets.VPS_PATH_DEV }}
-            git pull origin dev_brach_env2
-            docker-compose down
-            docker-compose up -d --build
+            echo "📂 Dossier DEV: $(pwd)"
+
+            # 4️⃣ Pull de la branche dev_brach_env2
+            git fetch --all
+            git reset --hard origin/dev_brach_env2
+            echo "📦 Code à jour avec git"
+
+            # 5️⃣ Arrêt des containers existants (DEV)
+            docker-compose down --remove-orphans
+            echo "🛑 Containers DEV stoppés"
+
+            # 6️⃣ Build et démarrage propres des containers
+            docker-compose build --no-cache
+            docker-compose up -d
+            echo "🚀 Containers DEV rebuildés et démarrés"
+
+            # 7️⃣ Vérification rapide
+            docker ps -a
+            echo "✅ Déploiement terminé"
+
