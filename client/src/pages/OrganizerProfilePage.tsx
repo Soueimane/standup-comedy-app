@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditOrganizerProfileForm from '../components/EditOrganizerProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
+import DeleteAccountSection from '../components/DeleteAccountSection';
+import ExportDataSection from '../components/ExportDataSection';
 
 function OrganizerProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
@@ -244,6 +246,16 @@ function OrganizerProfilePage() {
           {/* Préférences Email */}
           <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
             <EmailPreferences />
+          </div>
+
+          {/* Export des données (RGPD) */}
+          <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2', marginTop: '20px' }}>
+            <ExportDataSection />
+          </div>
+
+          {/* Suppression de compte */}
+          <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
+            <DeleteAccountSection />
           </div>
         </div>
       )}

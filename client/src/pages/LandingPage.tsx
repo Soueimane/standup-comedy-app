@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 
 const LANDING_CSS = `
   .landing-dark { --primary: #FF5A7E; --primary-hover: #E04969; --primary-light: #FFF1F3; --secondary: #00B8D9; --accent: #FFB800; --dark: #1A1D29; --text-primary: #F1F5F9; --text-secondary: rgba(255,255,255,0.75); --bg-light: rgba(255,255,255,0.04); --bg-white: #FFFFFF; --border: rgba(255,255,255,0.12); --shadow-sm: 0 1px 2px rgba(0,0,0,0.2); --shadow-md: 0 4px 6px rgba(0,0,0,0.2); --shadow-lg: 0 10px 15px rgba(0,0,0,0.2); --shadow-xl: 0 20px 25px rgba(0,0,0,0.2); --shadow-2xl: 0 25px 50px rgba(0,0,0,0.3); }
@@ -134,7 +135,7 @@ const LANDING_CSS = `
   .landing-dark .cta-content p { font-size: 22px; color: var(--text-secondary); margin-bottom: 48px; line-height: 1.6; }
   .landing-dark .cta-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
   .landing-dark footer { background: rgba(0,0,0,0.3); color: white; padding: 80px 0 40px; border-top: 1px solid var(--border); }
-  .landing-dark .footer-content { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 60px; margin-bottom: 60px; }
+  .landing-dark .footer-content { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 60px; }
   .landing-dark .footer-brand p { color: rgba(255, 255, 255, 0.7); font-size: 15px; line-height: 1.7; }
   .landing-dark .footer-links h4 { font-size: 14px; font-weight: 700; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary); }
   .landing-dark .footer-links ul { list-style: none; padding: 0; margin: 0; }
@@ -526,6 +527,14 @@ function LandingPage() {
                 <li><button type="button" className="footer-link-btn" onClick={goOrganisateur}>Organisateur</button></li>
                 <li><button type="button" className="footer-link-btn" onClick={goLogin}>Humoriste</button></li>
                 <li><button type="button" className="footer-link-btn" onClick={goCalendar}>Spectateur</button></li>
+              </ul>
+            </div>
+            <div className="footer-links">
+              <h4>Légal</h4>
+              <ul>
+                <li><Link to="/mentions-legales" className="footer-link-btn">Mentions légales</Link></li>
+                <li><Link to="/politique-confidentialite" className="footer-link-btn">Confidentialité</Link></li>
+                <li><Link to="/cgu" className="footer-link-btn">CGU</Link></li>
               </ul>
             </div>
           </div>

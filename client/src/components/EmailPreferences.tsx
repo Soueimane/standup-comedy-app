@@ -44,41 +44,40 @@ const EmailPreferences: React.FC = () => {
   };
 
   const cardStyle: CSSProperties = {
-    background: 'rgba(30, 30, 50, 0.8)',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: '8px',
+    padding: '18px',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
   };
 
   const titleStyle: CSSProperties = {
     fontSize: '1.3em',
-    color: '#ff416c',
-    marginBottom: '20px',
+    color: '#ff4b2b',
+    marginBottom: '15px',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
   };
 
   const rowStyle: CSSProperties = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '15px 0',
+    padding: '12px 0',
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
   };
 
   const statusBoxStyle: CSSProperties = {
-    padding: '15px',
-    borderRadius: '12px',
-    marginTop: '20px',
+    padding: '12px 15px',
+    borderRadius: '6px',
+    marginTop: '15px',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '12px',
+    background: 'rgba(255, 255, 255, 0.05)',
   };
 
   const buttonStyle: CSSProperties = {
-    padding: '12px 24px',
+    padding: '10px 20px',
     borderRadius: '8px',
     border: 'none',
     fontWeight: 'bold',
@@ -91,6 +90,7 @@ const EmailPreferences: React.FC = () => {
     return (
       <div style={cardStyle}>
         <div style={{ color: '#aaa', textAlign: 'center', padding: '20px' }}>
+          <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
           Chargement des préférences email...
         </div>
       </div>
@@ -100,7 +100,8 @@ const EmailPreferences: React.FC = () => {
   return (
     <div style={cardStyle}>
       <h2 style={titleStyle}>
-        <span>📧</span> Préférences Email
+        <i className="fas fa-envelope" style={{ marginRight: '10px' }}></i>
+        Préférences Email
       </h2>
 
       <div style={rowStyle}>
@@ -118,23 +119,24 @@ const EmailPreferences: React.FC = () => {
       <div
         style={{
           ...statusBoxStyle,
-          background: isSubscribed
-            ? 'rgba(40, 167, 69, 0.2)'
-            : 'rgba(255, 193, 7, 0.2)',
-          border: isSubscribed
-            ? '1px solid rgba(40, 167, 69, 0.5)'
-            : '1px solid rgba(255, 193, 7, 0.5)',
+          borderLeft: isSubscribed
+            ? '3px solid #28a745'
+            : '3px solid #ffc107',
         }}
       >
-        <span style={{ fontSize: '1.5em' }}>
-          {isSubscribed ? '✅' : '⚠️'}
-        </span>
+        <i
+          className={isSubscribed ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'}
+          style={{
+            fontSize: '1.3em',
+            color: isSubscribed ? '#28a745' : '#ffc107',
+          }}
+        ></i>
         <div>
           <p
             style={{
               color: isSubscribed ? '#28a745' : '#ffc107',
               fontWeight: 'bold',
-              marginBottom: '5px',
+              marginBottom: '4px',
             }}
           >
             {isSubscribed ? 'Vous êtes abonné aux emails' : 'Vous êtes désabonné des emails'}
@@ -149,26 +151,45 @@ const EmailPreferences: React.FC = () => {
 
       {/* Bouton de réabonnement si désabonné */}
       {!isSubscribed && (
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        <div style={{ marginTop: '15px', textAlign: 'center' }}>
           <button
             onClick={handleResubscribe}
             disabled={isUpdating}
             style={{
               ...buttonStyle,
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+              background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
               color: '#fff',
             }}
           >
-            {isUpdating ? 'Réabonnement en cours...' : '🔔 Me réabonner aux emails'}
+            {isUpdating ? (
+              <>
+                <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                Réabonnement en cours...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-bell" style={{ marginRight: '8px' }}></i>
+                Me réabonner aux emails
+              </>
+            )}
           </button>
         </div>
       )}
 
       {/* Message si abonné */}
       {isSubscribed && (
-        <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-          <p style={{ color: '#888', fontSize: '0.85em', textAlign: 'center' }}>
-            💡 Pour vous désabonner, utilisez le lien "Se désabonner" présent dans vos emails.
+        <div
+          style={{
+            marginTop: '15px',
+            padding: '10px 12px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '6px',
+            borderLeft: '3px solid #888',
+          }}
+        >
+          <p style={{ color: '#888', fontSize: '0.85em' }}>
+            <i className="fas fa-lightbulb" style={{ marginRight: '8px', color: '#ffc107' }}></i>
+            Pour vous désabonner, utilisez le lien "Se désabonner" présent dans vos emails.
           </p>
         </div>
       )}
@@ -178,13 +199,16 @@ const EmailPreferences: React.FC = () => {
         <div
           style={{
             marginTop: '15px',
-            padding: '12px',
-            background: 'rgba(220, 53, 69, 0.2)',
-            border: '1px solid rgba(220, 53, 69, 0.5)',
-            borderRadius: '8px',
+            padding: '12px 15px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '6px',
+            borderLeft: '3px solid #dc3545',
           }}
         >
-          <p style={{ color: '#dc3545', fontSize: '0.9em' }}>❌ {error}</p>
+          <p style={{ color: '#dc3545', fontSize: '0.9em', margin: 0 }}>
+            <i className="fas fa-times-circle" style={{ marginRight: '8px' }}></i>
+            {error}
+          </p>
         </div>
       )}
 
@@ -192,13 +216,16 @@ const EmailPreferences: React.FC = () => {
         <div
           style={{
             marginTop: '15px',
-            padding: '12px',
-            background: 'rgba(40, 167, 69, 0.2)',
-            border: '1px solid rgba(40, 167, 69, 0.5)',
-            borderRadius: '8px',
+            padding: '12px 15px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '6px',
+            borderLeft: '3px solid #28a745',
           }}
         >
-          <p style={{ color: '#28a745', fontSize: '0.9em' }}>✅ {successMessage}</p>
+          <p style={{ color: '#28a745', fontSize: '0.9em', margin: 0 }}>
+            <i className="fas fa-check-circle" style={{ marginRight: '8px' }}></i>
+            {successMessage}
+          </p>
         </div>
       )}
     </div>

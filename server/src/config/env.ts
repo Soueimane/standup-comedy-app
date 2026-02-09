@@ -33,6 +33,7 @@ export const config = {
     organizerReminderSchedule: process.env.CRON_ORGANIZER_SCHEDULE || '0 */6 * * *', // Toutes les 6 heures
     markCompletedSchedule: process.env.CRON_MARK_COMPLETED_SCHEDULE || '0 2 * * *', // Tous les jours à 2h du matin
     presenceAlertSchedule: process.env.CRON_PRESENCE_ALERT_SCHEDULE || '0 9 * * *', // Tous les jours à 9h du matin
+    accountCleanupSchedule: process.env.CRON_ACCOUNT_CLEANUP_SCHEDULE || '0 3 * * *', // Tous les jours à 3h du matin
   },
 
   frontend: {

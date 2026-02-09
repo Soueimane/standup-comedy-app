@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   register,
   login,
+  reactivateAccount,
   getProfile,
   getAllUsers,
   forgotPassword,
@@ -21,6 +22,7 @@ const router = Router();
 // Routes publiques
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
+router.post('/reactivate', validate(loginSchema), reactivateAccount);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 

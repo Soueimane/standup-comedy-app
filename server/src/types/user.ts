@@ -92,6 +92,16 @@ export interface User {
   deactivatedAt?: Date;
   deactivatedBy?: Types.ObjectId;
   deactivationReason?: string;
+  // Consentement RGPD
+  consent?: {
+    termsAccepted?: boolean;
+    termsAcceptedAt?: Date;
+    termsVersion?: string;
+    privacyAccepted?: boolean;
+    privacyAcceptedAt?: Date;
+    privacyVersion?: string;
+    isAdult?: boolean;
+  };
 }
 
 // Interface for a user document after being populated

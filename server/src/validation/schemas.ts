@@ -71,6 +71,12 @@ export const registerSchema = z.object({
         .min(0, 'L\'expérience doit être un nombre positif')
         .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
     )
+  }).optional(),
+  // Consentement RGPD
+  consent: z.object({
+    termsAccepted: z.boolean(),
+    privacyAccepted: z.boolean(),
+    isAdult: z.boolean()
   }).optional()
 }).refine((data) => {
   // Si le rôle est COMEDIAN, le profile est requis

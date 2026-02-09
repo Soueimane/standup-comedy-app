@@ -101,7 +101,6 @@ const ScorePieChart: React.FC<ScorePieChartProps> = ({
           strokeLinecap={displayScore >= 100 ? "butt" : "round"}
           style={{
             transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.3s ease',
-            animation: 'fadeIn 0.5s ease-in-out',
           }}
         />
       </svg>
@@ -120,27 +119,10 @@ const ScorePieChart: React.FC<ScorePieChartProps> = ({
           fontFamily: 'system-ui, -apple-system, sans-serif',
           textAlign: 'center',
           whiteSpace: 'nowrap',
-          animation: 'fadeIn 0.8s ease-in-out 0.2s backwards',
         }}
       >
         {isLoading ? '...' : `${Math.round(normalizedScore)}%`}
       </div>
-
-      {/* Inline keyframes for animation */}
-      <style>
-        {`
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-              transform: translate(-50%, -50%) scale(0.8);
-            }
-            to {
-              opacity: 1;
-              transform: translate(-50%, -50%) scale(1);
-            }
-          }
-        `}
-      </style>
     </div>
 
     {/* Modal for breakdown details */}

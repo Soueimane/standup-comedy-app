@@ -51,7 +51,7 @@ function ForgotPasswordPage() {
   };
 
   const inputStyle: CSSProperties = {
-    width: 'calc(100% - 20px)',
+    width: '100%',
     padding: '12px 10px',
     margin: '10px 0',
     borderRadius: '8px',

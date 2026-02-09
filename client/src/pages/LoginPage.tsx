@@ -1,6 +1,13 @@
 import { useState, useEffect, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
+import api from '../services/api';
+
+interface PendingDeletionInfo {
+  deactivatedAt: string;
+  daysRemaining: number;
+  deletionDate: string;
+}
 
 function LoginPage() {
   const { loginMutation, loginWithKeycloak, isOAuthEnabled, isOAuthLoading } = useAuth();
@@ -16,6 +23,11 @@ function LoginPage() {
     length: false,
     isValid: false
   });
+
+  // États pour la réactivation de compte
+  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletionInfo | null>(null);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [reactivationSuccess, setReactivationSuccess] = useState(false);
 
   // Initialiser la validation au chargement
   useEffect(() => {
@@ -36,6 +48,7 @@ function LoginPage() {
     e.preventDefault();
     setPasswordError('');
     setLoginError('');
+    setPendingDeletion(null);
 
     // Vérifier la validation du mot de passe
     if (!passwordValidation.isValid) {
@@ -45,9 +58,33 @@ function LoginPage() {
 
     loginMutation.mutate(loginData, {
       onError: (error) => {
-        const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
-        const errorMessage = axiosError?.response?.data?.message || axiosError?.message || 'Une erreur est survenue lors de la connexion';
+        const axiosError = error as {
+          response?: {
+            data?: {
+              message?: string;
+              code?: string;
+              canReactivate?: boolean;
+              deactivatedAt?: string;
+              daysRemaining?: number;
+              deletionDate?: string;
+            }
+          };
+          message?: string
+        };
 
+        const responseData = axiosError?.response?.data;
+
+        // Vérifier si c'est un compte en attente de suppression
+        if (responseData?.code === 'ACCOUNT_PENDING_DELETION' && responseData?.canReactivate) {
+          setPendingDeletion({
+            deactivatedAt: responseData.deactivatedAt!,
+            daysRemaining: responseData.daysRemaining!,
+            deletionDate: responseData.deletionDate!
+          });
+          return;
+        }
+
+        const errorMessage = responseData?.message || axiosError?.message || 'Une erreur est survenue lors de la connexion';
         setLoginError(errorMessage);
 
         // Vider seulement le mot de passe, garder l'email
@@ -57,6 +94,36 @@ function LoginPage() {
         }));
       }
     });
+  };
+
+  const handleReactivateAccount = async () => {
+    setIsReactivating(true);
+    setLoginError('');
+
+    try {
+      await api.post('/auth/reactivate', loginData);
+
+      // Afficher le succès et rediriger vers le login
+      setReactivationSuccess(true);
+
+      // Rediriger vers la page de login après un court délai
+      setTimeout(() => {
+        setPendingDeletion(null);
+        setReactivationSuccess(false);
+        setLoginData(prev => ({ ...prev, password: '' }));
+      }, 2000);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 'Erreur lors de la réactivation du compte';
+      setLoginError(errorMessage);
+      setPendingDeletion(null);
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
+  const handleCancelReactivation = () => {
+    setPendingDeletion(null);
+    setLoginData(prev => ({ ...prev, password: '' }));
   };
 
   const handleChangeLogin = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,15 +156,15 @@ function LoginPage() {
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '100vh',
-    backgroundColor: '#1a1a2e', // Couleur de fond sombre
-    backgroundImage: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', // Dégradé subtil
+    backgroundColor: '#1a1a2e',
+    backgroundImage: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
     color: '#ffffff',
     fontFamily: 'Arial, sans-serif',
     textAlign: 'center',
   };
 
   const containerStyle: CSSProperties = {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Fond semi-transparent pour la carte
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     padding: '40px',
     borderRadius: '15px',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
@@ -124,7 +191,7 @@ function LoginPage() {
     margin: '20px 0',
     borderRadius: '8px',
     border: 'none',
-    background: 'linear-gradient(to right, #ff416c, #ff4b2b)', // Dégradé rose-rouge
+    background: 'linear-gradient(to right, #ff416c, #ff4b2b)',
     color: 'white',
     fontSize: '1.2em',
     fontWeight: 'bold',
@@ -146,6 +213,108 @@ function LoginPage() {
     fontSize: '3em',
     marginBottom: '20px',
   };
+
+  // Affichage du modal de réactivation
+  if (pendingDeletion) {
+    const deletionDate = new Date(pendingDeletion.deletionDate);
+
+    return (
+      <div style={pageStyle}>
+        <div style={containerStyle}>
+          <div style={iconStyle}>⚠️</div>
+          <h2>Compte en cours de suppression</h2>
+
+          <div style={{
+            padding: '15px',
+            borderRadius: '12px',
+            background: 'rgba(255, 193, 7, 0.15)',
+            border: '1px solid rgba(255, 193, 7, 0.4)',
+            marginBottom: '20px',
+            textAlign: 'left'
+          }}>
+            <p style={{ color: '#ffc107', fontWeight: 'bold', marginBottom: '10px' }}>
+              Votre compte sera supprimé le :
+            </p>
+            <p style={{ color: '#fff', fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }}>
+              {deletionDate.toLocaleDateString('fr-FR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </p>
+            <p style={{ color: '#aaa', fontSize: '0.9em' }}>
+              Il vous reste <strong style={{ color: '#fff' }}>{pendingDeletion.daysRemaining} jour(s)</strong> pour récupérer votre compte.
+            </p>
+          </div>
+
+          {reactivationSuccess ? (
+            <div style={{
+              padding: '15px',
+              borderRadius: '12px',
+              background: 'rgba(40, 167, 69, 0.15)',
+              border: '1px solid rgba(40, 167, 69, 0.4)',
+              marginBottom: '20px',
+            }}>
+              <p style={{ color: '#28a745', fontWeight: 'bold' }}>
+                ✅ Compte réactivé avec succès !
+              </p>
+              <p style={{ color: '#aaa', fontSize: '0.9em' }}>
+                Vous pouvez maintenant vous connecter.
+              </p>
+            </div>
+          ) : (
+            <>
+              {loginError && (
+                <div style={{
+                  color: '#dc3545',
+                  marginBottom: '15px',
+                  fontSize: '0.9em',
+                  textAlign: 'left',
+                  padding: '10px',
+                  backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                  borderRadius: '5px',
+                  border: '1px solid rgba(220, 53, 69, 0.4)',
+                }}>
+                  ⚠️ {loginError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  onClick={handleReactivateAccount}
+                  disabled={isReactivating}
+                  style={{
+                    ...buttonStyle,
+                    margin: 0,
+                    background: 'linear-gradient(135deg, #28a745, #20c997)',
+                    opacity: isReactivating ? 0.7 : 1,
+                    cursor: isReactivating ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isReactivating ? 'Réactivation...' : '✅ Réactiver mon compte'}
+                </button>
+
+                <button
+                  onClick={handleCancelReactivation}
+                  disabled={isReactivating}
+                  style={{
+                    ...buttonStyle,
+                    margin: 0,
+                    background: 'transparent',
+                    border: '1px solid #666',
+                    color: '#aaa',
+                  }}
+                >
+                  Annuler
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={pageStyle}>
@@ -360,125 +529,6 @@ function LoginPage() {
               </button>
             </div>
 
-            {/* Boutons secondaires - GitHub, Microsoft, Apple */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button
-                type="button"
-                onClick={() => handleKeycloakLogin('github')}
-                disabled={isOAuthLoading}
-                title="GitHub"
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '12px',
-                  border: '1px solid #3d3d5c',
-                  backgroundColor: '#24292e',
-                  color: '#ffffff',
-                  cursor: isOAuthLoading ? 'not-allowed' : 'pointer',
-                  opacity: isOAuthLoading ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isOAuthLoading) {
-                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-                    e.currentTarget.style.backgroundColor = '#2f363d';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.2)';
-                  e.currentTarget.style.backgroundColor = '#24292e';
-                }}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleKeycloakLogin('microsoft')}
-                disabled={isOAuthLoading}
-                title="Microsoft"
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '12px',
-                  border: '1px solid #3d3d5c',
-                  backgroundColor: '#2f2f2f',
-                  color: '#ffffff',
-                  cursor: isOAuthLoading ? 'not-allowed' : 'pointer',
-                  opacity: isOAuthLoading ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isOAuthLoading) {
-                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-                    e.currentTarget.style.backgroundColor = '#404040';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.2)';
-                  e.currentTarget.style.backgroundColor = '#2f2f2f';
-                }}
-              >
-                <svg width="22" height="22" viewBox="0 0 23 23">
-                  <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
-                  <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
-                  <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
-                  <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleKeycloakLogin('apple')}
-                disabled={isOAuthLoading}
-                title="Apple"
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '12px',
-                  border: '1px solid #3d3d5c',
-                  backgroundColor: '#000000',
-                  color: '#ffffff',
-                  cursor: isOAuthLoading ? 'not-allowed' : 'pointer',
-                  opacity: isOAuthLoading ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isOAuthLoading) {
-                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-                    e.currentTarget.style.backgroundColor = '#1a1a1a';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.2)';
-                  e.currentTarget.style.backgroundColor = '#000000';
-                }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="#ffffff">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-                </svg>
-              </button>
-            </div>
           </>
         )}
 
