@@ -149,17 +149,17 @@ function LegalMentionsPage() {
           <strong>RCS :</strong> Trappes
         </p>
         <p style={textStyle}>
-          <strong>Responsable publication :</strong> Hedi Magdelonnette – [email à compléter]<br />
+          <strong>Responsable publication :</strong> START IA – contact.standupconnect@gmail.com<br />
           Le responsable publication est une personne physique.
         </p>
         <p style={textStyle}>
-          <strong>Webmaster :</strong> Hedi Magdelonnette – [email à compléter]
+          <strong>Webmaster :</strong> START IA – contact.standupconnect@gmail.com
         </p>
         <p style={textStyle}>
           <strong>Hébergeur :</strong> OVHcloud – 2 rue Kellermann, 59100 Roubaix – Téléphone : 1007
         </p>
         <p style={textStyle}>
-          <strong>Délégué à la protection des données :</strong> Hedi Magdelonnette – [email à compléter]
+          <strong>Délégué à la protection des données :</strong> START IA – contact.standupconnect@gmail.com
         </p>
 
         {/* 2. Conditions générales d'utilisation */}
