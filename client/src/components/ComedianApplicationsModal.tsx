@@ -88,6 +88,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'REJECTED': return 'Refusée';
       case 'PENDING': return 'En attente';
       case 'EXPIRED': return 'Expirée';
+      case 'WITHDRAWN': return 'Retirée';
       default: return status;
     }
   };

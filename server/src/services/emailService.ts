@@ -1198,7 +1198,7 @@ export const sendEventCancellationToParticipants = async (
         <div style="max-width: 600px; margin:auto; background:white; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.06); padding:24px;">
           <h2 style="margin-top:0;color:#dc3545;">🛑 Évènement annulé</h2>
           <p>Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},</p>
-          <p>L'évènement <b>${event.title}</b> prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b> a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
+          <p>L'évènement <b>auquel vous avez postulé</b>, <b>${event.title}</b>, prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b>, a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
           ${event.location ? `<p><b>Lieu:</b> ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}</p>` : ''}
           ${cancellationReason ? `<div style="margin:16px 0; padding:12px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:8px;"><b>Raison fournie:</b><br/><i>${cancellationReason}</i></div>` : ''}
           <p>Nous vous remercions pour votre compréhension.</p>
@@ -1222,7 +1222,7 @@ export const sendEventCancellationToParticipants = async (
 
 Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},
 
-L'évènement ${event.title} prévu le ${new Date(event.date).toLocaleDateString('fr-FR')} a été annulé par ${organizer.firstName} ${organizer.lastName}.
+L'évènement auquel vous avez postulé, ${event.title}, prévu le ${new Date(event.date).toLocaleDateString('fr-FR')}, a été annulé par ${organizer.firstName} ${organizer.lastName}.
 
 ${event.location ? `Lieu: ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}` : ''}
 ${cancellationReason ? `Raison: ${cancellationReason}` : ''}

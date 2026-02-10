@@ -251,10 +251,24 @@ export const getEventApplications = async (req: AuthRequest, res: Response): Pro
 
     // Récupérer les applications
     const applications = await ApplicationModel.find({ event: eventId })
-      .populate('comedian', 'firstName lastName email phone profile')
+      .populate('comedian', 'firstName lastName email phone profile avatar avatarUrl')
       .sort({ createdAt: -1 });
 
-    res.json({ applications });
+    const transformedApplications = applications.map(app => {
+      const appObj: any = app.toObject ? app.toObject() : app;
+      if (appObj.comedian) {
+        appObj.comedian = {
+          ...appObj.comedian,
+          avatarUrl: buildAvatarDataUrl(appObj.comedian)
+        };
+        if ('avatar' in appObj.comedian) {
+          delete appObj.comedian.avatar;
+        }
+      }
+      return appObj;
+    });
+
+    res.json({ applications: transformedApplications });
   } catch (error) {
     console.error('Erreur lors de la récupération des applications de l\'évènement:', error);
     res.status(500).json({ message: 'Erreur lors de la récupération des applications' });
@@ -552,7 +566,7 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
       })
       .populate({
         path: 'comedian',
-        select: 'firstName lastName email phone avatarUrl profile'
+        select: 'firstName lastName email phone avatarUrl profile avatar'
       });
 
     // Récupérer les informations de l'utilisateur pour vérifier son rôle
