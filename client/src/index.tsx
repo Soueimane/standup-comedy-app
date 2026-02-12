@@ -17,6 +17,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import PasswordResetManagementPage from './pages/PasswordResetManagementPage'
 import PresenceAlertsPage from './pages/PresenceAlertsPage'
+import LateCancellationAlertsPage from './pages/LateCancellationAlertsPage'
 import ComedianReportsPage from './pages/ComedianReportsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AlertProvider } from './contexts/AlertContext'
@@ -57,6 +58,7 @@ const AppRouter: React.FC = () => {
       <Route path="/directory" element={<DirectoryPage />} />
       <Route path="/admin/password-resets" element={<PasswordResetManagementPage />} />
       <Route path="/admin/presence-alerts" element={<PresenceAlertsPage />} />
+      <Route path="/admin/late-cancellations" element={<LateCancellationAlertsPage />} />
       <Route path="/admin/comedian-reports" element={<ComedianReportsPage />} />
       
 <Route path="/calendar" element={<CalendarPage/>} />

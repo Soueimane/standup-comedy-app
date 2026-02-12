@@ -67,6 +67,7 @@ export interface IUserData {
     applicationsAccepted?: number;
     netPromoterScore?: number;
     absences?: number;
+    lateCancellations?: number;
   };
   onboardingCompleted?: boolean;
   emailVerified?: boolean;

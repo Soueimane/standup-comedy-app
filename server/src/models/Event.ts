@@ -37,6 +37,12 @@ export interface EventDocument extends Document {
   };
   // Récurrence : ID du groupe d'événements récurrents
   recurrenceGroupId?: Types.ObjectId;
+  // Annulation tardive : boost recommandations
+  hasLateCancellation?: boolean;
+  lateCancellationAt?: Date;
+  // Tracking notification humoristes
+  lateCancellationNotifiedAt?: Date;
+  lateCancellationNotificationCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -160,6 +166,23 @@ const eventSchema = new Schema<EventDocument>({
     ref: 'Event',
     required: false,
     index: true
+  },
+  // Annulation tardive : boost recommandations
+  hasLateCancellation: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  lateCancellationAt: {
+    type: Date
+  },
+  // Tracking notification humoristes (anti-spam)
+  lateCancellationNotifiedAt: {
+    type: Date
+  },
+  lateCancellationNotificationCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

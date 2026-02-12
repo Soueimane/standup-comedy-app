@@ -1198,7 +1198,7 @@ export const sendEventCancellationToParticipants = async (
         <div style="max-width: 600px; margin:auto; background:white; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.06); padding:24px;">
           <h2 style="margin-top:0;color:#dc3545;">🛑 Évènement annulé</h2>
           <p>Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},</p>
-          <p>L'évènement <b>auquel vous avez postulé</b>, <b>${event.title}</b>, prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b>, a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
+          <p>L'évènement <b>${event.title}</b> prévu le <b>${new Date(event.date).toLocaleDateString('fr-FR')}</b> a été <b>annulé</b> par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
           ${event.location ? `<p><b>Lieu:</b> ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}</p>` : ''}
           ${cancellationReason ? `<div style="margin:16px 0; padding:12px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:8px;"><b>Raison fournie:</b><br/><i>${cancellationReason}</i></div>` : ''}
           <p>Nous vous remercions pour votre compréhension.</p>
@@ -1222,7 +1222,7 @@ export const sendEventCancellationToParticipants = async (
 
 Bonjour ${p.firstName || ''}${p.lastName ? ' ' + p.lastName : ''},
 
-L'évènement auquel vous avez postulé, ${event.title}, prévu le ${new Date(event.date).toLocaleDateString('fr-FR')}, a été annulé par ${organizer.firstName} ${organizer.lastName}.
+L'évènement ${event.title} prévu le ${new Date(event.date).toLocaleDateString('fr-FR')} a été annulé par ${organizer.firstName} ${organizer.lastName}.
 
 ${event.location ? `Lieu: ${event.location.address || ''} ${event.location.city ? ' - ' + event.location.city : ''}` : ''}
 ${cancellationReason ? `Raison: ${cancellationReason}` : ''}
@@ -2613,5 +2613,787 @@ L'équipe Connect Comedy Club
       code: errorCode
     });
     throw error;
+  }
+};
+
+/**
+ * Envoie un email à l'organisateur pour l'informer d'un désistement tardif
+ * et lui indiquer que l'événement est mis en avant
+ */
+export const sendLateCancellationToOrganizer = async (
+  eventData: any,
+  comedianData: any,
+  organizerData: any,
+  hoursBeforeEvent: number
+): Promise<void> => {
+  try {
+    console.log('📬 Service Email: Notification désistement tardif à l\'organisateur...');
+
+    // Vérifier l'abonnement email
+    const organizerId = organizerData._id || organizerData.id;
+    if (organizerId && !(await checkUserEmailSubscription(organizerId))) {
+      console.log(`⏭️ Organisateur ${organizerData.email} est désabonné - email non envoyé`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    const subject = `⚠️ Désistement tardif pour "${eventData.title}" - L'événement est mis en avant`;
+    const unsubscribeUrl = organizerId
+      ? generateUnsubscribeUrl(organizerId.toString(), organizerData.email)
+      : `${config.frontend.url}/unsubscribe`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Désistement Tardif</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .boost-box {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .boost-box h3 {
+            margin: 0 0 10px 0;
+            color: #155724;
+        }
+        .comedian-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .event-summary {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Désistement Tardif</h1>
+        </div>
+        
+        <div class="content">
+            <div class="alert-box">
+                <h2>Un humoriste s'est désisté moins de 72h avant votre événement</h2>
+                <p style="margin: 10px 0 0 0; color: #856404;">
+                    <strong>${hoursBeforeEvent.toFixed(1)} heures</strong> avant le début de l'événement
+                </p>
+            </div>
+
+            <div class="comedian-card">
+                <h3 style="margin: 0 0 10px 0;">🎭 ${comedianData.firstName} ${comedianData.lastName}</h3>
+                <p style="margin: 0; opacity: 0.9;">${comedianData.email}</p>
+            </div>
+
+            <div class="event-summary">
+                <h3 style="margin: 0 0 15px 0; color: #333;">📅 ${eventData.title}</h3>
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${eventDate}</p>
+                <p style="margin: 5px 0;"><strong>Lieu:</strong> ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}</p>
+            </div>
+
+            <div class="boost-box">
+                <h3>✨ Bonne nouvelle !</h3>
+                <p style="margin: 0; color: #155724;">
+                    Votre événement a été automatiquement <strong>mis en avant</strong> dans les recommandations des humoristes.
+                    Il apparaîtra en priorité pour trouver rapidement un remplaçant.
+                </p>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px;">
+                <a href="${config.frontend.url}/events/${eventData._id}" class="cta-button">
+                    📋 Voir mon événement
+                </a>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textContent = `
+Désistement Tardif - ${eventData.title}
+
+Bonjour ${organizerData.firstName},
+
+Un humoriste s'est désisté moins de 72h avant votre événement:
+
+Humoriste: ${comedianData.firstName} ${comedianData.lastName} (${comedianData.email})
+Désistement: ${hoursBeforeEvent.toFixed(1)} heures avant l'événement
+
+Événement: ${eventData.title}
+Date: ${eventDate}
+Lieu: ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}
+
+Bonne nouvelle ! Votre événement a été automatiquement mis en avant dans les recommandations des humoristes pour trouver rapidement un remplaçant.
+
+Voir mon événement: ${config.frontend.url}/events/${eventData._id}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: organizerData.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      },
+      categories: ['late-cancellation', 'organizer']
+    });
+
+    console.log(`✅ Email de désistement tardif envoyé à l'organisateur ${organizerData.email}`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email de désistement à l\'organisateur:', error);
+  }
+};
+
+/**
+ * Envoie un email à l'humoriste pour confirmer son désistement tardif
+ * et l'informer de son total d'annulations tardives
+ */
+export const sendLateCancellationToComedian = async (
+  eventData: any,
+  comedianData: any,
+  hoursBeforeEvent: number,
+  totalLateCancellations: number
+): Promise<void> => {
+  try {
+    console.log('📬 Service Email: Confirmation désistement tardif à l\'humoriste...');
+
+    // Vérifier l'abonnement email
+    const comedianId = comedianData._id || comedianData.id;
+    if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+      console.log(`⏭️ Humoriste ${comedianData.email} est désabonné - email non envoyé`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    const subject = `⚠️ Confirmation de votre désistement - ${eventData.title}`;
+    const unsubscribeUrl = comedianId
+      ? generateUnsubscribeUrl(comedianId.toString(), comedianData.email)
+      : `${config.frontend.url}/unsubscribe`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmation de Désistement</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .content {
+            padding: 30px;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        .event-summary {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .stats-box {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .stats-box h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+        }
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: ${totalLateCancellations >= 3 ? '#dc3545' : totalLateCancellations >= 2 ? '#ffc107' : '#28a745'};
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Confirmation de Désistement</h1>
+        </div>
+        
+        <div class="content">
+            <p>Bonjour ${comedianData.firstName},</p>
+            
+            <p>Nous avons bien enregistré votre désistement pour l'événement suivant :</p>
+
+            <div class="event-summary">
+                <h3 style="margin: 0 0 15px 0; color: #333;">📅 ${eventData.title}</h3>
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${eventDate}</p>
+                <p style="margin: 5px 0;"><strong>Lieu:</strong> ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}</p>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ Attention - Désistement tardif</h3>
+                <p style="margin: 0; color: #856404;">
+                    Votre désistement a été effectué <strong>${hoursBeforeEvent.toFixed(1)} heures</strong> avant le début de l'événement.
+                    Un désistement à moins de 72h est considéré comme tardif.
+                </p>
+            </div>
+
+            <div class="stats-box">
+                <h3>Vos annulations tardives</h3>
+                <div class="stat-value">${totalLateCancellations}</div>
+                <div class="stat-label">au total</div>
+                <p style="margin-top: 15px; color: #6c757d; font-size: 14px;">
+                    ${totalLateCancellations >= 3 
+                      ? '⚠️ Votre nombre d\'annulations tardives est élevé. Pour maintenir votre réputation, nous vous recommandons d\'être plus vigilant sur vos engagements.' 
+                      : totalLateCancellations >= 2 
+                        ? '💡 Attention, vous avez déjà plusieurs annulations tardives. Pensez à bien vérifier vos disponibilités avant d\'accepter une candidature.' 
+                        : '✅ Continuez à respecter vos engagements pour maintenir une bonne réputation sur la plateforme.'}
+                </p>
+            </div>
+
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                L'organisateur a été notifié et l'événement a été mis en avant pour trouver rapidement un remplaçant.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textContent = `
+Confirmation de Désistement - ${eventData.title}
+
+Bonjour ${comedianData.firstName},
+
+Nous avons bien enregistré votre désistement pour l'événement suivant :
+
+Événement: ${eventData.title}
+Date: ${eventDate}
+Lieu: ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}
+
+⚠️ Attention - Désistement tardif
+Votre désistement a été effectué ${hoursBeforeEvent.toFixed(1)} heures avant le début de l'événement.
+Un désistement à moins de 72h est considéré comme tardif.
+
+Vos annulations tardives: ${totalLateCancellations} au total
+
+${totalLateCancellations >= 3 
+  ? '⚠️ Votre nombre d\'annulations tardives est élevé. Pour maintenir votre réputation, nous vous recommandons d\'être plus vigilant sur vos engagements.' 
+  : totalLateCancellations >= 2 
+    ? '💡 Attention, vous avez déjà plusieurs annulations tardives. Pensez à bien vérifier vos disponibilités avant d\'accepter une candidature.' 
+    : '✅ Continuez à respecter vos engagements pour maintenir une bonne réputation sur la plateforme.'}
+
+L'organisateur a été notifié et l'événement a été mis en avant pour trouver rapidement un remplaçant.
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: comedianData.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      },
+      categories: ['late-cancellation', 'comedian']
+    });
+
+    console.log(`✅ Email de confirmation de désistement envoyé à l'humoriste ${comedianData.email}`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email de désistement à l\'humoriste:', error);
+  }
+};
+
+/**
+ * Envoie un email urgent aux humoristes pour les informer qu'une place est disponible
+ * suite à un désistement tardif
+ */
+export const sendUrgentAvailabilityToComedians = async (
+  eventData: any,
+  organizerData: any,
+  comedianEmails: string[],
+  isFollowUpNotification: boolean = false
+): Promise<void> => {
+  try {
+    console.log(`📬 Service Email: Notification place disponible à ${comedianEmails.length} humoristes...`);
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    if (comedianEmails.length === 0) {
+      console.log('⚠️ Aucun humoriste à notifier');
+      return;
+    }
+
+    // Adapter le sujet et le contenu selon le type de notification
+    const subject = isFollowUpNotification
+      ? `🔥 NOUVELLE place disponible ! - ${eventData.title}`
+      : `🔥 Place disponible en urgence - ${eventData.title}`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const eventTime = eventData.startTime || 'Heure non spécifiée';
+
+    // Adapter le titre et le message selon le type de notification
+    const headerTitle = isFollowUpNotification
+      ? '🔥 NOUVELLE Place Disponible !'
+      : '🔥 Place Disponible en Urgence !';
+    const urgencyTitle = isFollowUpNotification
+      ? 'Encore une place libérée !'
+      : 'Un humoriste s\'est désisté !';
+    const urgencyText = isFollowUpNotification
+      ? 'Une <strong>NOUVELLE</strong> place vient de se libérer ! Il y a maintenant plusieurs opportunités sur cet événement.'
+      : 'Une place vient de se libérer sur cet événement. <strong>Postulez rapidement</strong> pour maximiser vos chances d\'être sélectionné.';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Place disponible en urgence</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .urgent-badge {
+            display: inline-block;
+            background: #fff;
+            color: #ff4757;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+        .content {
+            padding: 30px;
+        }
+        .urgency-box {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border: 3px solid #ff4757;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .urgency-box h2 {
+            margin: 0 0 10px 0;
+            color: #c0392b;
+            font-size: 24px;
+        }
+        .urgency-box p {
+            margin: 0;
+            color: #8b4513;
+            font-size: 16px;
+        }
+        .event-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        .event-card h3 {
+            margin: 0 0 15px 0;
+            font-size: 22px;
+        }
+        .event-details {
+            margin-top: 15px;
+        }
+        .event-details p {
+            margin: 8px 0;
+            opacity: 0.95;
+        }
+        .organizer-info {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(255, 71, 87, 0.4);
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .advantages {
+            background: #e8f5e9;
+            border-left: 5px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 12px 12px 0;
+        }
+        .advantages h4 {
+            margin: 0 0 10px 0;
+            color: #2e7d32;
+        }
+        .advantages ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #388e3c;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>${headerTitle}</h1>
+            <div class="urgent-badge">⚡ Opportunité immédiate</div>
+        </div>
+        
+        <div class="content">
+            <div class="urgency-box">
+                <h2>${urgencyTitle}</h2>
+                <p>${urgencyText}</p>
+            </div>
+
+            <div class="event-card">
+                <h3>🎭 ${eventData.title}</h3>
+                <div class="event-details">
+                    <p>📅 <strong>${eventDate}</strong></p>
+                    <p>⏰ ${eventTime}</p>
+                    <p>📍 ${eventData.location?.city || 'Lieu non spécifié'}</p>
+                    ${eventData.location?.venue ? `<p>🏢 ${eventData.location.venue}</p>` : ''}
+                </div>
+            </div>
+
+            ${organizerData ? `
+            <div class="organizer-info">
+                <h4 style="margin: 0 0 10px 0; color: #333;">Organisateur</h4>
+                <p style="margin: 0; color: #666;">
+                    ${organizerData.firstName} ${organizerData.lastName}
+                    ${organizerData.organizerProfile?.companyName ? ` - ${organizerData.organizerProfile.companyName}` : ''}
+                </p>
+            </div>
+            ` : ''}
+
+            <div class="advantages">
+                <h4>✅ Pourquoi postuler maintenant ?</h4>
+                <ul>
+                    <li><strong>Place en priorité</strong> : L'événement est boosté dans les recommandations</li>
+                    <li><strong>Moins de concurrence</strong> : Moins de candidatures que d'habitude</li>
+                    <li><strong>Visibilité maximale</strong> : L'organisateur cherche activement un remplaçant</li>
+                </ul>
+            </div>
+
+            <p style="text-align: center;">
+                <a href="${config.frontend.url}/events/${eventData._id}" class="cta-button">
+                    🚀 Postuler maintenant
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 14px; text-align: center; margin-top: 20px;">
+                ⏱️ Cette opportunité est limitée dans le temps. Ne tardez pas !
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textTitle = isFollowUpNotification
+      ? '🔥 NOUVELLE PLACE DISPONIBLE !'
+      : '🔥 PLACE DISPONIBLE EN URGENCE !';
+    const textMessage = isFollowUpNotification
+      ? 'Encore une place libérée ! Il y a maintenant plusieurs opportunités sur cet événement.'
+      : 'Un humoriste s\'est désisté ! Une place vient de se libérer sur cet événement.';
+
+    const textContent = `
+${textTitle}
+
+${textMessage}
+Postulez rapidement pour maximiser vos chances.
+
+🎭 ${eventData.title}
+📅 ${eventDate}
+⏰ ${eventTime}
+📍 ${eventData.location?.city || 'Lieu non spécifié'}
+
+POURQUOI POSTULER MAINTENANT ?
+- Place en priorité : L'événement est boosté dans les recommandations
+- Moins de concurrence : Moins de candidatures que d'habitude  
+- Visibilité maximale : L'organisateur cherche activement un remplaçant
+
+POSTULER : ${config.frontend.url}/events/${eventData._id}
+
+⏱️ Cette opportunité est limitée dans le temps. Ne tardez pas !
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    // Envoyer à tous les humoristes en BCC pour ne pas exposer les emails
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: config.email.smtpUser,
+      bcc: comedianEmails,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      categories: ['urgent', 'late-cancellation', 'opportunity']
+    });
+
+    console.log(`✅ Email urgent envoyé à ${comedianEmails.length} humoristes pour l'événement "${eventData.title}"`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email urgent aux humoristes:', error);
   }
 };

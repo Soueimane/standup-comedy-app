@@ -159,6 +159,23 @@ export const triggerPresenceCheck = async () => {
   return response.data;
 };
 
+// Fonctions pour gérer les alertes d'annulations tardives (Super Admin)
+export const getLateCancellationAlerts = async (isActive?: boolean) => {
+  const params = isActive !== undefined ? `?isActive=${isActive}` : '';
+  const response = await api.get(`/late-cancellation-alerts${params}`);
+  return response.data;
+};
+
+export const acknowledgeLateCancellationAlert = async (alertId: string) => {
+  const response = await api.post(`/late-cancellation-alerts/${alertId}/acknowledge`);
+  return response.data;
+};
+
+export const getComedianLateCancellationHistory = async (comedianId: string) => {
+  const response = await api.get(`/late-cancellation-alerts/comedian/${comedianId}`);
+  return response.data;
+};
+
 // Fonctions pour gérer les signalements d'humoristes (Organisateurs)
 export const createComedianReport = async (comedianId: string, reason: string, description?: string) => {
   const response = await api.post('/comedian-reports', { comedianId, reason, description });

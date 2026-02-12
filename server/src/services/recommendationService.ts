@@ -468,11 +468,22 @@ export const getRecommendedEvents = async (
     }
   }
 
-  scoredEvents.sort((a, b) => b.score - a.score);
+    scoredEvents.sort((a, b) => b.score - a.score);
+
+  // Boost événements avec annulation tardive (+15 points, priorité affichage)
+  const boostedEvents = scoredEvents.filter(e => e.event.hasLateCancellation);
+  const regularEvents = scoredEvents.filter(e => !e.event.hasLateCancellation);
+
+  boostedEvents.forEach(e => {
+    e.score = Math.min(100, e.score + 15);
+    e.matchReasons.unshift('⚡ Place disponible suite à un désistement');
+  });
+
+  const finalEvents = [...boostedEvents, ...regularEvents];
 
   return {
-    recommendations: scoredEvents.slice((page - 1) * limit, page * limit),
-    total: scoredEvents.length,
+    recommendations: finalEvents.slice((page - 1) * limit, page * limit),
+    total: finalEvents.length,
     page,
     limit
   };

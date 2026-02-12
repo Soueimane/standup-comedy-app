@@ -85,6 +85,19 @@ const Dashboard = () => {
   const presenceAlerts = presenceAlertsData?.alerts || [];
   const comedianReports = comedianReportsData?.reports || [];
 
+  // Recuperer les alertes d'annulations tardives avec React Query (Super Admin uniquement)
+  const { data: lateCancellationAlertsData } = useQuery({
+    queryKey: ['late-cancellation-alerts'],
+    queryFn: async () => {
+      const response = await api.get('/late-cancellation-alerts?isActive=true');
+      return response.data;
+    },
+    enabled: !!user && isSuperAdmin,
+  });
+
+  const lateCancellationAlertsCount = lateCancellationAlertsData?.total || 0;
+  const lateCancellationAlerts = lateCancellationAlertsData?.alerts || [];
+
   // Fonction pour traiter les évènements terminés (Super Admin uniquement)
   const handleProcessCompletedEvents = async () => {
     if (!user || (user as any)?.role !== 'SUPER_ADMIN') {
@@ -587,6 +600,11 @@ const Dashboard = () => {
                 style: pendingReportsCount > 0 ? glowingCardOrangeStyle : {},
                 variant: 'superAdmin',
                 onClick: () => navigate('/admin/comedian-reports')
+              })}
+              {renderCard('Annulations tardives', lateCancellationAlertsCount, '⏰', {
+                style: lateCancellationAlertsCount > 0 ? glowingCardOrangeStyle : {},
+                variant: 'superAdmin',
+                onClick: () => navigate('/admin/late-cancellations')
               })}
             </>
           ) : (

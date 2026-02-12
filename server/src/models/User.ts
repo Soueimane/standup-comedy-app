@@ -25,6 +25,7 @@ interface IUserStats {
   applicationsPending?: number;
   netPromoterScore?: number;
   absences?: number;
+  lateCancellations?: number;
   processedEvents?: string[]; // Array d'IDs des évènements déjà traités
 }
 
@@ -91,6 +92,7 @@ const UserStatsSchema = new Schema<IUserStats>({
   applicationsPending: { type: Number, default: 0 },
   netPromoterScore: { type: Number, default: 0 },
   absences: { type: Number, default: 0 },
+  lateCancellations: { type: Number, default: 0 },
   processedEvents: [{ type: Schema.Types.ObjectId, ref: 'Event' }]
 });
 
