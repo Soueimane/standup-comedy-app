@@ -727,87 +727,85 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());
 
-    // Dès qu'un organisateur annule l'événement : email + notification in-app pour tous les humoristes acceptés ou en attente (quel que soit la date de l'événement)
-    if (updatedEvent.status === 'cancelled') {
-      const organizer = await UserModel.findById(organizerId).select('firstName lastName email _id');
-      const affectedApplications = await ApplicationModel.find({
-        event: updatedEvent._id,
-        status: { $in: ['PENDING', 'ACCEPTED'] }
-      }).populate('comedian', 'email firstName lastName role');
+    // Notifier les humoristes ayant postulé si l'évènement est futur
+    if (updatedEvent && new Date(updatedEvent.date) >= new Date()) {
+      console.log('📧 [DEBUG] Mise à jour évènement futur, préparation envoi emails de mise à jour...');
+      const applications = await ApplicationModel.find({ event: updatedEvent._id, status: { $in: ['PENDING', 'ACCEPTED'] } })
+        .populate('comedian', 'email firstName lastName');
 
-      if (organizer && affectedApplications.length > 0) {
-        const participants = affectedApplications
-          .map((app: any) => app.comedian)
-          .filter((c: any) => !!c?.email);
-        try {
+      const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
+      console.log(`📧 [DEBUG] Candidatures ciblées: ${applications.length}`);
+      if (organizer && applications.length > 0) {
+        // Si l'évènement est annulé, informer les candidats ACCEPTED et PENDING
+        if (req.body.status === 'cancelled' || updatedEvent.status === 'cancelled') {
+          const affectedApplications = await ApplicationModel.find({
+            event: updatedEvent._id,
+            status: { $in: ['PENDING', 'ACCEPTED'] }
+          }).populate('comedian', 'email firstName lastName');
+          const participants = affectedApplications
+            .map((app: any) => app.comedian)
+            .filter((c: any) => !!c?.email);
           await sendEventCancellationToParticipants(participants as any, updatedEvent as any, {
             firstName: organizer.firstName,
             lastName: organizer.lastName,
             email: organizer.email,
           }, (req.body as any).cancellationReason);
-          console.log(`✅ [Annulation] Emails d'alerte envoyés à ${participants.length} humoriste(s).`);
-        } catch (emailErr) {
-          console.error('❌ Erreur envoi emails d\'annulation:', emailErr);
-        }
-        try {
-          const { createNotification } = await import('./notification');
-          for (const app of affectedApplications) {
-            const comedian = app.comedian as any;
-            const comedianId = comedian?._id?.toString() || comedian?.toString();
-            if (comedianId && (!comedian.role || comedian.role === 'COMEDIAN')) {
-              await createNotification(
-                comedianId,
-                'event_cancelled',
-                'Évènement annulé',
-                `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été annulé.`,
-                updatedEvent._id.toString(),
-                app._id.toString(),
-                organizer._id?.toString() || organizer.toString()
-              );
+
+          // Créer des notifications in-app pour les humoristes concernés
+          try {
+            const { createNotification } = await import('./notification');
+            for (const app of affectedApplications) {
+              const comedian = app.comedian;
+              if (comedian && (comedian as any).role === 'COMEDIAN') {
+                const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                await createNotification(
+                  comedianId,
+                  'event_cancelled',
+                  'Évènement annulé',
+                  `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été annulé.`,
+                  updatedEvent._id.toString(),
+                  app._id.toString(),
+                  organizer._id?.toString() || organizer.toString()
+                );
+              }
             }
+          } catch (notificationError) {
+            console.error('Erreur lors de la création des notifications in-app pour l\'annulation:', notificationError);
           }
-          console.log(`✅ [Annulation] Notifications in-app créées pour ${affectedApplications.length} candidature(s).`);
-        } catch (notificationError) {
-          console.error('Erreur lors de la création des notifications in-app pour l\'annulation:', notificationError);
-        }
-      }
-    }
+        } else {
+          // Sinon, envoyer une notification de mise à jour classique
+          try {
+            await sendEventUpdatedNotificationToApplicants(applications as any, updatedEvent, {
+              firstName: organizer.firstName,
+              lastName: organizer.lastName,
+              email: organizer.email,
+            });
+            console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
 
-    // Notifier les humoristes ayant postulé si l'évènement est futur et non annulé (mise à jour classique)
-    if (updatedEvent && updatedEvent.status !== 'cancelled' && new Date(updatedEvent.date) >= new Date()) {
-      console.log('📧 [DEBUG] Mise à jour évènement futur, préparation envoi emails de mise à jour...');
-      const applications = await ApplicationModel.find({ event: updatedEvent._id, status: { $in: ['PENDING', 'ACCEPTED'] } })
-        .populate('comedian', 'email firstName lastName role');
-
-      const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
-      console.log(`📧 [DEBUG] Candidatures ciblées: ${applications.length}`);
-      if (organizer && applications.length > 0) {
-        try {
-          await sendEventUpdatedNotificationToApplicants(applications as any, updatedEvent, {
-            firstName: organizer.firstName,
-            lastName: organizer.lastName,
-            email: organizer.email,
-          });
-          console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
-
-          const { createNotification } = await import('./notification');
-          for (const app of applications) {
-            const comedian = app.comedian as any;
-            if (comedian && (!comedian.role || comedian.role === 'COMEDIAN')) {
-              const comedianId = comedian._id?.toString() || comedian?.toString();
-              await createNotification(
-                comedianId,
-                'event_updated',
-                'Évènement modifié',
-                `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été modifié.`,
-                updatedEvent._id.toString(),
-                app._id.toString(),
-                organizer._id?.toString() || organizer.toString()
-              );
+            // Créer des notifications in-app pour les humoristes concernés
+            try {
+              const { createNotification } = await import('./notification');
+              for (const app of applications) {
+                const comedian = app.comedian;
+                if (comedian && (comedian as any).role === 'COMEDIAN') {
+                  const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                  await createNotification(
+                    comedianId,
+                    'event_updated',
+                    'Évènement modifié',
+                    `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été modifié.`,
+                    updatedEvent._id.toString(),
+                    app._id.toString(),
+                    organizer._id?.toString() || organizer.toString()
+                  );
+                }
+              }
+            } catch (notificationError) {
+              console.error('Erreur lors de la création des notifications in-app pour la mise à jour:', notificationError);
             }
+          } catch (err) {
+            console.error('❌ Erreur envoi emails maj évènement:', err);
           }
-        } catch (err) {
-          console.error('❌ Erreur envoi emails ou notifications (mise à jour évènement):', err);
         }
       } else {
         console.log('ℹ️ [DEBUG] Aucun destinataire email trouvé ou organisateur introuvable.');
@@ -872,7 +870,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Notifier les candidats PENDING et ACCEPTED avant suppression (email + notifications in-app)
+    // Notifier les candidats PENDING et ACCEPTED avant suppression
     try {
       const applications = await ApplicationModel.find({
         event: eventId,
@@ -895,33 +893,8 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
           'Évènement supprimé par l\'organisateur (plus de 10 jours avant).'
         );
       }
-
-      const organizerIdForNotif = (event.organizer as any)?._id?.toString() || event.organizer?.toString();
-      try {
-        const { createNotification } = await import('./notification');
-        for (const app of applications) {
-          const comedian = app.comedian as any;
-          const comedianId = comedian?._id?.toString() || comedian?.toString();
-          if (comedianId) {
-            await createNotification(
-              comedianId,
-              'event_cancelled',
-              'Évènement annulé',
-              `L'évènement "${event.title}" auquel vous avez postulé a été annulé par l'organisateur.`,
-              eventId,
-              app._id.toString(),
-              organizerIdForNotif
-            );
-          }
-        }
-      } catch (notificationError) {
-        console.error('❌ Erreur lors de la création des notifications in-app (suppression évènement):', notificationError);
-      }
-    } catch (emailErr: any) {
+    } catch (emailErr) {
       console.error('❌ Erreur lors de l\'envoi des emails d\'annulation avant suppression:', emailErr);
-      if (emailErr?.code === 401 || emailErr?.response?.body?.errors) {
-        console.error('📧 SendGrid 401 = clé API invalide ou absente. Vérifiez SMTP_PASS dans .env (doit être une API Key SendGrid, pas un mot de passe SMTP).', emailErr?.response?.body?.errors || '');
-      }
     }
 
     // Delete all applications for this event after notifications

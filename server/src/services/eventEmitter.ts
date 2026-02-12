@@ -17,6 +17,9 @@ export enum SSEEventType {
   ABSENCE_MARKED = 'ABSENCE_MARKED',
   ABSENCE_CANCELLED = 'ABSENCE_CANCELLED',
 
+  // Annulations tardives
+  LATE_CANCELLATION = 'LATE_CANCELLATION',
+
   // Favoris comédiens
   FAVORITE_COMEDIAN_ADDED = 'FAVORITE_COMEDIAN_ADDED',
   FAVORITE_COMEDIAN_REMOVED = 'FAVORITE_COMEDIAN_REMOVED',
@@ -127,6 +130,10 @@ export const emitAbsenceMarked = (eventId: string, comedianId: string) => {
 
 export const emitAbsenceCancelled = (eventId: string, comedianId: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.ABSENCE_CANCELLED, { eventId, comedianId });
+};
+
+export const emitLateCancellation = (eventId: string, comedianId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.LATE_CANCELLATION, { eventId, comedianId, applicationId });
 };
 
 export const emitFavoriteComedianAdded = (organizerId: string, comedianId: string) => {

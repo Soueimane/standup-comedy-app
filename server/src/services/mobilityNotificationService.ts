@@ -337,3 +337,161 @@ export const notifyComediansByMobilityForRecurringGroupAsync = (
     console.error('[MobilityNotification] Erreur asynchrone (groupe récurrent):', error);
   });
 };
+
+/**
+ * Notifie les humoristes d'une place disponible suite à un désistement tardif
+ * Envoie UN SEUL email groupé à tous les humoristes concernés (en BCC)
+ * Utilise la même logique de filtrage géographique que notifyComediansByMobility
+ *
+ * @param event - L'événement avec une place disponible
+ * @param organizer - Les infos de l'organisateur
+ * @param excludeComedianIds - IDs des comédiens à exclure (ex: celui qui s'est désisté)
+ * @returns Nombre d'humoristes notifiés
+ */
+export const notifyComediansOfLateCancellation = async (
+  event: EventDocument,
+  organizer?: { firstName: string; lastName: string; email: string; organizerProfile?: any },
+  excludeComedianIds?: string[]
+): Promise<number> => {
+  try {
+    console.log(`[LateCancellationNotification] Début notification pour "${event.title}"`);
+
+    // 1. Vérifier que l'événement a une ville définie
+    if (!event.location?.city) {
+      console.log('[LateCancellationNotification] Événement sans ville définie, notification ignorée');
+      return 0;
+    }
+
+    // 2. Trouver tous les comédiens avec une zone de mobilité et abonnés aux emails
+    const query: any = {
+      role: 'COMEDIAN',
+      'profile.mobilityZone': { $exists: true, $not: { $size: 0 } },
+      'emailSubscriptions.globalSubscribed': { $ne: false }
+    };
+
+    if (excludeComedianIds && excludeComedianIds.length > 0) {
+      query._id = { $nin: excludeComedianIds };
+    }
+
+    const comedians = await UserModel.find(query).lean();
+
+    if (comedians.length === 0) {
+      console.log('[LateCancellationNotification] Aucun comédien avec zone de mobilité trouvé');
+      return 0;
+    }
+
+    console.log(`[LateCancellationNotification] ${comedians.length} comédiens à filtrer`);
+
+    // 3. Récupérer les infos géographiques de l'événement
+    let geoInfo: { department: string | null; region: string | null };
+
+    if (event.location.department) {
+      const cityGeoInfo = await getCityGeoInfo(event.location.city);
+      geoInfo = {
+        department: event.location.department,
+        region: cityGeoInfo.region
+      };
+    } else {
+      const postalCode = event.location.postalCode || event.location.address?.match(/\b(\d{5})\b/)?.[1] || null;
+      if (postalCode) {
+        geoInfo = await getCityGeoInfoByPostalCode(postalCode);
+      } else {
+        geoInfo = await getCityGeoInfo(event.location.city);
+      }
+    }
+
+    // Normaliser la ville de l'événement
+    let eventCity = event.location.city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (eventCity.includes('paris') && (eventCity.includes('arrondissement') || /paris\s+\d+/.test(eventCity))) {
+      eventCity = 'paris';
+    } else if (eventCity.includes('lyon') && /lyon\s+\d+/.test(eventCity)) {
+      eventCity = 'lyon';
+    } else if (eventCity.includes('marseille') && /marseille\s+\d+/.test(eventCity)) {
+      eventCity = 'marseille';
+    }
+
+    const eventDepartment = geoInfo.department;
+    const eventRegion = geoInfo.region;
+
+    // 4. Filtrer les comédiens par zone de mobilité
+    const matchingComedians = comedians.filter(comedian => {
+      const mobilityZones = comedian.profile?.mobilityZone || [];
+
+      for (const zone of mobilityZones) {
+        // Match ville exacte
+        if (zone.type === 'ville') {
+          let zoneValue = zone.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          if (zoneValue.includes('paris') && (zoneValue.includes('arrondissement') || /paris\s+\d+/.test(zoneValue))) {
+            zoneValue = 'paris';
+          } else if (zoneValue.includes('lyon') && /lyon\s+\d+/.test(zoneValue)) {
+            zoneValue = 'lyon';
+          } else if (zoneValue.includes('marseille') && /marseille\s+\d+/.test(zoneValue)) {
+            zoneValue = 'marseille';
+          }
+
+          if (zoneValue === eventCity) return true;
+        }
+
+        // Match département
+        if (zone.type === 'departement' && eventDepartment) {
+          const deptCode = zone.value.match(/\d{2,3}/)?.[0];
+          const eventDeptCode = eventDepartment.match(/\d{2,3}/)?.[0];
+          if (deptCode && eventDeptCode && deptCode === eventDeptCode) return true;
+          if (zone.value.toLowerCase().includes(eventDepartment.toLowerCase())) return true;
+        }
+
+        // Match région
+        if (zone.type === 'region' && eventRegion) {
+          if (zone.value.toLowerCase().includes(eventRegion.toLowerCase())) return true;
+          if (eventRegion.toLowerCase().includes(zone.value.toLowerCase())) return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (matchingComedians.length === 0) {
+      console.log('[LateCancellationNotification] Aucun comédien ne correspond à la zone de mobilité');
+      return 0;
+    }
+
+    console.log(`[LateCancellationNotification] ${matchingComedians.length} comédiens correspondants trouvés`);
+
+    // 5. Importer et utiliser la fonction d'email urgente
+    const { sendUrgentAvailabilityToComedians } = await import('./emailService');
+
+    const comedianEmails = matchingComedians.map(c => c.email);
+
+    // Déterminer si c'est une notification de suivi (nouvelle place)
+    const notificationCount = event.lateCancellationNotificationCount || 0;
+    const isFollowUpNotification = notificationCount > 0;
+
+    await sendUrgentAvailabilityToComedians(
+      event,
+      organizer || { firstName: '', lastName: '', email: '' },
+      comedianEmails,
+      isFollowUpNotification
+    );
+
+    console.log(`[LateCancellationNotification] ✅ ${matchingComedians.length} humoristes notifiés pour "${event.title}"`);
+
+    return matchingComedians.length;
+
+  } catch (error) {
+    console.error('[LateCancellationNotification] Erreur lors de la notification:', error);
+    return 0;
+  }
+};
+
+/**
+ * Version asynchrone qui ne bloque pas l'appelant
+ */
+export const notifyComediansOfLateCancellationAsync = (
+  event: EventDocument,
+  organizer?: { firstName: string; lastName: string; email: string; organizerProfile?: any },
+  excludeComedianIds?: string[]
+): void => {
+  notifyComediansOfLateCancellation(event, organizer, excludeComedianIds).catch(error => {
+    console.error('[LateCancellationNotification] Erreur asynchrone:', error);
+  });
+};
