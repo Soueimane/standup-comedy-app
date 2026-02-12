@@ -2120,11 +2120,11 @@ useEffect(() => {
   } as CSSProperties);
 
   const eventCardStyle: CSSProperties = {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    borderRadius: '20px',
     padding: isMobile ? '16px' : '20px',
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
+    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.12)',
+    border: '1px solid rgba(0, 0, 0, 0.08)',
     marginBottom: '15px',
     cursor: 'pointer',
     display: 'flex',
@@ -2132,6 +2132,18 @@ useEffect(() => {
     gap: isMobile ? '16px' : '24px',
     alignItems: isMobile ? 'flex-start' : 'stretch',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+  };
+
+  /** Style carte lorsque l'événement est en statut Complet (fond vert comme la capture) */
+  const eventCardStyleComplete: CSSProperties = {
+    backgroundColor: '#E1FFE6',
+    border: '1px solid #c8f0d0',
+  };
+
+  /** Fond rouge clair pour les évènements annulés (comme candidatures refusées) */
+  const eventCardStyleCancelled: CSSProperties = {
+    backgroundColor: '#FFEBEE',
+    border: '1px solid #ffcdd2',
   };
 
   const cardContentStyle: CSSProperties = {
@@ -2152,11 +2164,11 @@ useEffect(() => {
   const cardDateBadgeStyle: CSSProperties = {
     padding: '6px 16px',
     borderRadius: '999px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(0, 0, 0, 0.12)',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
     fontSize: '0.85em',
     fontWeight: 600,
-    color: '#ffffff',
+    color: '#1a1a1a',
   };
 
   const cardHeaderActionsStyle: CSSProperties = {
@@ -2191,14 +2203,14 @@ useEffect(() => {
 
   const cardMetaLabelStyle: CSSProperties = {
     fontSize: '0.72em',
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
   };
 
   const cardMetaValueStyle: CSSProperties = {
     fontSize: '0.95em',
-    color: '#ffffff',
+    color: '#1a1a1a',
     fontWeight: 600,
   };
 
@@ -2222,11 +2234,11 @@ useEffect(() => {
   const statusBadgeStyle: CSSProperties = {
     padding: '6px 14px',
     borderRadius: '999px',
-    border: '1px solid rgba(255, 255, 255, 0.18)',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
     fontSize: '0.85em',
     fontWeight: 600,
-    color: '#ffffff',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#1a1a1a',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
   };
 
   const renderStatusChip = (label: string, color: string, backgroundColor: string) => (
@@ -2235,13 +2247,13 @@ useEffect(() => {
 
   const eventTitleStyle: CSSProperties = {
     fontSize: isMobile ? '1.2em' : '1.45em',
-    color: '#ffffff',
+    color: '#1a1a1a',
     margin: 0,
   };
 
   const eventDetailStyle: CSSProperties = {
     fontSize: '0.9em',
-    color: '#bbb',
+    color: '#64748B',
     marginBottom: '3px',
   };
 
@@ -2781,6 +2793,7 @@ useEffect(() => {
                 key={event._id}
                 style={{
                   ...eventCardStyle,
+                  ...(isCompleteEvent ? eventCardStyleComplete : {}),
                   opacity: isWithdrawn ? 0.6 : 1,
                   cursor: isWithdrawn ? 'not-allowed' : 'pointer',
                   pointerEvents: isWithdrawn ? 'none' : 'auto',
@@ -2832,11 +2845,11 @@ useEffect(() => {
                   </div>
                 </div>
                 <div style={cardStatusBlockStyle}>
-                  {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                  {renderStatusChip(`Statut: ${statusLabel}`, statusLabel === 'Publié' ? '#28a745' : '#ff8ba0', statusLabel === 'Publié' ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 65, 108, 0.12)')}
                   {renderStatusChip(
                     isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
-                    isCompleteEvent ? '#28a745' : '#ffc107',
-                    isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                    isCompleteEvent ? '#64748B' : '#ffc107',
+                    isCompleteEvent ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 193, 7, 0.15)'
                   )}
                   {comedianApplicationChip}
                   {/* Badge pour les recommandations intelligentes */}
@@ -3615,7 +3628,7 @@ useEffect(() => {
                       const participantsRatio = getParticipantsRatio(event);
                       const statusLabel = translateEventStatus(event.status);
                       return (
-                        <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                        <div key={event._id} style={{ ...eventCardStyle, ...(isCompleteEvent ? eventCardStyleComplete : {}) }} onClick={() => handleCardClick(event)}>
                           <div style={cardContentStyle}>
                             <div style={cardHeaderRowStyle}>
                               <div>
@@ -3641,11 +3654,11 @@ useEffect(() => {
                             </div>
                           </div>
                           <div style={cardStatusBlockStyle}>
-                            {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                            {renderStatusChip(`Statut: ${statusLabel}`, statusLabel === 'Publié' ? '#28a745' : '#ff8ba0', statusLabel === 'Publié' ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 65, 108, 0.12)')}
                             {renderStatusChip(
                               isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
-                              isCompleteEvent ? '#28a745' : '#ffc107',
-                              isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                              isCompleteEvent ? '#64748B' : '#ffc107',
+                              isCompleteEvent ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 193, 7, 0.15)'
                             )}
                             {renderOrganizerActions(event, 'upcoming')}
                           </div>
@@ -3667,7 +3680,7 @@ useEffect(() => {
                             <div style={cardHeaderRowStyle}>
                               <div>
                                 <h3 style={eventTitleStyle}>{first?.title}</h3>
-                                <span style={{ fontSize: '0.85em', color: '#aaa' }}>Événement récurrent · {item.events.length} date(s)</span>
+                                <span style={{ fontSize: '0.85em', color: '#64748B' }}>Événement récurrent · {item.events.length} date(s)</span>
                               </div>
                               <div style={cardHeaderActionsStyle}>
                                 <span style={cardDateBadgeStyle}>Voir les dates</span>
@@ -3694,15 +3707,16 @@ useEffect(() => {
                               const timeStr = event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : '';
                               const participantsCount = event.participants?.length ?? 0;
                               const maxP = event.requirements?.maxPerformers ?? event.maxParticipants ?? 0;
+                              const isDateComplete = maxP > 0 && participantsCount >= maxP;
                               return (
                                 <div
                                   key={event._id}
                                   onClick={(e) => { e.stopPropagation(); handleCardClick(event); }}
                                   style={{
                                     padding: '12px 16px',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                                    backgroundColor: isDateComplete ? '#E1FFE6' : '#f8fafc',
                                     borderRadius: '8px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    border: isDateComplete ? '1px solid #c8f0d0' : '1px solid rgba(0, 0, 0, 0.08)',
                                     cursor: 'pointer',
                                     display: 'flex',
                                     justifyContent: 'space-between',
@@ -3713,10 +3727,10 @@ useEffect(() => {
                                 >
                                   <div>
                                     <span style={{ ...cardDateBadgeStyle, marginRight: '8px', fontSize: '0.8em' }}>{dateFormatted}</span>
-                                    <span style={{ color: '#fff' }}>{timeStr}</span>
+                                    <span style={{ color: '#1a1a1a' }}>{timeStr}</span>
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{ color: '#aaa', fontSize: '0.9em' }}>{participantsCount}/{maxP} humoristes</span>
+                                    <span style={{ color: '#64748B', fontSize: '0.9em' }}>{participantsCount}/{maxP} humoristes</span>
                                     {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming', undefined, `upcoming-expanded-${event._id}`)}
                                   </div>
                                 </div>
@@ -3765,7 +3779,7 @@ useEffect(() => {
                       const participantsRatio = getParticipantsRatio(event);
                       const statusLabel = translateEventStatus(event.status);
                       return (
-                        <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                        <div key={event._id} style={{ ...eventCardStyle, ...(isCompleteEvent ? eventCardStyleComplete : {}) }} onClick={() => handleCardClick(event)}>
                           <div style={cardContentStyle}>
                             <div style={cardHeaderRowStyle}>
                               <div>
@@ -3791,11 +3805,11 @@ useEffect(() => {
                             </div>
                           </div>
                           <div style={cardStatusBlockStyle}>
-                            {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
+                            {renderStatusChip(`Statut: ${statusLabel}`, statusLabel === 'Publié' ? '#28a745' : '#ff8ba0', statusLabel === 'Publié' ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 65, 108, 0.12)')}
                             {renderStatusChip(
                               isCompleteEvent ? `Complet • ${participantsRatio}` : `Non complet • ${participantsRatio}`,
-                              isCompleteEvent ? '#28a745' : '#ffc107',
-                              isCompleteEvent ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 193, 7, 0.15)'
+                              isCompleteEvent ? '#64748B' : '#ffc107',
+                              isCompleteEvent ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 193, 7, 0.15)'
                             )}
                             {renderOrganizerActions(event, 'upcoming')}
                           </div>
@@ -3843,7 +3857,7 @@ useEffect(() => {
                 const statusLabel = translateEventStatus(event.status);
 
                 return (
-                  <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+                  <div key={event._id} style={{ ...eventCardStyle, ...eventCardStyleComplete }} onClick={() => handleCardClick(event)}>
                     <div style={cardContentStyle}>
                       <div style={cardHeaderRowStyle}>
                         <div>
@@ -3869,8 +3883,8 @@ useEffect(() => {
                       </div>
                     </div>
                     <div style={cardStatusBlockStyle}>
-                      {renderStatusChip(`Statut: ${statusLabel}`, '#ff8ba0', 'rgba(255, 65, 108, 0.12)')}
-                      {renderStatusChip(`Complet • ${participantsRatio}`, '#28a745', 'rgba(40, 167, 69, 0.15)')}
+                      {renderStatusChip(`Statut: ${statusLabel}`, statusLabel === 'Publié' ? '#28a745' : '#ff8ba0', statusLabel === 'Publié' ? 'rgba(40, 167, 69, 0.15)' : 'rgba(255, 65, 108, 0.12)')}
+                      {renderStatusChip(`Complet • ${participantsRatio}`, '#64748B', 'rgba(0, 0, 0, 0.06)')}
                       {renderOrganizerActions(event, 'full')}
                     </div>
                   </div>
@@ -4026,7 +4040,7 @@ useEffect(() => {
             const reason = event.cancellationReason;
 
             return (
-              <div key={event._id} style={eventCardStyle} onClick={() => handleCardClick(event)}>
+              <div key={event._id} style={{ ...eventCardStyle, ...eventCardStyleCancelled }} onClick={() => handleCardClick(event)}>
                 <div style={cardContentStyle}>
                   <div style={cardHeaderRowStyle}>
                     <div>
@@ -4045,8 +4059,8 @@ useEffect(() => {
                     </div>
                   </div>
                   {reason && (
-                    <p style={{ ...eventDetailStyle, marginTop: 8, color: '#ffb199' }}>
-                      <span style={{ fontWeight: 'bold', color: '#ff4b2b' }}>Raison:</span> {reason}
+                    <p style={{ ...eventDetailStyle, marginTop: 8, color: '#b71c1c' }}>
+                      <span style={{ fontWeight: 'bold', color: '#c62828' }}>Raison:</span> {reason}
                     </p>
                   )}
                 </div>
@@ -4260,9 +4274,9 @@ useEffect(() => {
                 if (eventsInGroup.length === 0) return <p style={emptyStateStyle}>Groupe introuvable.</p>;
                 return (
                   <>
-                    <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      <h3 style={{ margin: '0 0 8px 0', color: '#fff', fontSize: '1.2em' }}>{firstEvent?.title}</h3>
-                      <p style={{ margin: 0, color: '#aaa', fontSize: '0.9em' }}>
+                    <div style={{ marginBottom: '20px', padding: '16px', ...eventCardStyle }}>
+                      <h3 style={{ margin: '0 0 8px 0', color: '#1a1a1a', fontSize: '1.2em' }}>{firstEvent?.title}</h3>
+                      <p style={{ margin: 0, color: '#64748B', fontSize: '0.9em' }}>
                         {firstEvent?.location?.venue} — {firstEvent?.location?.city} · {eventsInGroup.length} date(s)
                       </p>
                     </div>
@@ -4273,6 +4287,7 @@ useEffect(() => {
                         const timeStr = event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : '';
                         const participantsCount = event.participants?.length ?? 0;
                         const maxP = event.requirements?.maxPerformers ?? event.maxParticipants ?? 0;
+                        const isDateComplete = maxP > 0 && participantsCount >= maxP;
                         const status = event.status === 'CANCELLED' || event.status === 'cancelled' ? 'Annulé' : event.status === 'COMPLETED' || event.status === 'completed' ? 'Terminé' : 'Publié';
                         return (
                           <div
@@ -4280,6 +4295,7 @@ useEffect(() => {
                             onClick={() => handleCardClick(event)}
                             style={{
                               ...eventCardStyle,
+                              ...(isDateComplete ? eventCardStyleComplete : {}),
                               padding: '16px',
                               display: 'flex',
                               flexDirection: isMobile ? 'column' : 'row',
@@ -4290,8 +4306,8 @@ useEffect(() => {
                           >
                             <div style={{ flex: 1 }}>
                               <div style={{ ...cardDateBadgeStyle, marginBottom: '8px', display: 'inline-block' }}>{dateFormatted}</div>
-                              <div style={{ color: '#fff', fontWeight: 600, marginBottom: '4px' }}>{timeStr}</div>
-                              <div style={{ color: '#aaa', fontSize: '0.9em' }}>
+                              <div style={{ color: '#1a1a1a', fontWeight: 600, marginBottom: '4px' }}>{timeStr}</div>
+                              <div style={{ color: '#64748B', fontSize: '0.9em' }}>
                                 {event.location?.venue} · {event.location?.city}
                               </div>
                             </div>
@@ -4299,7 +4315,7 @@ useEffect(() => {
                               <span style={{ ...statusBadgeStyle, opacity: (event.status === 'CANCELLED' || event.status === 'cancelled') ? 0.7 : 1 }}>
                                 {status}
                               </span>
-                              <span style={{ color: '#aaa', fontSize: '0.9em' }}>
+                              <span style={{ color: '#64748B', fontSize: '0.9em' }}>
                                 {participantsCount}/{maxP} humoristes
                               </span>
                               {user?.role === 'ORGANIZER' && renderOrganizerActions(event, 'upcoming')}
@@ -4326,30 +4342,19 @@ useEffect(() => {
                         key={groupId}
                         onClick={() => setSelectedRecurrenceGroupId(groupId)}
                         style={{
+                          ...eventCardStyle,
                           padding: '16px 20px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                          borderRadius: '12px',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(255, 75, 43, 0.15)';
-                          e.currentTarget.style.borderColor = 'rgba(255, 75, 43, 0.4)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                           <div>
-                            <h3 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '1.1em' }}>{first?.title}</h3>
-                            <p style={{ margin: 0, color: '#aaa', fontSize: '0.9em' }}>
+                            <h3 style={{ margin: '0 0 6px 0', color: '#1a1a1a', fontSize: '1.1em' }}>{first?.title}</h3>
+                            <p style={{ margin: 0, color: '#64748B', fontSize: '0.9em' }}>
                               {dateFirst} → {dateLast} · {events.length} date(s)
                             </p>
                             {first?.location?.city && (
-                              <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '0.85em' }}>{first.location.venue} — {first.location.city}</p>
+                              <p style={{ margin: '4px 0 0 0', color: '#64748B', fontSize: '0.85em' }}>{first.location.venue} — {first.location.city}</p>
                             )}
                           </div>
                           <span style={{ ...cardDateBadgeStyle, flexShrink: 0 }}>{events.length} date(s)</span>

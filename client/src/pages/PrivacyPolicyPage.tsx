@@ -105,8 +105,8 @@ function PrivacyPolicyPage() {
           <h2 id="responsable" style={sectionTitleStyle}>1. Responsable du traitement</h2>
         <p style={textStyle}>
           <strong>Connect Comedy Club</strong><br />
-          Adresse : [À compléter]<br />
-          Email : [À compléter]
+          Adresse : 23 AVENUE CLEMENT ADER 78190 TRAPPES<br />
+          Email : contact.standupconnect@gmail.com
         </p>
 
         <h2 id="donnees-collectees" style={sectionTitleStyle}>2. Données personnelles collectées</h2>

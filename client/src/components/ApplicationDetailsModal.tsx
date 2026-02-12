@@ -67,6 +67,8 @@ function ApplicationDetailsModal({ isOpen, onClose, application }: ApplicationDe
         return 'Refusée';
       case 'EXPIRED':
         return 'Expirée';
+      case 'WITHDRAWN':
+        return 'Retirée';
       default:
         return status; // Fallback for other statuses
     }

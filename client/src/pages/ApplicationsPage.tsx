@@ -35,7 +35,7 @@ export interface IEventPopulated {
   endTime?: string;
   location: { address: string; city: string; venue?: string; };
   organizer: IUser; // Change to IUser
-  status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
+  status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED' | 'cancelled';
   requirements: { minExperience: number; maxPerformers: number; duration: number; };
   createdAt?: string;
   updatedAt?: string;
@@ -624,6 +624,9 @@ function ApplicationsPage() {
 
   const acceptedOrganizers = user?.role === 'COMEDIAN' ? getAcceptedOrganizers() : [];
 
+  const isEventCancelled = (event: IApplication['event']) =>
+    event?.status === 'CANCELLED' || event?.status === 'cancelled';
+
   const getComedianFilteredApplications = (): IApplication[] => {
     const base = applications.filter(app => app.event);
 
@@ -634,14 +637,16 @@ function ApplicationsPage() {
         tabFiltered = base.filter(app =>
           app.status === 'ACCEPTED' &&
           app.event?.date &&
-          isEventUpcoming(app.event.date)
+          isEventUpcoming(app.event.date) &&
+          !isEventCancelled(app.event)
         );
         break;
       case 'pending':
         tabFiltered = base.filter(app =>
           app.status === 'PENDING' &&
           app.event?.date &&
-          isEventUpcoming(app.event.date)
+          isEventUpcoming(app.event.date) &&
+          !isEventCancelled(app.event)
         );
         break;
       case 'rejected':
@@ -655,13 +660,12 @@ function ApplicationsPage() {
         tabFiltered = base.filter(app =>
           app.event?.date &&
           isEventPast(app.event.date) &&
-          app.status !== 'PENDING'
+          app.status !== 'PENDING' &&
+          !isEventCancelled(app.event)
         );
         break;
       case 'cancelled':
-        tabFiltered = base.filter(app =>
-          app.event?.status === 'CANCELLED'
-        );
+        tabFiltered = base.filter(app => isEventCancelled(app.event));
         break;
       default:
         return [];
@@ -698,29 +702,30 @@ function ApplicationsPage() {
     : [];
 
   const comedianTabCounts = {
-    accepted: applications.filter(app => 
-      app.status === 'ACCEPTED' && 
-      app.event?.date && 
+    accepted: applications.filter(app =>
+      app.status === 'ACCEPTED' &&
+      app.event?.date &&
+      isEventUpcoming(app.event.date) &&
+      !isEventCancelled(app.event)
+    ).length,
+    pending: applications.filter(app =>
+      app.status === 'PENDING' &&
+      app.event?.date &&
+      isEventUpcoming(app.event.date) &&
+      !isEventCancelled(app.event)
+    ).length,
+    rejected: applications.filter(app =>
+      app.status === 'REJECTED' &&
+      app.event?.date &&
       isEventUpcoming(app.event.date)
     ).length,
-    pending: applications.filter(app => 
-      app.status === 'PENDING' && 
-      app.event?.date && 
-      isEventUpcoming(app.event.date)
-    ).length,
-    rejected: applications.filter(app => 
-      app.status === 'REJECTED' && 
-      app.event?.date && 
-      isEventUpcoming(app.event.date)
-    ).length,
-    archived: applications.filter(app => 
-      app.event?.date && 
+    archived: applications.filter(app =>
+      app.event?.date &&
       isEventPast(app.event.date) &&
-      app.status !== 'PENDING'
+      app.status !== 'PENDING' &&
+      !isEventCancelled(app.event)
     ).length,
-    cancelled: applications.filter(app => 
-      app.event?.status === 'CANCELLED'
-    ).length,
+    cancelled: applications.filter(app => isEventCancelled(app.event)).length,
   };
 
   const comedianTabTitles: Record<ComedianApplicationTab, string> = {
@@ -839,6 +844,41 @@ function ApplicationsPage() {
     cursor: 'pointer',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
     flexWrap: isMobile ? 'nowrap' : 'wrap',
+  };
+
+  /** Fond jaune très clair lorsque la candidature est en attente */
+  const applicationCardStylePending: CSSProperties = {
+    backgroundColor: '#FFFDE7',
+    border: '1px solid #FFF9C4',
+    color: '#1a1a1a',
+  };
+
+  /** Fond vert lorsque la candidature est acceptée (comme pour les évènements complets) */
+  const applicationCardStyleAccepted: CSSProperties = {
+    backgroundColor: '#E1FFE6',
+    border: '1px solid #c8f0d0',
+    color: '#1a1a1a',
+  };
+
+  /** Fond rouge clair lorsque la candidature est refusée (comme dans la capture) */
+  const applicationCardStyleRejected: CSSProperties = {
+    backgroundColor: '#FFEBEE',
+    border: '1px solid #ffcdd2',
+    color: '#1a1a1a',
+  };
+
+  /** Fond blanc lorsque la candidature est expirée (comme dans la page évènements) */
+  const applicationCardStyleExpired: CSSProperties = {
+    backgroundColor: '#ffffff',
+    border: '1px solid rgba(0, 0, 0, 0.08)',
+    color: '#1a1a1a',
+  };
+
+  /** Fond gris lorsque la candidature est retirée (WITHDRAWN) */
+  const applicationCardStyleWithdrawn: CSSProperties = {
+    backgroundColor: '#f5f5f5',
+    border: '1px solid #e0e0e0',
+    color: '#1a1a1a',
   };
 
   const cardTitleStyle: CSSProperties = {
@@ -1041,6 +1081,8 @@ function ApplicationsPage() {
         return 'Refusée';
       case 'EXPIRED':
         return 'Expirée';
+      case 'WITHDRAWN':
+        return 'Retirée';
       default:
         return status; // Fallback for other statuses not directly related to application (e.g., event status)
     }
@@ -1481,48 +1523,51 @@ function ApplicationsPage() {
                   {paginatedComedianApplications.map(app => (
                     <div 
                       key={app._id} 
-                      style={applicationCardStyle}
+                      style={{
+                        ...applicationCardStyle,
+                        ...(app.status === 'PENDING' ? applicationCardStylePending : app.status === 'ACCEPTED' ? applicationCardStyleAccepted : app.status === 'REJECTED' ? applicationCardStyleRejected : app.status === 'EXPIRED' ? applicationCardStyleExpired : app.status === 'WITHDRAWN' ? applicationCardStyleWithdrawn : {}),
+                      }}
                       onClick={() => { setSelectedApplication(app); setIsModalOpen(true); }}
                     >
                       <div style={comedianApplicationRowStyle}>
                         <div style={comedianApplicationInfoStyle}>
                           {/* Ligne 1 : Titre + Date */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: isMobile ? 'wrap' : 'nowrap', marginBottom: '8px' }}>
-                            <h3 style={{ ...cardTitleStyle, margin: 0, lineHeight: 1.2 }}>{app.event.title}</h3>
-                            <span style={{ ...comedianApplicationDateBadgeStyle, display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}>
+                            <h3 style={{ ...cardTitleStyle, margin: 0, lineHeight: 1.2, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a' } : {}) }}>{app.event.title}</h3>
+                            <span style={{ ...comedianApplicationDateBadgeStyle, display: 'inline-flex', alignItems: 'center', lineHeight: 1, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a', border: '1px solid rgba(0,0,0,0.12)', backgroundColor: 'rgba(0,0,0,0.04)' } : {}) }}>
                               {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
                             </span>
                           </div>
 
                           {/* Ligne 2 : Organisateur */}
-                          <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#9ad7ff' }}>
+                          <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#9ad7ff' }}>
                             · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
                           </p>
 
                           {/* Heure de l'évènement */}
                           {(app.event.startTime || app.event.endTime) && (
-                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#ccc' }}>
                               · Heure: {[app.event.startTime, app.event.endTime].filter(Boolean).join(' – ')}
                             </p>
                           )}
 
                           {/* Lieu */}
                           {app.event.location && (app.event.location.venue || app.event.location.city || app.event.location.address) && (
-                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#ccc' }}>
                               · Lieu: {[app.event.location.venue, app.event.location.city, app.event.location.address].filter(Boolean).join(' — ')}
                             </p>
                           )}
 
                           {/* Durée de l'évènement */}
                           {app.event.requirements?.duration != null && (
-                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: '#ccc' }}>
+                            <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#ccc' }}>
                               · Durée de l'évènement: {app.event.requirements.duration} min
                             </p>
                           )}
 
                           {/* Ligne 3 : Prestation = durée (min) et/ou description indiquées par l'humoriste en candidatant */}
                           {app.performanceDetails && (app.performanceDetails.duration != null || app.performanceDetails.description) && (
-                            <p style={{ ...cardDetailStyle, color: '#9ad7ff', margin: 0, marginBottom: '4px' }}>
+                            <p style={{ ...cardDetailStyle, color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#9ad7ff', margin: 0, marginBottom: '4px' }}>
                               · Prestation: {[
                                 app.performanceDetails.duration != null ? `${app.performanceDetails.duration} min` : null,
                                 app.performanceDetails.description || null
@@ -1532,7 +1577,7 @@ function ApplicationsPage() {
 
                           {/* Ligne 4 : Message (si disponible) */}
                           {app.message && (
-                            <p style={{ ...cardDetailStyle, margin: 0, color: '#ccc' }}>
+                            <p style={{ ...cardDetailStyle, margin: 0, color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#ccc' }}>
                               · Message: {app.message}
                             </p>
                           )}
@@ -1540,8 +1585,21 @@ function ApplicationsPage() {
 
                         <div style={comedianApplicationStatusStyle}>
                           <span style={statusBadgeStyle(app.status)}>Statut: {translateStatus(app.status)}</span>
+                          {/* Tag Annulé quand l'événement a été annulé par l'organisateur */}
+                          {user?.role === 'COMEDIAN' && isEventCancelled(app.event) && (
+                            <span style={{
+                              ...statusBadgeStyle(app.status),
+                              marginTop: '8px',
+                              display: 'inline-block',
+                              backgroundColor: 'rgba(0,0,0,0.12)',
+                              color: '#64748B',
+                              border: '1px solid rgba(0,0,0,0.2)',
+                            }}>
+                              Annulé
+                            </span>
+                          )}
                           {/* Afficher le statut supplémentaire sur les cartes archivées */}
-                          {comedianTab === 'archived' && app.status !== 'EXPIRED' && (
+                          {comedianTab === 'archived' && app.status !== 'EXPIRED' && !isEventCancelled(app.event) && (
                             <span style={{
                               ...statusBadgeStyle(app.status),
                               marginTop: '8px',
@@ -1550,8 +1608,8 @@ function ApplicationsPage() {
                               {app.status === 'ACCEPTED' ? '✓ Acceptée' : app.status === 'REJECTED' ? '✕ Refusée' : ''}
                             </span>
                           )}
-                          {/* Boutons de confirmation/désinscription pour les événements modifiés */}
-                          {user?.role === 'COMEDIAN' && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
+                          {/* Boutons de confirmation/désinscription pour les événements modifiés (masqués si événement annulé) */}
+                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button
                                 onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -1603,8 +1661,8 @@ function ApplicationsPage() {
                               </button>
                             </div>
                           )}
-                          {/* Bouton de désinscription pour le tab "accepted" */}
-                          {user?.role === 'COMEDIAN' && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
+                          {/* Bouton de désinscription pour le tab "accepted" (masqué si événement annulé) */}
+                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
@@ -1682,7 +1740,10 @@ function ApplicationsPage() {
                   {paginatedOrganizerApplications.map((app) => (
                   <div 
                     key={app._id} 
-                    style={applicationCardStyle}
+                    style={{
+                      ...applicationCardStyle,
+                      ...(app.status === 'PENDING' ? applicationCardStylePending : app.status === 'ACCEPTED' ? applicationCardStyleAccepted : app.status === 'REJECTED' ? applicationCardStyleRejected : app.status === 'EXPIRED' ? applicationCardStyleExpired : app.status === 'WITHDRAWN' ? applicationCardStyleWithdrawn : {}),
+                    }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-2px)';
                       e.currentTarget.style.boxShadow = '0 6px 15px rgba(0, 0, 0, 0.6)';
@@ -1711,8 +1772,8 @@ function ApplicationsPage() {
                           )}
                         </div>
                         <div style={comedianDetailsStyle}>
-                          <p style={comedianNameTextStyle}>{app.comedian.firstName} {app.comedian.lastName}</p>
-                          <p style={comedianRoleTextStyle}>Humoriste</p>
+                          <p style={{ ...comedianNameTextStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a' } : {}) }}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                          <p style={{ ...comedianRoleTextStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#64748B' } : {}) }}>Humoriste</p>
                           <GeographicCompatibilityBadge 
                             eventCity={app.event.location.city} 
                             mobilityZones={app.comedian.profile?.mobilityZone}
@@ -1732,8 +1793,8 @@ function ApplicationsPage() {
 
                     {/* Section centre - Info évènement */}
                     <div style={eventInfoStyle}>
-                      <h3 style={eventTitleStyle}>{app.event.title}</h3>
-                      <p style={eventDateStyle}>
+                      <h3 style={{ ...eventTitleStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a' } : {}) }}>{app.event.title}</h3>
+                      <p style={{ ...eventDateStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#64748B' } : {}) }}>
                         📅 {app.event?.date ? new Date(app.event.date).toLocaleDateString() : 'Date non disponible'}
                       </p>
                     </div>
