@@ -469,22 +469,6 @@ function RegisterPage() {
             {errors.experience && <div style={errorStyle}>{errors.experience}</div>}
           </div>
 
-          {/* Rôle */}
-          <div>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChangeRegister}
-              style={{
-                ...inputStyle,
-                borderColor: errors.role ? '#ef4444' : '#444'
-              }}
-          >
-            <option value="COMEDIAN">Humoriste</option>
-            <option value="ORGANIZER">Organisateur</option>
-          </select>
-          </div>
-
           {/* Consentement CGU/RGPD */}
           <div style={{ marginTop: '15px', marginBottom: '10px' }}>
             <label style={{

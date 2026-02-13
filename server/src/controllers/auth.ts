@@ -18,7 +18,7 @@ import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter'
 export const register = async (req: Request, res: Response) => {
   try {
     console.log('📝 [REGISTER] Données reçues:', JSON.stringify(req.body, null, 2));
-    const { email, phone, password, firstName, lastName, role, city, profile: profileData, consent } = req.body;
+    const { email, phone, password, firstName, lastName, role, city, birthDate, profile: profileData, consent } = req.body;
 
     console.log('📝 [REGISTER] Rôle:', role);
     console.log('📝 [REGISTER] Profile data:', profileData);
@@ -77,6 +77,7 @@ export const register = async (req: Request, res: Response) => {
       lastName,
       role,
       city: city || '',
+      ...(birthDate && { birthDate: new Date(birthDate) }),
       // Enregistrement du consentement RGPD
       consent: {
         termsAccepted: consent?.termsAccepted || false,

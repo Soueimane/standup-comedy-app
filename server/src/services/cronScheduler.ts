@@ -52,6 +52,12 @@ const cronJobs: CronJob[] = [
     schedule: config.cron.accountCleanupSchedule,
     endpoint: '/api/users/jobs/cleanup-deactivated',
     enabled: config.cron.enabled
+  },
+  {
+    name: 'Récap quotidien spectateurs (événements dans le rayon)',
+    schedule: config.cron.dailySpectatorRecapSchedule,
+    endpoint: '/api/email/jobs/daily-spectator-recap',
+    enabled: config.cron.enabled
   }
 ];
 

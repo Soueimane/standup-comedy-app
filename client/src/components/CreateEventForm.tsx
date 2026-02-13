@@ -18,6 +18,8 @@ interface CreateEventFormProps {
       country?: string;
       date?: string;
       venue?: string;
+      venueType?: string;
+      maxSpectators?: number;
       startTime?: string;
       endTime?: string;
       minExperience?: number;
@@ -62,6 +64,8 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     country: initialData?.country || '',
     date: initialData?.date || new Date().toISOString().split('T')[0], // Format YYYY-MM-DD par défaut
     venue: initialData?.venue || '',
+    venueType: initialData?.venueType || '',
+    maxSpectators: initialData?.maxSpectators != null ? String(initialData.maxSpectators) : '',
     startTime: initialData?.startTime || '',
     endTime: initialData?.endTime || '',
     minExperience: initialData?.minExperience?.toString() || '',
@@ -140,6 +144,8 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         country: initialData.country || '',
         date: initialData.date || new Date().toISOString().split('T')[0],
         venue: initialData.venue || '',
+        venueType: initialData.venueType || '',
+        maxSpectators: initialData.maxSpectators != null ? String(initialData.maxSpectators) : '',
         startTime: initialData.startTime || '',
         endTime: initialData.endTime || '',
         minExperience: initialData.minExperience?.toString() || '',
@@ -158,6 +164,8 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         country: '',
         date: new Date().toISOString().split('T')[0],
         venue: '',
+        venueType: '',
+        maxSpectators: '',
         startTime: '',
         endTime: '',
         minExperience: '',
@@ -836,6 +844,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         description: formData.description,
         location: {
           venue: formData.venue,
+          venueType: formData.venueType || undefined,
           address: formData.address,
           city: formData.city,
           postalCode: postalCode || undefined,
@@ -851,6 +860,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         status: formData.status,
         startTime: formData.startTime,
         endTime: formData.endTime,
+        maxSpectators: formData.maxSpectators && formData.maxSpectators.trim() ? parseInt(formData.maxSpectators, 10) : undefined,
       };
 
       const config = {
@@ -1704,6 +1714,51 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   {errors.endTime && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                       {errors.endTime}
+                    </p>
+                  )}
+                </div>
+
+                {/* Type de lieu */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Type de lieu
+                  </label>
+                  <select
+                    id="venueType"
+                    value={formData.venueType}
+                    onChange={handleChange}
+                    style={selectStyle}
+                  >
+                    <option value="">-- Sélectionnez --</option>
+                    <option value="theatre">Théâtre</option>
+                    <option value="salle_polyvalente">Salle polyvalente</option>
+                    <option value="cafe">Café</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+
+                {/* Nombre de places pour spectateur */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Nombre de places pour spectateur
+                  </label>
+                  <input
+                    type="number"
+                    id="maxSpectators"
+                    value={formData.maxSpectators}
+                    onChange={handleChange}
+                    min={1}
+                    max={10000}
+                    placeholder="Nombre de places pour spectateur"
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.maxSpectators ? '#ef4444' : '#444'
+                    }}
+                  />
+                  {errors.maxSpectators && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.maxSpectators}
                     </p>
                   )}
                 </div>

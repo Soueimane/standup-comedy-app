@@ -12,6 +12,8 @@ import { AbsenceModel } from '../models/Absence';
 import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
 import { Types } from 'mongoose';
 import { extractPostalCode, getDepartmentFromPostalCode } from '../utils/cityMapping';
+import { getCityCoordinates } from '../utils/cityMapping';
+import { notifySpectatorsInRadius } from '../services/spectatorNotificationService';
 
 // ============================================================================
 // CREATE EVENT
@@ -27,7 +29,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, isRecurring, dateTimes } = req.body;
+    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, maxSpectators, isRecurring, dateTimes } = req.body;
 
     // Si c'est un événement récurrent avec plusieurs dates
     if (isRecurring && dates && Array.isArray(dates) && dates.length > 0) {
@@ -41,6 +43,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
         endTime,
         budget,
         maxPerformers,
+        maxSpectators,
         dateTimes: Array.isArray(dateTimes) ? dateTimes : undefined,
       });
     }
@@ -76,11 +79,25 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       endTime,
       venue: location.venue,
       budget,
-      maxPerformers
+      maxPerformers,
+      maxSpectators: maxSpectators != null ? Number(maxSpectators) : undefined,
     });
 
     await event.save();
     console.log('✅ Évènement sauvegardé avec succès:', event._id);
+
+    // Géocoder l'événement pour le rayon spectateurs (async, non bloquant)
+    const loc = event.location;
+    if (loc && (loc as any).latitude == null && (loc as any).longitude == null && loc.city) {
+      getCityCoordinates(loc.city, (loc as any).postalCode).then((coords) => {
+        if (coords) {
+          EventModel.updateOne(
+            { _id: event._id },
+            { $set: { 'location.latitude': coords.lat, 'location.longitude': coords.lon } }
+          ).catch((e) => console.warn('Geocode event location:', e));
+        }
+      });
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventCreated(event._id.toString());
@@ -138,6 +155,15 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       // Ne pas faire échouer la création de l'événement si la notification échoue
     }
 
+    // Notifier les spectateurs dans le rayon (nouvel événement publié)
+    const eventStatus = (event as any).status?.toLowerCase?.() || '';
+    if (eventStatus === 'published') {
+      const eventForNotif = (event.toObject ? event.toObject() : event) as { _id: Types.ObjectId; title: string; date: Date; location?: { city?: string; postalCode?: string; latitude?: number; longitude?: number } };
+      notifySpectatorsInRadius(event._id.toString(), eventForNotif).catch((err) => {
+        console.error('❌ [EVENT_UNIQUE] Erreur notification spectateurs par rayon (non-bloquant):', err);
+      });
+    }
+
     // Convertir l'évènement en objet JSON pour éviter les problèmes de sérialisation
     const eventResponse = event.toObject ? event.toObject() : event;
 
@@ -171,6 +197,7 @@ const createRecurringEvents = async (
     endTime?: string;
     budget?: any;
     maxPerformers?: number;
+    maxSpectators?: number;
     /** Heures par date (optionnel). Si fourni, utilise startTime/endTime par date au lieu des valeurs globales. */
     dateTimes?: Array<{ date: string; startTime: string; endTime: string }>;
   }
@@ -310,6 +337,7 @@ const createRecurringEvents = async (
           venue: enhancedLocation.venue,
           budget: eventData.budget,
           maxPerformers: eventData.maxPerformers,
+          maxSpectators: eventData.maxSpectators != null ? Number(eventData.maxSpectators) : undefined,
           recurrenceGroupId: recurrenceGroupId
         });
 
@@ -491,6 +519,13 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const organizerId = req.query.organizerId as string;
+    const city = req.query.city as string;
+    const cityRadius = req.query.cityRadius as string; // rayon autour de la ville recherchée
+    const type = req.query.type as string; // recherche par mot-clé (titre / description)
+    const venueType = req.query.venueType as string; // filtre par type de lieu
+    const myRegistrations = req.query.myRegistrations === 'true';
+    const nearMe = req.query.nearMe === 'true';
+    const radiusKmParam = req.query.radiusKm as string; // 5, 10, 20, 50
     const userRole = req.user?.role;
     const userId = req.user?.id;
 
@@ -503,20 +538,78 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
       res.status(400).json({ message: 'Invalid organizerId format' });
       return;
     } else if (userRole === 'ORGANIZER') {
-      // If no specific organizerId, and user is an ORGANIZER, show their own events
       query.organizer = userId;
-    } else if (userRole === 'COMEDIAN') {
-      // For comedians, show all published events
+    } else if (userRole === 'COMEDIAN' || userRole === 'SPECTATOR') {
       query.status = { $in: ['published', 'PUBLISHED', 'completed', 'COMPLETED', 'cancelled', 'CANCELLED'] };
     } else if (userRole === 'SUPER_ADMIN') {
-      // Super Admin can see ALL events
       query = {};
     } else {
-      // Fallback
       query.status = 'published';
     }
 
-    const events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email');
+    // Filtre "mes inscriptions" pour le spectateur
+    if (userRole === 'SPECTATOR' && myRegistrations && userId) {
+      query.spectatorRegistrations = new mongoose.Types.ObjectId(userId);
+    }
+
+    // Filtre par ville (lieu) — si cityRadius est fourni, on filtre par distance après la requête
+    const cityRadiusKm = [5, 10, 20, 50].includes(Number(cityRadius)) ? Number(cityRadius) : 0;
+    if (city && city.trim() && !cityRadiusKm) {
+      query['location.city'] = new RegExp(city.trim(), 'i');
+    }
+
+    // Filtre par type (mot-clé dans titre ou description)
+    if (type && type.trim()) {
+      query.$or = [
+        { title: new RegExp(type.trim(), 'i') },
+        { description: new RegExp(type.trim(), 'i') },
+      ];
+    }
+
+    // Filtre par type de lieu
+    if (venueType && ['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre'].includes(venueType.trim())) {
+      query['location.venueType'] = venueType.trim();
+    }
+
+    let events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email').populate('spectatorRegistrations', 'firstName lastName');
+
+    // Filtre "près de moi" (rayon en km) pour le spectateur
+    if (userRole === 'SPECTATOR' && nearMe && userId) {
+      const { getEventCoordinates, getSpectatorCoordinates } = await import('../services/spectatorNotificationService');
+      const { distanceKm } = await import('../utils/cityMapping');
+      const spectator = await UserModel.findById(userId).select('city latitude longitude spectatorPreferences').lean();
+      if (spectator) {
+        const specCoords = await getSpectatorCoordinates(spectator as any);
+        const radiusKm = [5, 10, 20, 50].includes(Number(radiusKmParam)) ? Number(radiusKmParam) : (spectator as any).spectatorPreferences?.radiusKm ?? 20;
+        if (specCoords) {
+          const inRadius: typeof events = [];
+          for (const ev of events) {
+            const coords = await getEventCoordinates(ev as any);
+            if (coords && distanceKm(coords.lat, coords.lon, specCoords.lat, specCoords.lon) <= radiusKm) {
+              inRadius.push(ev);
+            }
+          }
+          events = inRadius;
+        }
+      }
+    }
+
+    // Filtre par rayon autour de la ville recherchée
+    if (city && city.trim() && cityRadiusKm > 0) {
+      const { getEventCoordinates } = await import('../services/spectatorNotificationService');
+      const { getCityCoordinates, distanceKm } = await import('../utils/cityMapping');
+      const cityCoords = await getCityCoordinates(city.trim());
+      if (cityCoords) {
+        const inRadius: typeof events = [];
+        for (const ev of events) {
+          const coords = await getEventCoordinates(ev as any);
+          if (coords && distanceKm(cityCoords.lat, cityCoords.lon, coords.lat, coords.lon) <= cityRadiusKm) {
+            inRadius.push(ev);
+          }
+        }
+        events = inRadius;
+      }
+    }
 
     // Filtrer les évènements qui n'ont pas d'organisateur valide
     const validEvents = events.filter(event => {
@@ -619,6 +712,89 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
   } catch (error) {
     console.error('Get event error:', error);
     res.status(500).json({ message: 'Error fetching event' });
+  }
+};
+
+// ============================================================================
+// SPECTATOR REGISTRATION (s'inscrire à un événement)
+// ============================================================================
+export const registerSpectator = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || userRole !== 'SPECTATOR') {
+      res.status(403).json({ message: 'Seuls les spectateurs peuvent s\'inscrire à un événement' });
+      return;
+    }
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'ID d\'événement invalide' });
+      return;
+    }
+
+    const event = await EventModel.findById(eventId);
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+    if (event.status?.toLowerCase() === 'cancelled') {
+      res.status(400).json({ message: 'Cet événement est annulé' });
+      return;
+    }
+
+    const withdrawnSpectators = (event as any).withdrawnSpectators || [];
+    if (withdrawnSpectators.some((id: mongoose.Types.ObjectId) => id.toString() === userId)) {
+      res.status(403).json({ message: 'Vous vous êtes désinscrit de cet événement ; la réinscription n\'est pas possible.' });
+      return;
+    }
+    const spectatorRegistrations = event.spectatorRegistrations || [];
+    if (spectatorRegistrations.some((id) => id.toString() === userId)) {
+      res.status(409).json({ message: 'Vous êtes déjà inscrit à cet événement' });
+      return;
+    }
+    const maxSpectators = (event as any).maxSpectators;
+    if (maxSpectators != null && typeof maxSpectators === 'number' && spectatorRegistrations.length >= maxSpectators) {
+      res.status(409).json({ message: 'Plus de places disponibles pour les spectateurs' });
+      return;
+    }
+
+    await EventModel.findByIdAndUpdate(eventId, {
+      $addToSet: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
+    });
+
+    const updated = await EventModel.findById(eventId).populate('organizer', 'firstName lastName email').populate('spectatorRegistrations', 'firstName lastName');
+    res.status(201).json({ message: 'Inscription enregistrée', event: updated });
+  } catch (error) {
+    console.error('Register spectator error:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'inscription' });
+  }
+};
+
+export const unregisterSpectator = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || userRole !== 'SPECTATOR') {
+      res.status(403).json({ message: 'Non autorisé' });
+      return;
+    }
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'ID d\'événement invalide' });
+      return;
+    }
+
+    await EventModel.findByIdAndUpdate(eventId, {
+      $pull: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
+      $addToSet: { withdrawnSpectators: new mongoose.Types.ObjectId(userId) },
+    });
+
+    res.status(200).json({ message: 'Désinscription enregistrée' });
+  } catch (error) {
+    console.error('Unregister spectator error:', error);
+    res.status(500).json({ message: 'Erreur lors de la désinscription' });
   }
 };
 
@@ -772,6 +948,30 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
           } catch (notificationError) {
             console.error('Erreur lors de la création des notifications in-app pour l\'annulation:', notificationError);
           }
+          console.log(`✅ [Annulation] Notifications in-app créées pour ${affectedApplications.length} candidature(s).`);
+
+          // Notifier les spectateurs inscrits à l'événement (annulation)
+          const spectatorIds = (updatedEvent.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+          if (spectatorIds.length > 0) {
+            try {
+              const { createNotification } = await import('./notification');
+              for (const sid of spectatorIds) {
+                const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+                if (spectatorId) {
+                  await createNotification(
+                    spectatorId,
+                    'event_cancelled',
+                    'Évènement annulé',
+                    `L'évènement "${updatedEvent.title}" auquel vous étiez inscrit a été annulé.`,
+                    updatedEvent._id.toString()
+                  );
+                }
+              }
+              console.log(`✅ [Annulation] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+            } catch (notifErr) {
+              console.error('Erreur notifications in-app spectateurs (annulation):', notifErr);
+            }
+          }
         } else {
           // Sinon, envoyer une notification de mise à jour classique
           try {
@@ -781,7 +981,6 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
               email: organizer.email,
             });
             console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
-
             // Créer des notifications in-app pour les humoristes concernés
             try {
               const { createNotification } = await import('./notification');
@@ -809,6 +1008,31 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
         }
       } else {
         console.log('ℹ️ [DEBUG] Aucun destinataire email trouvé ou organisateur introuvable.');
+      }
+    }
+
+    // Notifier les spectateurs inscrits en cas de modification (évènement non annulé)
+    if (updatedEvent && updatedEvent.status !== 'cancelled' && new Date(updatedEvent.date) >= new Date()) {
+      const spectatorIds = (updatedEvent.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+      if (spectatorIds.length > 0) {
+        try {
+          const { createNotification } = await import('./notification');
+          for (const sid of spectatorIds) {
+            const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+            if (spectatorId) {
+              await createNotification(
+                spectatorId,
+                'event_updated',
+                'Évènement modifié',
+                `L'évènement "${updatedEvent.title}" auquel vous êtes inscrit a été modifié.`,
+                updatedEvent._id.toString()
+              );
+            }
+          }
+          console.log(`✅ [Mise à jour] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+        } catch (notifErr) {
+          console.error('Erreur notifications in-app spectateurs (mise à jour):', notifErr);
+        }
       }
     }
 
@@ -895,6 +1119,29 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
       }
     } catch (emailErr) {
       console.error('❌ Erreur lors de l\'envoi des emails d\'annulation avant suppression:', emailErr);
+    }
+
+    // Notifier les spectateurs inscrits (événement supprimé)
+    const spectatorIds = (event.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+    if (spectatorIds.length > 0) {
+      try {
+        const { createNotification } = await import('./notification');
+        for (const sid of spectatorIds) {
+          const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+          if (spectatorId) {
+            await createNotification(
+              spectatorId,
+              'event_cancelled',
+              'Évènement annulé',
+              `L'évènement "${event.title}" auquel vous étiez inscrit a été annulé par l'organisateur.`,
+              eventId
+            );
+          }
+        }
+        console.log(`✅ [Suppression] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+      } catch (notifErr) {
+        console.error('Erreur notifications in-app spectateurs (suppression):', notifErr);
+      }
     }
 
     // Delete all applications for this event after notifications

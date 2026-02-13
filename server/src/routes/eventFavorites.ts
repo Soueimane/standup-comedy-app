@@ -19,7 +19,7 @@ const router = express.Router();
  * Body: { eventId: string }
  * Response: { message: string, favoriteEvents: ObjectId[] }
  */
-router.post('/', authMiddleware, authorizeRoles('COMEDIAN'), addEventFavorite);
+router.post('/', authMiddleware, authorizeRoles('COMEDIAN', 'SPECTATOR'), addEventFavorite);
 
 /**
  * DELETE /:eventId
@@ -27,14 +27,14 @@ router.post('/', authMiddleware, authorizeRoles('COMEDIAN'), addEventFavorite);
  * Params: eventId
  * Response: { message: string, favoriteEvents: ObjectId[] }
  */
-router.delete('/:eventId', authMiddleware, authorizeRoles('COMEDIAN'), removeEventFavorite);
+router.delete('/:eventId', authMiddleware, authorizeRoles('COMEDIAN', 'SPECTATOR'), removeEventFavorite);
 
 /**
  * GET /
  * Récupère la liste des évènements favoris du comédien
  * Response: { favorites: Event[] }
  */
-router.get('/', authMiddleware, authorizeRoles('COMEDIAN'), getEventFavorites);
+router.get('/', authMiddleware, authorizeRoles('COMEDIAN', 'SPECTATOR'), getEventFavorites);
 
 /**
  * GET /check/:eventId
@@ -42,6 +42,6 @@ router.get('/', authMiddleware, authorizeRoles('COMEDIAN'), getEventFavorites);
  * Params: eventId
  * Response: { isFavorite: boolean }
  */
-router.get('/check/:eventId', authMiddleware, authorizeRoles('COMEDIAN'), checkIsEventFavorite);
+router.get('/check/:eventId', authMiddleware, authorizeRoles('COMEDIAN', 'SPECTATOR'), checkIsEventFavorite);
 
 export default router;

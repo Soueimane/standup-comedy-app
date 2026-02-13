@@ -8,6 +8,8 @@
 // Cache en mémoire pour éviter les appels API répétitifs
 const cityCache: Map<string, { department: string | null; region: string | null }> = new Map();
 const postalCodeCache: Map<string, { department: string | null; region: string | null }> = new Map();
+const coordinatesCache: Map<string, { lat: number; lon: number }> = new Map();
+const coordinatesCacheTimestamps: Map<string, number> = new Map();
 
 // Durée de vie du cache: 24 heures
 const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -65,14 +67,9 @@ interface GeoGouvCommune {
   code: string;
   codeDepartement: string;
   codeRegion: string;
-  departement?: {
-    code: string;
-    nom: string;
-  };
-  region?: {
-    code: string;
-    nom: string;
-  };
+  departement?: { code: string; nom: string };
+  region?: { code: string; nom: string };
+  centre?: { type: string; coordinates: [number, number] }; // [lon, lat]
 }
 
 /**
@@ -172,6 +169,68 @@ export const getCityGeoInfo = async (city: string): Promise<{ department: string
     }
     return { department: null, region: null };
   }
+};
+
+/**
+ * Récupère les coordonnées (lat, lon) d'une ville via l'API Geo Gouv.
+ * Utiliser code postal en priorité si fourni pour éviter les ambiguïtés.
+ */
+export const getCityCoordinates = async (
+  city: string,
+  postalCode?: string
+): Promise<{ lat: number; lon: number } | null> => {
+  const cacheKey = postalCode ? `cp:${postalCode}` : `city:${normalizeString(city)}`;
+  const cached = coordinatesCache.get(cacheKey);
+  const cacheTime = coordinatesCacheTimestamps.get(cacheKey);
+  if (cached && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
+    return cached;
+  }
+
+  try {
+    const url = postalCode && /^\d{5}$/.test(String(postalCode).trim())
+      ? `https://geo.api.gouv.fr/communes?codePostal=${encodeURIComponent(String(postalCode).trim())}&fields=centre&limit=1`
+      : `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(normalizeCityForAPI(city || ''))}&fields=centre&limit=1`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) return null;
+    const data = (await response.json()) as GeoGouvCommune[];
+    if (!data?.length || !data[0].centre?.coordinates) return null;
+
+    const [lon, lat] = data[0].centre.coordinates;
+    const result = { lat, lon };
+    coordinatesCache.set(cacheKey, result);
+    coordinatesCacheTimestamps.set(cacheKey, Date.now());
+    return result;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Distance en km entre deux points (formule de Haversine).
+ */
+export const distanceKm = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371; // Rayon terrestre en km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
 /**

@@ -417,6 +417,26 @@ export const sendOrganizerRemindersCron = async (req: Request, res: Response): P
  *
  * Cron job: s'exécute 1x par jour
  */
+/**
+ * Cron job: récapitulatif quotidien pour les spectateurs (événements dans leur rayon).
+ * Max 1 email par jour par spectateur.
+ */
+export const dailySpectatorRecapCron = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cronKey = req.header('X-CRON-KEY');
+    if (!cronKey || cronKey !== config.cron.secret) {
+      res.status(401).json({ message: 'Non autorisé' });
+      return;
+    }
+    const { runDailySpectatorRecap } = await import('../services/spectatorNotificationService');
+    const result = await runDailySpectatorRecap();
+    res.json({ message: 'Récap spectateurs envoyé', ...result });
+  } catch (error) {
+    console.error('❌ dailySpectatorRecapCron:', error);
+    res.status(500).json({ message: 'Erreur', error: (error as Error).message });
+  }
+};
+
 export const sendMobilityRemindersForIncompleteEventsCron = async (req: Request, res: Response): Promise<void> => {
   try {
     // --- SÉCURITÉ: Vérifier l'authentification du cron ---

@@ -96,6 +96,17 @@ export const checkIsEventFavorite = async (eventId: string) => {
   return response.data;
 };
 
+// Inscription / désinscription spectateur à un événement
+export const registerSpectatorToEvent = async (eventId: string) => {
+  const response = await api.post(`/events/${eventId}/spectator-register`);
+  return response.data;
+};
+
+export const unregisterSpectatorFromEvent = async (eventId: string) => {
+  const response = await api.delete(`/events/${eventId}/spectator-register`);
+  return response.data;
+};
+
 // Fonctions pour gérer les favoris de comédiens (organisateurs)
 export const addFavorite = async (comedianId: string) => {
   const response = await api.post('/favorites', { comedianId });

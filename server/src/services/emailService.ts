@@ -3397,3 +3397,47 @@ L'équipe Connect Comedy Club
     console.error('❌ Erreur lors de l\'envoi de l\'email urgent aux humoristes:', error);
   }
 };
+
+/**
+ * Email récapitulatif quotidien pour les spectateurs (événements dans leur rayon).
+ * Max 1 envoi par jour (géré par l'appelant avec lastDailyRecapAt).
+ */
+export const sendDailySpectatorRecapEmail = async (
+  spectator: { email: string; firstName?: string; lastName?: string },
+  events: Array<{ title?: string; date?: Date; location?: { city?: string } }>
+): Promise<void> => {
+  if (!config.email.smtpUser || !config.email.smtpPass) {
+    console.warn('📧 Email non configuré, récap spectateur ignoré');
+    return;
+  }
+
+  const name = [spectator.firstName, spectator.lastName].filter(Boolean).join(' ') || 'Spectateur';
+  const eventList = events
+    .slice(0, 20)
+    .map(
+      (e) =>
+        `• ${e.title || 'Événement'} - ${e.date ? new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''}${e.location?.city ? ` (${e.location.city})` : ''}`
+    )
+    .join('\n');
+
+  const htmlContent = `
+    <div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);padding:24px;font-family:Arial,sans-serif;">
+      <h2 style="color:#1a1a2e;margin-bottom:16px;">Récap des événements près de chez vous</h2>
+      <p style="color:#444;">Bonjour ${name},</p>
+      <p style="color:#444;">Voici les nouveaux événements dans votre rayon ces dernières 24h :</p>
+      <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-line;font-size:14px;">${eventList}</div>
+      <p style="color:#444;">
+        <a href="${config.frontend.url}/spectateur" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#FF5A7E,#FF7A92);color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">Voir sur l'accueil</a>
+      </p>
+      <p style="color:#888;font-size:12px;">Connect Comedy Club – 1 récap par jour maximum.</p>
+    </div>
+  `.trim();
+
+  await sgMail.send({
+    from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+    to: spectator.email,
+    subject: `Récap : ${events.length} événement(s) près de chez vous`,
+    html: htmlContent,
+    categories: ['spectator-recap', 'evenement'],
+  });
+};

@@ -11,7 +11,9 @@ export interface EventDocument extends Document {
   requirements: EventRequirements;
   applications: Types.ObjectId[];
   participants: Types.ObjectId[];
-  withdrawnComedians: Types.ObjectId[]; // Nouveaux: humoristes qui se sont désinscrits
+  spectatorRegistrations?: Types.ObjectId[];
+  withdrawnComedians: Types.ObjectId[]; // Humoristes qui se sont désinscrits
+  withdrawnSpectators?: Types.ObjectId[]; // Spectateurs qui se sont désinscrits (réinscription interdite)
   startTime?: string;
   endTime?: string;
   venue?: string;
@@ -37,6 +39,8 @@ export interface EventDocument extends Document {
   };
   // Récurrence : ID du groupe d'événements récurrents
   recurrenceGroupId?: Types.ObjectId;
+  /** Nombre max de places pour spectateurs (optionnel) */
+  maxSpectators?: number;
   // Annulation tardive : boost recommandations
   hasLateCancellation?: boolean;
   lateCancellationAt?: Date;
@@ -49,11 +53,14 @@ export interface EventDocument extends Document {
 
 const locationSchema = new Schema<Location>({
   venue: { type: String, required: false },
+  venueType: { type: String, enum: ['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre'], required: false },
   address: { type: String, required: true },
   city: { type: String, required: true },
   postalCode: { type: String, required: false },
   department: { type: String, required: false },
-  country: { type: String, required: true }
+  country: { type: String, required: true },
+  latitude: { type: Number, required: false },
+  longitude: { type: Number, required: false },
 });
 
 const requirementsSchema = new Schema<EventRequirements>({
@@ -109,7 +116,18 @@ const eventSchema = new Schema<EventDocument>({
     ref: 'User',
     default: []
   }],
+  /** Spectateurs inscrits à l'événement (réservation / suivi) */
+  spectatorRegistrations: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
   withdrawnComedians: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
+  withdrawnSpectators: [{
     type: Schema.Types.ObjectId,
     ref: 'User',
     default: []
@@ -147,6 +165,7 @@ const eventSchema = new Schema<EventDocument>({
     j2Sent: { type: Boolean, default: false },
     j1Sent: { type: Boolean, default: false }
   },
+  maxSpectators: { type: Number, required: false },
   // Schéma pour le tracking des relances humoristes par mobilité (événements incomplets)
   mobilityReminders: {
     j2: {

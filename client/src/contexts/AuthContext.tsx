@@ -205,6 +205,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else if (data.user.role === "SUPER_ADMIN") {
         console.log("🔥 SUPER_ADMIN connecté, redirection vers dashboard");
         navigate("/dashboard");
+      } else if (data.user.role === "SPECTATOR") {
+        navigate("/spectateur");
       } else {
         navigate("/");
       }
@@ -233,6 +235,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else if (data.user.role === "SUPER_ADMIN") {
         console.log("🔥 SUPER_ADMIN connecté, redirection vers dashboard");
         navigate("/dashboard");
+      } else if (data.user.role === "SPECTATOR") {
+        navigate("/spectateur");
       } else {
         console.log("📍 Redirection par défaut vers /");
         navigate("/");

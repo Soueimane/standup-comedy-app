@@ -166,6 +166,7 @@ function MyEventsPage() {
   const [selectedRecurrenceGroupId, setSelectedRecurrenceGroupId] = useState<string | null>(null);
   const [expandedUpcomingGroupId, setExpandedUpcomingGroupId] = useState<string | null>(null);
   const [openActionsEventId, setOpenActionsEventId] = useState<string | null>(null);
+  const [spectatorsModalEvent, setSpectatorsModalEvent] = useState<IEvent | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationSearch, setLocationSearch] = useState(''); // Recherche par lieu pour les humoristes
@@ -1380,10 +1381,11 @@ useEffect(() => {
           <div
             style={{
               position: 'absolute',
-              ...(isMobile
-                ? { right: 0, bottom: '100%', marginBottom: '8px', minWidth: '200px', maxWidth: 'min(280px, calc(100vw - 24px))' }
-                : { right: '100%', top: '-16px', marginRight: '8px', minWidth: '200px' }
-              ),
+              right: 0,
+              bottom: '100%',
+              marginBottom: '8px',
+              minWidth: '200px',
+              ...(isMobile ? { maxWidth: 'min(280px, calc(100vw - 24px))' } : {}),
               backgroundColor: '#2a2a3a',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               borderRadius: '8px',
@@ -1448,6 +1450,19 @@ useEffect(() => {
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
                   {notifyingEventId === event._id ? 'Envoi...' : 'Notifier les humoristes'}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    setSpectatorsModalEvent(event);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Voir spectateurs
                 </button>
                 <button
                   type="button"
@@ -4017,6 +4032,8 @@ useEffect(() => {
               country: eventToDuplicate.location?.country || '',
               date: eventToDuplicate.date,
               venue: eventToDuplicate.location?.venue || '',
+              venueType: eventToDuplicate.location?.venueType || '',
+              maxSpectators: eventToDuplicate.maxSpectators,
               startTime: eventToDuplicate.startTime || '',
               endTime: eventToDuplicate.endTime || '',
               minExperience: eventToDuplicate.requirements?.minExperience,
@@ -4442,6 +4459,51 @@ useEffect(() => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Voir spectateurs */}
+      <Modal
+        isOpen={!!spectatorsModalEvent}
+        onClose={() => setSpectatorsModalEvent(null)}
+      >
+        {spectatorsModalEvent && (
+          <div>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25em', color: '#fff' }}>
+              Spectateurs — {spectatorsModalEvent.title}
+            </h2>
+            {(() => {
+              const regs = spectatorsModalEvent.spectatorRegistrations || [];
+              const max = spectatorsModalEvent.maxSpectators;
+              const count = Array.isArray(regs) ? regs.length : 0;
+              const placesLeft = max != null && typeof max === 'number' ? Math.max(0, max - count) : null;
+              return (
+                <>
+                  <p style={{ marginBottom: 16, color: '#22c55e', fontSize: '1em' }}>
+                    <strong>{count}</strong> personne{count !== 1 ? 's' : ''} inscrite{count !== 1 ? 's' : ''}
+                    {placesLeft !== null && (
+                      <span style={{ color: '#ddd' }}> · <strong>{placesLeft}</strong> place{placesLeft !== 1 ? 's' : ''} restante{placesLeft !== 1 ? 's' : ''}</span>
+                    )}
+                  </p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: 320, overflowY: 'auto' }}>
+                    {regs.map((reg, i) => {
+                      const name = reg && typeof reg === 'object' && 'firstName' in reg && 'lastName' in reg
+                        ? `${(reg as { firstName: string; lastName: string }).firstName} ${(reg as { lastName: string }).lastName}`
+                        : '—';
+                      return (
+                        <li key={i} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
+                          {name}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {regs.length === 0 && (
+                    <p style={{ color: '#888', marginTop: 8 }}>Aucun spectateur inscrit pour le moment.</p>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
       </Modal>
 
       {/* Modal d'invitation d'humoriste */}

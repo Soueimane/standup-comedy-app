@@ -15,7 +15,9 @@ import {
   inviteComedian,
   processCompletedEvents,
   resetParticipations,
-  markEventsAsCompletedCron
+  markEventsAsCompletedCron,
+  registerSpectator,
+  unregisterSpectator,
 } from '../controllers/event';
 
 const router = express.Router();
@@ -53,6 +55,11 @@ router.get('/', authMiddleware, asyncHandler(getEventsList));
 
 // GET /api/events/user/my-events - Récupérer les évènements de l'organisateur connecté
 router.get('/user/my-events', authMiddleware, asyncHandler(getOrganizerEvents));
+
+// POST /api/events/:eventId/spectator-register - Inscription spectateur
+router.post('/:eventId/spectator-register', authMiddleware, asyncHandler(registerSpectator));
+// DELETE /api/events/:eventId/spectator-register - Désinscription spectateur
+router.delete('/:eventId/spectator-register', authMiddleware, asyncHandler(unregisterSpectator));
 
 // GET /api/events/:eventId - Récupérer un évènement par son ID
 router.get('/:eventId', asyncHandler(getEventById));

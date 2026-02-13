@@ -27,20 +27,12 @@ export const registerSchema = z.object({
       return !invalidPatterns.some(pattern => pattern.test(email.trim()));
     }, 'Format d\'email invalide (ex: nom@domaine.com)'),
   phone: z.string()
+    .optional()
     .refine((phone) => {
-      // Nettoyer le numéro (supprimer espaces, tirets, parenthèses, +)
+      if (!phone || phone.trim() === '') return true;
       const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '');
-      
-      // Validation pour numéros français (mobiles + fixes)
-      // Mobiles: 06, 07
-      // Fixes: 01, 02, 03, 04, 05, 08, 09 (selon région)
       const frenchPhoneRegex = /^(0[1-9])[0-9]{8}$/;
-      
-      // Validation pour numéros belges (mobiles + fixes)
-      // Mobiles: 04
-      // Fixes: 02, 03, 04, 09, 010, 011, 012, 013, 014, 015, 016, 019, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 067, 068, 069, 071, 080, 081, 082, 083, 084, 085, 086, 087, 089
       const belgianPhoneRegex = /^(0[1-9][0-9]{7,8})$/;
-      
       return frenchPhoneRegex.test(cleanPhone) || belgianPhoneRegex.test(cleanPhone);
     }, 'Numéro de téléphone invalide (format français: 0XXXXXXXXX, format belge: 0XXXXXXXX ou 0XXXXXXXXX)'),
   password: z.string()
@@ -53,8 +45,9 @@ export const registerSchema = z.object({
   lastName: z.string()
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'),
-  role: z.enum(['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN']),
+  role: z.enum(['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR']),
   city: z.string().optional(),
+  birthDate: z.string().optional(),
   profile: z.object({
     bio: z.string()
       .min(10, 'La biographie doit contenir au moins 10 caractères')
@@ -78,26 +71,34 @@ export const registerSchema = z.object({
     privacyAccepted: z.boolean(),
     isAdult: z.boolean()
   }).optional()
-}).refine((data) => {
-  // Si le rôle est COMEDIAN, le profile est requis
-  if (data.role === 'COMEDIAN') {
-    if (!data.profile || data.profile === null || data.profile === undefined) {
-      return false;
-    }
-    // Vérifier que bio et experience sont présents
-    if (!data.profile.bio || data.profile.bio.trim().length < 10) {
-      return false;
-    }
-    if (data.profile.experience === undefined || data.profile.experience === null) {
-      return false;
+})
+  .refine((data) => {
+    if (data.role === 'COMEDIAN') {
+      if (!data.profile || data.profile === null || data.profile === undefined) {
+        return false;
+      }
+      if (!data.profile.bio || data.profile.bio.trim().length < 10) {
+        return false;
+      }
+      if (data.profile.experience === undefined || data.profile.experience === null) {
+        return false;
+      }
+      return true;
     }
     return true;
-  }
-  return true;
-}, {
-  message: 'Le profil est requis pour les humoristes avec une biographie d\'au moins 10 caractères et une expérience',
-  path: ['profile']
-});
+  }, {
+    message: 'Le profil est requis pour les humoristes avec une biographie d\'au moins 10 caractères et une expérience',
+    path: ['profile']
+  })
+  .refine((data) => {
+    if (data.role === 'SPECTATOR') {
+      return typeof data.city === 'string' && data.city.trim().length >= 2;
+    }
+    return true;
+  }, {
+    message: 'La ville de résidence est requise pour les spectateurs (au moins 2 caractères)',
+    path: ['city']
+  });
 
 export const loginSchema = z.object({
   email: z.string()
@@ -117,6 +118,7 @@ export const locationSchema = z.object({
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(100, { message: 'Le nom du lieu est trop long' })
     .transform((val) => val.trim()),
+  venueType: z.enum(['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre']).optional(),
   address: z.string()
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(200, { message: 'L\'adresse est trop longue' })
@@ -141,6 +143,7 @@ export const locationSchema = z.object({
 
 export const updateLocationSchema = z.object({
   venue: z.string().max(100).optional().transform((val) => val?.trim()),
+  venueType: z.enum(['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre']).optional(),
   address: z.string().max(200).optional().transform((val) => val?.trim()),
   city: z.string().max(50).optional().transform((val) => val?.trim()),
   postalCode: z.string().optional().transform((val) => val?.trim()),
@@ -236,6 +239,10 @@ export const createEventSchema = z.object({
     .min(1, { message: 'Invalid maximum number of performers' })
     .max(100, { message: 'Invalid maximum number of performers' })
     .optional(),
+  maxSpectators: z.number()
+    .min(1, { message: 'Le nombre de places doit être au moins 1' })
+    .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
+    .optional(),
   // Heures par date pour événements récurrents (optionnel)
   dateTimes: z.array(z.object({
     date: z.string(),
@@ -316,6 +323,10 @@ export const updateEventSchema = z.object({
     .min(1, { message: 'Invalid maximum number of performers' })
     .max(100, { message: 'Invalid maximum number of performers' })
     .optional(),
+  maxSpectators: z.number()
+    .min(1, { message: 'Le nombre de places doit être au moins 1' })
+    .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
+    .optional(),
 }).partial().refine((data) => {
   // Si les deux heures sont fournies, validez que la fin est après le début
   if (data.startTime && data.endTime) {
@@ -393,6 +404,7 @@ export const updateProfileSchema = z.object({
     }, { message: 'Invalid phone number format' })
     .optional(),
   address: z.string().optional(),
+  birthDate: z.string().optional(),
   gender: z.enum(['femme', 'homme'], {
     errorMap: () => ({ message: 'Le genre doit être "femme" ou "homme"' })
   }).optional(),
@@ -435,6 +447,10 @@ export const updateProfileSchema = z.object({
     eventFrequency: z.enum(['weekly', 'monthly', 'occasional']).optional(),
     location: updateLocationSchema.optional(),
     phone: z.string().optional(),
+  }).optional(),
+  spectatorPreferences: z.object({
+    radiusKm: z.number().refine((n) => [5, 10, 20, 50].includes(n), { message: 'Rayon invalide (5, 10, 20 ou 50 km)' }).optional(),
+    dailyRecapEmail: z.boolean().optional(),
   }).optional(),
 }).partial();
 

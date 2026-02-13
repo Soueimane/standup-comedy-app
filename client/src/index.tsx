@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
 import Organisateur from './pages/LoginOrganisateur'
 import RegisterPage from './pages/RegisterPage'
+import RegisterSpectatorPage from './pages/RegisterSpectatorPage'
+import RegisterOrganizerPage from './pages/RegisterOrganizerPage'
 import MyEventsPage from './pages/MyEventsPage'
 import OrganizerProfilePage from './pages/OrganizerProfilePage'
 import ApplicationsPage from './pages/ApplicationsPage'
@@ -26,6 +28,9 @@ import LandingPage from './pages/LandingPage'
 import OAuthCallback from './pages/OAuthCallback'
 import { SSEProvider } from './components/SSEProvider'
 import CalendarPage from './pages/CalendarPage';
+import SpectatorHomePage from './pages/SpectatorHomePage';
+import SpectatorEventsPage from './pages/SpectatorEventsPage';
+import SpectatorProfilePage from './pages/SpectatorProfilePage';
 import LegalMentionsPage from './pages/LegalMentionsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
@@ -46,10 +51,15 @@ const AppRouter: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/organisateur" element={<Organisateur />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register/spectateur" element={<RegisterSpectatorPage />} />
+      <Route path="/register/organisateur" element={<RegisterOrganizerPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
       <Route path="/dashboard" element={<DashboardRouter />} />
+      <Route path="/spectateur" element={<SpectatorHomePage />} />
+      <Route path="/spectateur/events" element={<SpectatorEventsPage />} />
+      <Route path="/spectateur/profile" element={<SpectatorProfilePage />} />
       <Route path="/events" element={<MyEventsPage />} />
       <Route path="/profile/organizer" element={<OrganizerProfilePage />} />
       <Route path="/applications" element={<ApplicationsPage />} />
@@ -113,6 +123,8 @@ const DashboardRouter = () => {
   } else if (user?.role === 'SUPER_ADMIN') {
     console.log("🔥 Chargement dashboard SUPER_ADMIN");
     return <Dashboard /> // Pour l'instant, même interface que l'organisateur
+  } else if (user?.role === 'SPECTATOR') {
+    return <Navigate to="/spectateur" replace />
   }
 
   console.log("❌ Aucun rôle reconnu, redirection vers login");

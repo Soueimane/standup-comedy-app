@@ -156,7 +156,10 @@ function LandingPage() {
   const goRegister = () => navigate('/register');
   const goLogin = () => navigate('/login');
   const goOrganisateur = () => navigate('/organisateur');
+  const goRegisterOrganisateur = () => navigate('/register/organisateur');
+  const goRegisterHumoriste = () => navigate('/register');
   const goCalendar = () => navigate('/calendar');
+  const goRegisterSpectateur = () => navigate('/register/spectateur');
 
   return (
     <div
@@ -287,7 +290,7 @@ function LandingPage() {
                 <li>Notifier automatiquement</li>
                 <li>Gérer plusieurs événements</li>
               </ul>
-              <button type="button" className="role-cta" onClick={goOrganisateur}>Commencer →</button>
+              <button type="button" className="role-cta" onClick={goRegisterOrganisateur}>Commencer →</button>
             </div>
             <div className="role-card">
               <div className="role-icon">🎭</div>
@@ -298,7 +301,7 @@ function LandingPage() {
                 <li>Suivre vos candidatures</li>
                 <li>Créer votre profil scène</li>
               </ul>
-              <button type="button" className="role-cta" onClick={goLogin}>S'inscrire →</button>
+              <button type="button" className="role-cta" onClick={goRegisterHumoriste}>S'inscrire →</button>
             </div>
             <div className="role-card">
               <div className="role-icon">👥</div>
@@ -309,6 +312,7 @@ function LandingPage() {
                 <li>Réserver vos places</li>
                 <li>Ne rien manquer</li>
               </ul>
+              <button type="button" className="role-cta" onClick={goRegisterSpectateur}>S'inscrire →</button>
             </div>
           </div>
         </div>

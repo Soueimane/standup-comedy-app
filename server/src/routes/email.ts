@@ -1,7 +1,7 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
 import { config } from '../config/env';
-import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron, sendMobilityRemindersForIncompleteEventsCron } from '../controllers/email';
+import { sendEmail, testEmailConfig, testEmailSend, sendRemindersCron, sendOrganizerRemindersCron, sendMobilityRemindersForIncompleteEventsCron, dailySpectatorRecapCron } from '../controllers/email';
 import {
   handleOneClickUnsubscribe,
   handleUnsubscribeConfirmation,
@@ -76,6 +76,13 @@ router.post('/jobs/organizer-reminders', sendOrganizerRemindersCron);
  * Header: X-CRON-KEY (authentification)
  */
 router.post('/jobs/incomplete-event-reminders', sendMobilityRemindersForIncompleteEventsCron);
+
+/**
+ * POST /jobs/daily-spectator-recap
+ * Cron job : récapitulatif quotidien pour les spectateurs (max 1 email/jour)
+ * Header: X-CRON-KEY (authentification)
+ */
+router.post('/jobs/daily-spectator-recap', dailySpectatorRecapCron);
 
 // ============================================================================
 // RFC 8058 - ONE-CLICK UNSUBSCRIBE ROUTES

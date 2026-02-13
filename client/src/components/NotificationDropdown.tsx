@@ -6,7 +6,7 @@ import api, { markNotificationAsRead, markAllNotificationsAsRead, deleteNotifica
 
 interface Notification {
   _id: string;
-  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled';
+  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'new_event';
   title: string;
   message: string;
   relatedEvent?: {
@@ -36,7 +36,8 @@ const NotificationDropdown = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isOrganizer = user?.role === 'ORGANIZER';
   const isComedian = user?.role === 'COMEDIAN';
-  const shouldShowNotifications = isOrganizer || isComedian;
+  const isSpectator = user?.role === 'SPECTATOR';
+  const shouldShowNotifications = isOrganizer || isComedian || isSpectator;
 
   // Récupérer les notifications
   const { data: notificationsData, refetch } = useQuery({
@@ -81,6 +82,11 @@ const NotificationDropdown = () => {
     }
 
     // Naviguer vers la page appropriée
+    if (notification.type === 'new_event' && notification.relatedEvent?._id) {
+      navigate('/spectateur');
+      setIsOpen(false);
+      return;
+    }
     if (notification.relatedEvent?._id) {
       if (notification.type === 'new_application' || notification.relatedApplication) {
         navigate(`/applications?eventId=${notification.relatedEvent._id}`);
@@ -127,6 +133,8 @@ const NotificationDropdown = () => {
         return '🚫';
       case 'event_cancelled':
         return '🛑';
+      case 'new_event':
+        return '📅';
       default:
         return '🔔';
     }

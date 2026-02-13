@@ -17,6 +17,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       console.log('📅 [SSE] Nouvel évènement créé');
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['notifications'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;

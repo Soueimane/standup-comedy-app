@@ -6,6 +6,7 @@ import { EventModel } from '../models/Event';
 import { NotificationModel } from '../models/Notification';
 import { AuthRequest } from '../middleware/auth';
 import { emitProfileUpdated } from '../services/eventEmitter';
+import { getCityCoordinates } from '../utils/cityMapping';
 
 const buildAvatarDataUrl = (user: any): string | undefined => {
   if (user?.avatar?.data) {
@@ -121,6 +122,9 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
     if (updateData.phone) user.phone = updateData.phone;
     if (updateData.address) user.address = updateData.address;
     if (updateData.gender !== undefined) user.gender = updateData.gender;
+    if (updateData.birthDate !== undefined) {
+      (user as any).birthDate = updateData.birthDate ? new Date(updateData.birthDate) : undefined;
+    }
     if (updateData.avatarUrl !== undefined) {
       if (updateData.avatarUrl === null || updateData.avatarUrl === '') {
         user.avatarUrl = undefined;
@@ -171,6 +175,34 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
           if (updateData.profile.socialLinks.instagram !== undefined) user.profile.socialLinks.instagram = updateData.profile.socialLinks.instagram || undefined;
           if (updateData.profile.socialLinks.facebook !== undefined) user.profile.socialLinks.facebook = updateData.profile.socialLinks.facebook || undefined;
           if (updateData.profile.socialLinks.twitter !== undefined) user.profile.socialLinks.twitter = updateData.profile.socialLinks.twitter || undefined;
+        }
+      }
+    }
+
+    // Handle spectatorPreferences updates
+    if (user.role === 'SPECTATOR') {
+      if (!(user as any).spectatorPreferences) {
+        (user as any).spectatorPreferences = { radiusKm: 20, dailyRecapEmail: true };
+      }
+      if (updateData.spectatorPreferences) {
+        const prefs = updateData.spectatorPreferences;
+        if ([5, 10, 20, 50].includes(Number(prefs.radiusKm))) {
+          (user as any).spectatorPreferences.radiusKm = Number(prefs.radiusKm);
+        }
+        if (typeof prefs.dailyRecapEmail === 'boolean') {
+          (user as any).spectatorPreferences.dailyRecapEmail = prefs.dailyRecapEmail;
+        }
+      }
+      // Recalculate coordinates when city changes or when they're missing
+      if (user.city) {
+        const cityChanged = updateData.city && updateData.city.trim() !== '';
+        const coordsMissing = (user as any).latitude == null || (user as any).longitude == null;
+        if (cityChanged || coordsMissing) {
+          const coords = await getCityCoordinates(user.city);
+          if (coords) {
+            (user as any).latitude = coords.lat;
+            (user as any).longitude = coords.lon;
+          }
         }
       }
     }

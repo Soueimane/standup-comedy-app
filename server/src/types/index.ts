@@ -3,11 +3,14 @@ import { IPopulatedUser } from './user';
 
 export interface Location {
   venue?: string;
+  venueType?: 'theatre' | 'salle_polyvalente' | 'cafe' | 'restaurant' | 'autre';
   address: string;
   city: string;
   postalCode?: string;
   department?: string;
   country: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface EventRequirements {
@@ -31,6 +34,7 @@ export interface Event {
   requirements: EventRequirements;
   applications: Types.ObjectId[];
   participants: Types.ObjectId[] | IPopulatedUser[];
+  maxSpectators?: number;
 }
 
 export interface PerformanceDetails {

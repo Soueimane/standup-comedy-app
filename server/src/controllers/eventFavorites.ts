@@ -31,11 +31,11 @@ export const addEventFavorite = async (req: AuthRequest, res: Response): Promise
     const eventObjectId = new Types.ObjectId(eventId);
     const comedianObjectId = new Types.ObjectId(comedianId);
 
-    // Vérifier que le comédien existe et est bien un COMEDIAN
+    // Vérifier que l'utilisateur existe et est COMEDIAN ou SPECTATOR
     const comedian = await UserModel.findById(comedianObjectId);
-    if (!comedian || comedian.role !== 'COMEDIAN') {
+    if (!comedian || (comedian.role !== 'COMEDIAN' && comedian.role !== 'SPECTATOR')) {
       res.status(403).json({
-        message: 'Seuls les comédiens peuvent ajouter des évènements aux favoris'
+        message: 'Seuls les comédiens et spectateurs peuvent ajouter des évènements aux favoris'
       });
       return;
     }
@@ -142,11 +142,11 @@ export const removeEventFavorite = async (req: AuthRequest, res: Response): Prom
     const eventObjectId = new Types.ObjectId(eventId);
     const comedianObjectId = new Types.ObjectId(comedianId);
 
-    // Récupérer le comédien
+    // Récupérer l'utilisateur (comédien ou spectateur)
     const comedian = await UserModel.findById(comedianObjectId);
-    if (!comedian || comedian.role !== 'COMEDIAN') {
+    if (!comedian || (comedian.role !== 'COMEDIAN' && comedian.role !== 'SPECTATOR')) {
       res.status(403).json({
-        message: 'Seuls les comédiens peuvent gérer leurs favoris'
+        message: 'Seuls les comédiens et spectateurs peuvent gérer leurs favoris'
       });
       return;
     }
@@ -235,9 +235,9 @@ export const getEventFavorites = async (req: AuthRequest, res: Response): Promis
         }
       });
 
-    if (!comedian || comedian.role !== 'COMEDIAN') {
+    if (!comedian || (comedian.role !== 'COMEDIAN' && comedian.role !== 'SPECTATOR')) {
       res.status(403).json({
-        message: 'Seuls les comédiens peuvent consulter leurs favoris'
+        message: 'Seuls les comédiens et spectateurs peuvent consulter leurs favoris'
       });
       return;
     }
@@ -285,11 +285,11 @@ export const checkIsEventFavorite = async (req: AuthRequest, res: Response): Pro
     const eventObjectId = new Types.ObjectId(eventId);
     const comedianObjectId = new Types.ObjectId(comedianId);
 
-    // Récupérer le comédien
+    // Récupérer l'utilisateur (comédien ou spectateur)
     const comedian = await UserModel.findById(comedianObjectId);
-    if (!comedian || comedian.role !== 'COMEDIAN') {
+    if (!comedian || (comedian.role !== 'COMEDIAN' && comedian.role !== 'SPECTATOR')) {
       res.status(403).json({
-        message: 'Seuls les comédiens peuvent consulter leurs favoris'
+        message: 'Seuls les comédiens et spectateurs peuvent consulter leurs favoris'
       });
       return;
     }

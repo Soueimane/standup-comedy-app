@@ -105,8 +105,11 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({
                 const location = selectedEvent.location;
                 if (typeof location === 'object' && location !== null) {
                   const venue = location.venue || '';
+                  const address = location.address || '';
                   const city = location.city || '';
-                  return `${venue}${venue && city ? ', ' : ''}${city}`.trim();
+                  const postalCode = location.postalCode || '';
+                  const parts = [venue, address, [postalCode, city].filter(Boolean).join(' ')].filter(Boolean);
+                  return parts.length ? parts.join(', ') : '—';
                 }
                 return '—';
               })()}
@@ -142,34 +145,36 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({
           </div>
         )}
 
-        {/* Organisateur & Email */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '16px',
-            marginBottom: '24px',
-            paddingBottom: '24px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.8em', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '6px' }}>
-              Organisateur
+        {/* Organisateur & Email (masqué pour les spectateurs) */}
+        {user?.role !== 'SPECTATOR' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '16px',
+              marginBottom: '24px',
+              paddingBottom: '24px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.8em', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '6px' }}>
+                Organisateur
+              </div>
+              <div style={{ color: '#fff', fontSize: '1em', fontWeight: 500 }}>
+                {getOrganizerName(selectedEvent.organizer)}
+              </div>
             </div>
-            <div style={{ color: '#fff', fontSize: '1em', fontWeight: 500 }}>
-              {getOrganizerName(selectedEvent.organizer)}
+            <div>
+              <div style={{ fontSize: '0.8em', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '6px' }}>
+                Email
+              </div>
+              <div style={{ color: '#fff', fontSize: '0.95em' }}>
+                {selectedEvent.organizer?.email || '—'}
+              </div>
             </div>
           </div>
-          <div>
-            <div style={{ fontSize: '0.8em', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '6px' }}>
-              Email
-            </div>
-            <div style={{ color: '#fff', fontSize: '0.95em' }}>
-              {selectedEvent.organizer?.email || '—'}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Raison annulation si applicable */}
         {selectedEvent.status?.toLowerCase() === 'cancelled' && selectedEvent.cancellationReason && (
