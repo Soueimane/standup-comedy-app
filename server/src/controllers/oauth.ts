@@ -25,7 +25,7 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const redirectUri = `${config.api.url}/api/auth/oauth/callback`;
+    const redirectUri = `${config.api.url}/auth/oauth/callback`;
 
     // Optional: specify a particular social provider configured in Keycloak
     // via the "provider" query parameter (google, facebook, github, etc.).
