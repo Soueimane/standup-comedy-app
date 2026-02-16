@@ -151,7 +151,7 @@ function LoginOrganisateur() {
     <div style={pageStyle}>
       <div style={containerStyle}>
         <div style={iconStyle}>🎭</div>
-        <h2 className="text-2xl font-bold mb-2">Bon retour, organisateur !</h2>
+        <h2 className="text-2xl font-bold mb-2">Bon retour, organisateur !T1</h2>
         <p className="text-gray-400 mb-8 text-sm">
           Connecte-toi pour gérer tes évènements et découvrir de nouveaux talents.
         </p>
