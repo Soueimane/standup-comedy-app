@@ -32,12 +32,12 @@ jobs:
             git clean -fd
             echo "📦 Code à jour avec git"
 
-            # Docker cleanup + rebuild
-            docker compose down --remove-orphans
+            # Docker cleanup + rebuild avec docker-compose
+            docker-compose down --remove-orphans
             docker system prune -af
             docker volume prune -f
-            docker compose build --no-cache
-            docker compose up -d
+            docker-compose build --no-cache
+            docker-compose up -d
 
             # Check containers
             docker ps -a
