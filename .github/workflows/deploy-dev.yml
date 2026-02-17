@@ -22,23 +22,28 @@ jobs:
           port: 22
           script: |
             echo "✅ Connecté au VPS"
+
             cd ${{ secrets.VPS_PATH_DEV }}
             echo "📂 Dossier DEV: $(pwd)"
 
-            # Git update
-            git fetch origin dev_brach_env2
-            git checkout dev_brach_env2 || git checkout -b dev_brach_env2
-            git reset --hard origin/dev_brach_env2
-            git clean -fd
-            echo "📦 Code à jour avec git"
+            echo "---- GIT UPDATE ----"
 
-            # Docker cleanup + rebuild avec docker-compose
+            git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+            git pull origin dev_brach_env2
+
+            echo "📦 Code à jour avec git pull"
+
+            echo "---- DOCKER CLEAN ----"
+
             docker-compose down --remove-orphans
             docker system prune -af
             docker volume prune -f
+
+            echo "---- DOCKER BUILD ----"
+
             docker-compose build --no-cache
             docker-compose up -d
 
-            # Check containers
             docker ps -a
+
             echo "✅ Déploiement terminé"
