@@ -34,6 +34,7 @@ import SpectatorProfilePage from './pages/SpectatorProfilePage';
 import LegalMentionsPage from './pages/LegalMentionsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
+import AboutPage from './pages/AboutPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +76,7 @@ const AppRouter: React.FC = () => {
       <Route path="/mentions-legales" element={<LegalMentionsPage />} />
       <Route path="/politique-confidentialite" element={<PrivacyPolicyPage />} />
       <Route path="/cgu" element={<TermsOfServicePage />} />
+      <Route path="/a-propos" element={<AboutPage />} />
     </Routes>
   );
 };

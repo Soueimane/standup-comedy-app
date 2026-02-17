@@ -25,7 +25,9 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const redirectUri = `${config.api.url}/auth/oauth/callback`;
+    // Remove /api suffix to avoid double /api (reverse proxy adds it)
+    const baseUrl = config.api.url.replace(/\/api\/?$/, '');
+    const redirectUri = `${baseUrl}/auth/oauth/callback`;
 
     // Optional: specify a particular social provider configured in Keycloak
     // via the "provider" query parameter (google, facebook, github, etc.).
@@ -105,7 +107,9 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Build current URL for token exchange
-    const currentUrl = new URL(`${config.api.url}${req.originalUrl}`);
+    // Remove /api suffix from base URL since req.originalUrl already contains it
+    const baseUrl = config.api.url.replace(/\/api$/, '');
+    const currentUrl = new URL(`${baseUrl}${req.originalUrl}`);
 
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(

@@ -185,6 +185,7 @@ function LandingPage() {
               <a href="#fonctionnement" className="nav-link">Comment ça marche</a>
               <a href="#roles" className="nav-link">Pour qui</a>
               <a href="#avantages" className="nav-link">Avantages</a>
+              <Link to="/a-propos" className="nav-link">À propos</Link>
             </nav>
             <div className="header-buttons">
               <button type="button" className="btn btn-secondary" onClick={goLogin}>Se connecter</button>
