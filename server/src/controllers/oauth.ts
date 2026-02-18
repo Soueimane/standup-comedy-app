@@ -27,6 +27,7 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
 
     // Remove /api suffix to avoid double /api (reverse proxy adds it)
     const baseUrl = config.api.url.replace(/\/api\/?$/, '');
+    // const baseUrl = config.api.url;  //localhost
     const redirectUri = `${baseUrl}/auth/oauth/callback`;
 
     // Optional: specify a particular social provider configured in Keycloak
@@ -106,10 +107,15 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Build current URL for token exchange
-    // Remove /api suffix from base URL since req.originalUrl already contains it
-    const baseUrl = config.api.url.replace(/\/api$/, '');
-    const currentUrl = new URL(`${baseUrl}${req.originalUrl}`);
+    // Build redirect_uri for token exchange - must EXACTLY match the one used in authorize
+    const baseUrl = config.api.url.replace(/\/api\/?$/, '');
+    // const baseUrl = config.api.url;  // localhost
+    const redirectUri = `${baseUrl}/auth/oauth/callback`;
+
+    // Reconstruct the callback URL with the correct redirect_uri (without /api)
+    // and add the query parameters from the current request
+    const queryString = req.originalUrl.split('?')[1] || '';
+    const currentUrl = new URL(`${redirectUri}?${queryString}`);
 
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(
@@ -129,48 +135,22 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     let user = await UserModel.findOne({ email: userInfo.email });
 
     if (!user) {
-      // Determine the role for the new user
-      const role = mapKeycloakRoles(userInfo);
-
-      // Create new user from Keycloak data with default profile based on role
-      user = new UserModel({
-        email: userInfo.email,
-        firstName: userInfo.given_name || userInfo.name?.split(' ')[0] || 'User',
-        lastName: userInfo.family_name || userInfo.name?.split(' ').slice(1).join(' ') || '',
-        password: `keycloak_${Date.now()}_${Math.random().toString(36)}`, // Random password, user won't use it
-        role,
-        emailVerified: userInfo.email_verified || false,
-        keycloakId: userInfo.sub,
-        // Add default profile based on role (same as standard registration)
-        ...(role === 'COMEDIAN' && {
-          profile: {
-            bio: '',
-            yearsExperience: 0,
-            genres: [],
-            availability: [],
-            socialLinks: {},
-            profilePhoto: '',
-            mediaLinks: [],
-            // numberOfScenes: '',
-          }
-        }),
-        ...(role === 'ORGANIZER' && {
-          organizerProfile: {
-            companyName: '',
-            description: '',
-            logo: '',
-            website: '',
-            eventTypes: [],
-            regions: [],
-          }
-        }),
-      });
-      await user.save();
+      // OAuth login-only: user must register first via standard registration
+      console.log(`⚠️ [OAuth] Tentative de connexion sans compte existant: ${userInfo.email}`);
+      res.redirect(`${config.frontend.url}/auth/callback?error=account_not_found&error_description=${encodeURIComponent('Aucun compte trouvé. Veuillez d\'abord créer un compte.')}`);
+      return;
     } else {
-      // Update Keycloak ID if not set
+      // User exists - associate Keycloak ID if not already set (account linking)
+      // This handles the case where a user registered via email and later signs in via OAuth
       if (!user.keycloakId) {
         user.keycloakId = userInfo.sub;
         await user.save();
+        console.log(`✅ [OAuth] Compte existant associé à Keycloak: ${user.email}`);
+      } else if (user.keycloakId !== userInfo.sub) {
+        // Different Keycloak ID - security risk, block login
+        console.error(`🚫 [OAuth] Keycloak ID mismatch for ${user.email}: stored=${user.keycloakId}, received=${userInfo.sub}`);
+        res.redirect(`${config.frontend.url}/auth/callback?error=account_mismatch&error_description=${encodeURIComponent('Ce compte est déjà lié à un autre identifiant. Contactez le support.')}`);
+        return;
       }
     }
 
@@ -183,7 +163,7 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
         keycloakId: userInfo.sub,
       },
       config.jwt.secret as string,
-      { expiresIn: '24h' }
+      { expiresIn: '1h' }
     );
 
     // Redirect to frontend with tokens
@@ -249,33 +229,6 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * GET /api/auth/oauth/userinfo
- * Returns current user info from the token
- */
-export const userinfo = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'No token provided' });
-      return;
-    }
-
-    const accessToken = authHeader.substring(7);
-    const userInfo = await getUserInfo(accessToken);
-
-    if (!userInfo) {
-      res.status(401).json({ error: 'Invalid or expired token' });
-      return;
-    }
-
-    res.json(userInfo);
-  } catch (error) {
-    console.error('OAuth userinfo error:', error);
-    res.status(500).json({ error: 'Failed to get user info' });
-  }
-};
-
-/**
  * GET /api/auth/oauth/status
  * Returns OAuth configuration status
  */
@@ -286,23 +239,3 @@ export const status = async (_req: Request, res: Response): Promise<void> => {
   });
 };
 
-/**
- * Map Keycloak roles to application roles
- */
-function mapKeycloakRoles(userInfo: any): string {
-  // Check realm roles
-  const realmRoles = userInfo.realm_access?.roles || [];
-
-  // Check resource roles (client-specific)
-  const clientRoles = userInfo.resource_access?.[config.keycloak.clientId]?.roles || [];
-
-  const allRoles = [...realmRoles, ...clientRoles];
-
-  // Priority order for role assignment
-  if (allRoles.includes('SUPER_ADMIN')) return 'SUPER_ADMIN';
-  if (allRoles.includes('ORGANIZER')) return 'ORGANIZER';
-  if (allRoles.includes('COMEDIAN')) return 'COMEDIAN';
-
-  // Default role
-  return 'COMEDIAN';
-}

@@ -2,6 +2,7 @@ import { useState, useEffect, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { translateOAuthError } from '../services/oauth';
 
 interface PendingDeletionInfo {
   deactivatedAt: string;
@@ -146,7 +147,7 @@ function LoginPage() {
     try {
       await loginWithKeycloak(provider);
     } catch (error: any) {
-      setOAuthError(error.message || 'Erreur lors de la connexion avec Keycloak');
+      setOAuthError(translateOAuthError(error.message));
     }
   };
 

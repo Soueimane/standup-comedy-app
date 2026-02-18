@@ -12,13 +12,6 @@ export const getKeycloakIssuer = (): string => {
 };
 
 /**
- * Get the OIDC discovery URL
- */
-export const getDiscoveryUrl = (): string => {
-  return `${getKeycloakIssuer()}/.well-known/openid-configuration`;
-};
-
-/**
  * Initialize and cache the Keycloak configuration
  * Uses openid-client discovery to fetch server metadata
  */
@@ -102,6 +95,8 @@ export const buildAuthorizationUrl = async (
     // Force account selection to allow users to choose a different account
     // even if they have an active session with the provider
     prompt: 'select_account',
+    // Force re-authentication to bypass Keycloak session cache
+    max_age: '0',
   };
 
   // If a specific Identity Provider is requested (google, facebook, github, etc.)
@@ -146,28 +141,6 @@ export const refreshAccessToken = async (
 
   const tokens = await client.refreshTokenGrant(keycloakCfg, refreshToken);
   return tokens;
-};
-
-/**
- * Validate and decode an access token
- */
-export const validateToken = async (
-  accessToken: string
-): Promise<client.IntrospectionResponse | null> => {
-  try {
-    const keycloakCfg = await getKeycloakConfig();
-
-    const result = await client.tokenIntrospection(keycloakCfg, accessToken);
-
-    if (!result.active) {
-      return null;
-    }
-
-    return result;
-  } catch (error) {
-    console.error('Token validation error:', error);
-    return null;
-  }
 };
 
 /**

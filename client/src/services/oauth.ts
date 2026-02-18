@@ -187,3 +187,37 @@ export const getStoredOAuthTokens = (): Partial<OAuthTokens> => {
     id_token: localStorage.getItem('keycloak_id_token') || undefined,
   };
 };
+
+/**
+ * Translate OAuth error messages to French
+ */
+export const translateOAuthError = (error: string): string => {
+  const errorMessages: Record<string, string> = {
+    // Backend errors
+    'account_not_found': 'Aucun compte trouvé avec cet email. Veuillez d\'abord créer un compte.',
+    'account_mismatch': 'Ce compte est déjà lié à un autre identifiant. Contactez le support.',
+    'invalid_state': 'Session expirée. Veuillez réessayer.',
+    'userinfo_failed': 'Impossible de récupérer vos informations. Veuillez réessayer.',
+    'token_exchange_failed': 'Erreur d\'authentification. Veuillez réessayer.',
+    'too_many_requests': 'Trop de tentatives. Veuillez réessayer dans une minute.',
+    // Frontend errors
+    'Login cancelled': 'Connexion annulée.',
+    'Popup blocked': 'Popup bloquée. Veuillez autoriser les popups pour ce site.',
+    'No token received': 'Aucun token reçu. Veuillez réessayer.',
+  };
+
+  // Check for exact match
+  if (errorMessages[error]) {
+    return errorMessages[error];
+  }
+
+  // Check for partial match
+  for (const [key, message] of Object.entries(errorMessages)) {
+    if (error.toLowerCase().includes(key.toLowerCase())) {
+      return message;
+    }
+  }
+
+  // Default message
+  return error || 'Une erreur est survenue lors de la connexion.';
+};

@@ -62,6 +62,12 @@ const unsubscribeLimiter = new InMemoryRateLimiter(
   20 // 20 requêtes max
 );
 
+// Instance OAuth: 10 requêtes par minute par IP
+const oauthLimiter = new InMemoryRateLimiter(
+  60 * 1000, // 1 minute
+  10 // 10 requêtes max
+);
+
 /**
  * Middleware de rate limiting pour les endpoints de désabonnement
  * Limite: 20 requêtes par IP par heure
@@ -91,5 +97,33 @@ export const unsubscribeRateLimiter = (
   next();
 };
 
+/**
+ * Middleware de rate limiting pour les endpoints OAuth
+ * Limite: 10 requêtes par IP par minute
+ */
+export const oauthRateLimiter = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const identifier =
+    req.ip ||
+    req.headers['x-forwarded-for'] as string ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+  if (!oauthLimiter.isAllowed(identifier)) {
+    console.warn(`⚠️ OAuth rate limit exceeded for IP: ${identifier}`);
+
+    return res.status(429).json({
+      error: 'too_many_requests',
+      message: 'Trop de tentatives. Veuillez réessayer dans une minute.',
+      retryAfter: 60
+    });
+  }
+
+  next();
+};
+
 // Export pour tests
-export { unsubscribeLimiter };
+export { unsubscribeLimiter, oauthLimiter };
