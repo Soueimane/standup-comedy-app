@@ -51,6 +51,9 @@ export const config = {
     clientId: process.env.KEYCLOAK_CLIENT_ID || 'standup-app',
     clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || '',
     enabled: process.env.KEYCLOAK_ENABLED === 'true',
+    get issuer() {
+      return `${this.url}/realms/${this.realm}`;
+    },
   }
 };
 

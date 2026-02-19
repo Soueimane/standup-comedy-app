@@ -1,4 +1,5 @@
 import * as client from 'openid-client';
+import axios from 'axios';
 import { config } from './env';
 
 let keycloakConfig: client.Configuration | null = null;
@@ -112,24 +113,30 @@ export const buildAuthorizationUrl = async (
 /**
  * Exchange authorization code for tokens
  */
-export const exchangeCodeForTokens = async (
-  currentUrl: URL,
-  codeVerifier: string,
-  expectedState: string
-): Promise<client.TokenEndpointResponse> => {
-  const keycloakCfg = await getKeycloakConfig();
-
-  const tokens = await client.authorizationCodeGrant(
-    keycloakCfg,
-    currentUrl,
+export async function exchangeCodeForTokens(
+  code: string,
+  redirectUri: string,
+  codeVerifier: string
+) {
+  const response = await axios.post(
+    `${config.keycloak.issuer}/protocol/openid-connect/token`,
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: config.keycloak.clientId,
+      client_secret: config.keycloak.clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    }),
     {
-      pkceCodeVerifier: codeVerifier,
-      expectedState,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     }
   );
 
-  return tokens;
-};
+  return response.data;
+}
 
 /**
  * Refresh access token using refresh token

@@ -108,16 +108,11 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     // Build redirect_uri for token exchange - must EXACTLY match the one used in authorize
     const redirectUri = `${config.api.url}/auth/oauth/callback`;
 
-    // Reconstruct the callback URL with the correct redirect_uri
-    // and add the query parameters from the current request
-    const queryString = req.originalUrl.split('?')[1] || '';
-    const currentUrl = new URL(`${redirectUri}?${queryString}`);
-
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(
-      currentUrl,
-      pending.codeVerifier,
-      state as string
+      code as string,
+      redirectUri,
+      pending.codeVerifier
     );
 
     // Get user info from Keycloak
