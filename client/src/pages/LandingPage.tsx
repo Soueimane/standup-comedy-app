@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const LANDING_CSS = `
@@ -121,11 +121,17 @@ const LANDING_CSS = `
   .landing-dark .step p { color: #64748B; font-size: 16px; line-height: 1.7; }
   .landing-dark .steps-conclusion { text-align: center; font-size: 24px; font-weight: 700; color: var(--primary); margin-top: 60px; padding: 32px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 2px solid var(--primary); }
   .landing-dark .tutorial-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 60px; position: relative; z-index: 1; max-width: 800px; margin-left: auto; margin-right: auto; }
-  .landing-dark .tutorial-link-card { display: block; background: white; border: 2px solid var(--border); border-radius: 24px; overflow: hidden; text-align: center; transition: all 0.4s; color: #1a1a1a; text-decoration: none; }
+  .landing-dark .tutorial-link-card { display: block; background: white; border: 2px solid var(--border); border-radius: 24px; overflow: hidden; text-align: center; transition: all 0.4s; color: #1a1a1a; text-decoration: none; padding: 0; margin: 0; font: inherit; }
   .landing-dark .tutorial-link-card:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: var(--shadow-2xl); color: #1a1a1a; }
   .landing-dark .tutorial-thumbnail-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #0f172a; overflow: hidden; }
   .landing-dark .tutorial-thumbnail-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .landing-dark .tutorial-link-card h3 { font-size: 16px; font-weight: 700; margin: 0; padding: 20px 16px; color: #1a1a1a; line-height: 1.3; }
+  .landing-dark .tutorial-link-card { cursor: pointer; }
+  .landing-dark .video-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+  .landing-dark .video-modal-box { position: relative; width: 100%; max-width: 900px; aspect-ratio: 16/9; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+  .landing-dark .video-modal-box iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+  .landing-dark .video-modal-close { position: absolute; top: -44px; right: 0; width: 40px; height: 40px; border: none; background: rgba(255,255,255,0.2); color: white; font-size: 24px; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+  .landing-dark .video-modal-close:hover { background: rgba(255,255,255,0.35); }
   @media (max-width: 968px) { .landing-dark .tutorial-links { grid-template-columns: 1fr; } }
   .landing-dark .features-section { padding: 120px 0; background: transparent; }
   .landing-dark .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; margin-top: 80px; }
@@ -174,6 +180,14 @@ function youtubeThumbnailUrl(videoId: string | null): string | null {
 
 function LandingPage() {
   const navigate = useNavigate();
+  const [videoModalId, setVideoModalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!videoModalId) return;
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setVideoModalId(null); };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [videoModalId]);
 
   const goRegister = () => navigate('/register');
   const goLogin = () => navigate('/login');
@@ -484,12 +498,11 @@ function LandingPage() {
                 const videoIdOrg = getYoutubeVideoId(urlOrg);
                 const thumbOrg = videoIdOrg ? youtubeThumbnailUrl(videoIdOrg) : null;
                 return (
-                  <a
+                  <button
+                    type="button"
                     className="tutorial-link-card"
-                    href={urlOrg}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Tutoriel d'utilisastion en tant qu'Organisateur"
+                    onClick={() => videoIdOrg && setVideoModalId(videoIdOrg)}
+                    aria-label="Voir le tutoriel d'utilisation en tant qu'Organisateur"
                   >
                     <div className="tutorial-thumbnail-wrap">
                       {thumbOrg ? (
@@ -499,7 +512,7 @@ function LandingPage() {
                       )}
                     </div>
                     <h3>🎥 Tutoriel d'utilisastion en tant qu'Organisateur</h3>
-                  </a>
+                  </button>
                 );
               })()}
               {(() => {
@@ -507,12 +520,11 @@ function LandingPage() {
                 const videoIdHum = getYoutubeVideoId(urlHum);
                 const thumbHum = videoIdHum ? youtubeThumbnailUrl(videoIdHum) : null;
                 return (
-                  <a
+                  <button
+                    type="button"
                     className="tutorial-link-card"
-                    href={urlHum}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Tutoriel d'utilisastion en tant qu'Humoriste"
+                    onClick={() => videoIdHum && setVideoModalId(videoIdHum)}
+                    aria-label="Voir le tutoriel d'utilisation en tant qu'Humoriste"
                   >
                     <div className="tutorial-thumbnail-wrap">
                       {thumbHum ? (
@@ -522,7 +534,7 @@ function LandingPage() {
                       )}
                     </div>
                     <h3>🎥 Tutoriel d'utilisastion en tant qu'Humoriste</h3>
-                  </a>
+                  </button>
                 );
               })()}
             </div>
@@ -582,6 +594,7 @@ function LandingPage() {
             <div className="footer-brand">
               <img src="/logo-connect-comedy-club.png" alt="Connect Comedy Club" style={{ height: '95px', width: 'auto' }} />
               <p>La plateforme qui connecte humoristes, scènes et public pour simplifier l'organisation du stand-up.</p>
+              <p>Contact: contact@connectcomedyclub.com</p>
             </div>
             <div className="footer-links">
               <h4>Produit</h4>
@@ -619,6 +632,33 @@ function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {videoModalId && (
+        <div
+          className="video-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Lecteur vidéo"
+          onClick={() => setVideoModalId(null)}
+        >
+          <div className="video-modal-box" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="video-modal-close"
+              onClick={() => setVideoModalId(null)}
+              aria-label="Fermer la vidéo"
+            >
+              ×
+            </button>
+            <iframe
+              title="Tutoriel vidéo"
+              src={`https://www.youtube.com/embed/${videoModalId}?autoplay=1`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
