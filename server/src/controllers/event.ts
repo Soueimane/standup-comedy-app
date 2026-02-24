@@ -15,6 +15,54 @@ import { extractPostalCode, getDepartmentFromPostalCode } from '../utils/cityMap
 import { getCityCoordinates } from '../utils/cityMapping';
 import { notifySpectatorsInRadius } from '../services/spectatorNotificationService';
 
+/** Retourne la liste des modifications entre l'ancien et le nouvel évènement (pour l'email aux candidats) */
+function getEventChanges(oldEvent: any, newEvent: any): string[] {
+  const changes: string[] = [];
+  const old = (oldEvent && typeof oldEvent.toObject === 'function' ? oldEvent.toObject() : oldEvent) || {};
+  const neu = (newEvent && typeof newEvent.toObject === 'function' ? newEvent.toObject() : newEvent) || {};
+  const fmtDate = (d: Date | string | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '');
+  const oldLoc = old.location || {};
+  const newLoc = neu.location || {};
+  const oldReq = old.requirements || {};
+  const newReq = neu.requirements || {};
+
+  const oldTitle = String(old.title ?? '').trim();
+  const newTitle = String(neu.title ?? '').trim();
+  if (oldTitle !== newTitle && newTitle) {
+    changes.push(`Titre : « ${oldTitle || '—' } » → « ${newTitle} »`);
+  }
+  if (fmtDate(old.date) !== fmtDate(neu.date) && neu.date) {
+    changes.push(`Date : ${fmtDate(old.date) || '—'} → ${fmtDate(neu.date)}`);
+  }
+  if (String(old.startTime ?? '') !== String(neu.startTime ?? '')) {
+    changes.push(`Heure de début : ${old.startTime || '—'} → ${neu.startTime || '—'}`);
+  }
+  if (String(old.endTime ?? '') !== String(neu.endTime ?? '')) {
+    changes.push(`Heure de fin : ${old.endTime || '—'} → ${neu.endTime || '—'}`);
+  }
+  const oldAddr = [oldLoc.address, oldLoc.city].filter(Boolean).join(', ') || '—';
+  const newAddr = [newLoc.address, newLoc.city].filter(Boolean).join(', ') || '—';
+  if (oldAddr !== newAddr) {
+    changes.push(`Lieu : ${oldAddr} → ${newAddr}`);
+  }
+  if (String(oldLoc.venue ?? '') !== String(newLoc.venue ?? '')) {
+    changes.push(`Salle / lieu : ${oldLoc.venue || '—'} → ${newLoc.venue || '—'}`);
+  }
+  if (String(old.description ?? '') !== String(neu.description ?? '') && neu.description != null) {
+    changes.push('Description : modifiée');
+  }
+  if (Number(oldReq?.duration) !== Number(newReq?.duration) && newReq?.duration != null) {
+    changes.push(`Durée : ${oldReq?.duration ?? '—'} min → ${newReq.duration} min`);
+  }
+  if (Number(oldReq?.maxPerformers) !== Number(newReq?.maxPerformers) && newReq?.maxPerformers != null) {
+    changes.push(`Nombre max de performeurs : ${oldReq?.maxPerformers ?? '—'} → ${newReq.maxPerformers}`);
+  }
+  if (Number(oldReq?.minExperience) !== Number(newReq?.minExperience) && newReq?.minExperience != null) {
+    changes.push(`Expérience min : ${oldReq?.minExperience ?? '—'} an(s) → ${newReq.minExperience} an(s)`);
+  }
+  return changes;
+}
+
 // ============================================================================
 // CREATE EVENT
 // ============================================================================
@@ -29,7 +77,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, maxSpectators, isRecurring, dateTimes } = req.body;
+    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, maxSpectators, isRecurring, dateTimes, imageUrl } = req.body;
 
     // Si c'est un événement récurrent avec plusieurs dates
     if (isRecurring && dates && Array.isArray(dates) && dates.length > 0) {
@@ -81,6 +129,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       budget,
       maxPerformers,
       maxSpectators: maxSpectators != null ? Number(maxSpectators) : undefined,
+      imageUrl: imageUrl && typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
     });
 
     await event.save();
@@ -198,6 +247,7 @@ const createRecurringEvents = async (
     budget?: any;
     maxPerformers?: number;
     maxSpectators?: number;
+    imageUrl?: string;
     /** Heures par date (optionnel). Si fourni, utilise startTime/endTime par date au lieu des valeurs globales. */
     dateTimes?: Array<{ date: string; startTime: string; endTime: string }>;
   }
@@ -338,7 +388,8 @@ const createRecurringEvents = async (
           budget: eventData.budget,
           maxPerformers: eventData.maxPerformers,
           maxSpectators: eventData.maxSpectators != null ? Number(eventData.maxSpectators) : undefined,
-          recurrenceGroupId: recurrenceGroupId
+          recurrenceGroupId: recurrenceGroupId,
+          imageUrl: eventData.imageUrl && typeof eventData.imageUrl === 'string' && eventData.imageUrl.trim() ? eventData.imageUrl.trim() : undefined,
         });
 
         console.log(`🔄 [RECURRENCE] Événement modèle créé, validation...`);
@@ -903,9 +954,15 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());
 
-    // Notifier les humoristes ayant postulé si l'évènement est futur
-    if (updatedEvent && new Date(updatedEvent.date) >= new Date()) {
-      console.log('📧 [DEBUG] Mise à jour évènement futur, préparation envoi emails de mise à jour...');
+    // Notifier les humoristes ayant postulé si l'évènement est aujourd'hui ou futur (comparaison à minuit pour inclure "aujourd'hui")
+    const eventDateAtMidnight = new Date(updatedEvent.date);
+    eventDateAtMidnight.setHours(0, 0, 0, 0);
+    const todayAtMidnight = new Date();
+    todayAtMidnight.setHours(0, 0, 0, 0);
+    const isEventTodayOrFuture = updatedEvent && eventDateAtMidnight >= todayAtMidnight;
+
+    if (isEventTodayOrFuture) {
+      console.log('📧 [DEBUG] Mise à jour évènement (aujourd\'hui ou futur), préparation envoi emails de mise à jour...');
       const applications = await ApplicationModel.find({ event: updatedEvent._id, status: { $in: ['PENDING', 'ACCEPTED'] } })
         .populate('comedian', 'email firstName lastName');
 
@@ -973,14 +1030,15 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
             }
           }
         } else {
-          // Sinon, envoyer une notification de mise à jour classique
+          // Sinon, envoyer une notification de mise à jour classique (avec détail des champs modifiés)
           try {
+            const changes = getEventChanges(event, updatedEvent);
             await sendEventUpdatedNotificationToApplicants(applications as any, updatedEvent, {
               firstName: organizer.firstName,
               lastName: organizer.lastName,
               email: organizer.email,
-            });
-            console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
+            }, changes);
+            console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)${changes.length ? ` (${changes.length} modification(s))` : ''}`);
             // Créer des notifications in-app pour les humoristes concernés
             try {
               const { createNotification } = await import('./notification');
@@ -1869,5 +1927,39 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
       message: 'Erreur lors du marquage des évènements comme completed',
       error: error instanceof Error ? error.message : 'Erreur inconnue'
     });
+  }
+};
+
+// ============================================================================
+// UPLOAD PHOTO ÉVÉNEMENT (organisateur)
+// ============================================================================
+const ALLOWED_EVENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+const MAX_EVENT_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
+export const uploadEventImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (req.user?.role !== 'ORGANIZER') {
+      res.status(403).json({ message: 'Réservé aux organisateurs' });
+      return;
+    }
+    const file = (req as any).file;
+    if (!file) {
+      res.status(400).json({ message: 'Aucun fichier reçu. Formats acceptés: JPG, PNG, GIF (max 5MB).' });
+      return;
+    }
+    if (!ALLOWED_EVENT_IMAGE_TYPES.includes(file.mimetype)) {
+      res.status(400).json({ message: 'Format non accepté. Utilisez JPG, PNG ou GIF.' });
+      return;
+    }
+    if (file.size > MAX_EVENT_IMAGE_SIZE) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max 5MB).' });
+      return;
+    }
+    const baseUrl = config.api.url.replace(/\/$/, '');
+    const imageUrl = `${baseUrl}/uploads/events/${file.filename}`;
+    res.status(200).json({ imageUrl });
+  } catch (error: any) {
+    console.error('Upload event image error:', error);
+    res.status(500).json({ message: error?.message || 'Erreur lors de l\'upload.' });
   }
 };

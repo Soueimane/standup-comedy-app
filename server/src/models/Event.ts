@@ -41,6 +41,8 @@ export interface EventDocument extends Document {
   recurrenceGroupId?: Types.ObjectId;
   /** Nombre max de places pour spectateurs (optionnel) */
   maxSpectators?: number;
+  /** URL de l'image de l'événement (affichée sur les cartes spectateur) */
+  imageUrl?: string;
   // Annulation tardive : boost recommandations
   hasLateCancellation?: boolean;
   lateCancellationAt?: Date;
@@ -166,6 +168,7 @@ const eventSchema = new Schema<EventDocument>({
     j1Sent: { type: Boolean, default: false }
   },
   maxSpectators: { type: Number, required: false },
+  imageUrl: { type: String, required: false },
   // Schéma pour le tracking des relances humoristes par mobilité (événements incomplets)
   mobilityReminders: {
     j2: {

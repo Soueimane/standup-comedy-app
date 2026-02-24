@@ -102,6 +102,28 @@ export const registerSpectatorToEvent = async (eventId: string) => {
   return response.data;
 };
 
+/** Crée une session Stripe Checkout pour acheter une place à 1€. Rediriger vers data.url */
+export const createStripeCheckoutSession = async (eventId: string): Promise<{ url: string }> => {
+  const response = await api.post<{ url: string }>('/stripe/create-checkout-session', { eventId });
+  return response.data;
+};
+
+/** Confirme l'inscription après retour de Stripe (si webhook pas encore traité). */
+export const confirmStripeRegistration = async (sessionId: string) => {
+  const response = await api.get('/stripe/confirm-registration', { params: { session_id: sessionId } });
+  return response.data;
+};
+
+/** Upload photo de l'événement (organisateur). JPG, PNG, GIF max 5MB. Retourne { imageUrl }. */
+export const uploadEventImage = async (file: File): Promise<{ imageUrl: string }> => {
+  const formData = new FormData();
+  formData.append('image', file);
+  const response = await api.post<{ imageUrl: string }>('/events/upload-image', formData, {
+    headers: { 'Content-Type': undefined } as any,
+  });
+  return response.data;
+};
+
 export const unregisterSpectatorFromEvent = async (eventId: string) => {
   const response = await api.delete(`/events/${eventId}/spectator-register`);
   return response.data;

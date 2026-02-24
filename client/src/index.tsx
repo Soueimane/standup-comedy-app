@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import './index.css';
 import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
@@ -45,6 +45,11 @@ const queryClient = new QueryClient({
   },
 })
 
+const RedirectSpectatorEvents: React.FC = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/spectateur/events${search}`} replace />;
+};
+
 const AppRouter: React.FC = () => {
   return (
     <Routes>
@@ -60,6 +65,7 @@ const AppRouter: React.FC = () => {
       <Route path="/dashboard" element={<DashboardRouter />} />
       <Route path="/spectateur" element={<SpectatorHomePage />} />
       <Route path="/spectateur/events" element={<SpectatorEventsPage />} />
+      <Route path="/spectator/events" element={<RedirectSpectatorEvents />} />
       <Route path="/spectateur/profile" element={<SpectatorProfilePage />} />
       <Route path="/events" element={<MyEventsPage />} />
       <Route path="/profile/organizer" element={<OrganizerProfilePage />} />

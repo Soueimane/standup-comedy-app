@@ -249,6 +249,7 @@ export const createEventSchema = z.object({
     startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
     endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
   })).optional(),
+  imageUrl: z.string().max(2000).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)).refine((v) => !v || /^https?:\/\//i.test(v), { message: 'L\'URL de l\'image doit commencer par http:// ou https://' }),
 }).refine((data) => {
   // Validation : si isRecurring est true, dates doit être présent et date ne doit pas l'être
   if (data.isRecurring === true) {
@@ -327,6 +328,7 @@ export const updateEventSchema = z.object({
     .min(1, { message: 'Le nombre de places doit être au moins 1' })
     .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
     .optional(),
+  imageUrl: z.string().max(2000).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)).refine((v) => !v || /^https?:\/\//i.test(v), { message: 'L\'URL de l\'image doit commencer par http:// ou https://' }),
 }).partial().refine((data) => {
   // Si les deux heures sont fournies, validez que la fin est après le début
   if (data.startTime && data.endTime) {

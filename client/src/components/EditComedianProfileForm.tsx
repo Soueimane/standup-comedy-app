@@ -36,6 +36,8 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     setAvatarChanged(false);
   }, [currentUser]);
 
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -45,9 +47,9 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         return;
       }
 
-      // Vérifier le type de fichier
-      if (!file.type.startsWith('image/')) {
-        showWarning(WarningMessages.IMAGE_REQUIRED);
+      // Formats acceptés: JPG, PNG, GIF uniquement
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        showWarning('Formats acceptés: JPG, PNG, GIF (max 5MB).');
         return;
       }
 
@@ -295,7 +297,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           )}
           <input
             type="file"
-            accept="image/*"
+            accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif"
             onChange={handleImageChange}
             style={{
               width: '100%',

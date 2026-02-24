@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -8,7 +9,8 @@ import { useAlert } from '../hooks/useAlert';
 import {
   getEventFavorites,
   removeEventFavorite,
-  registerSpectatorToEvent,
+  createStripeCheckoutSession,
+  confirmStripeRegistration,
   unregisterSpectatorFromEvent,
 } from '../services/api';
 import EventDetailModal from '../components/EventDetailModal';
@@ -61,11 +63,35 @@ export default function SpectatorEventsPage() {
     onSuccess: () => { invalidate(); showSuccess('Désinscription enregistrée'); },
     onError: (e: any) => showError(e?.response?.data?.message || 'Erreur'),
   });
-  const registerMutation = useMutation({
-    mutationFn: registerSpectatorToEvent,
-    onSuccess: () => { invalidate(); showSuccess('Inscription enregistrée'); },
-    onError: (e: any) => showError(e?.response?.data?.message || 'Erreur'),
+  const stripeCheckoutMutation = useMutation({
+    mutationFn: createStripeCheckoutSession,
+    onSuccess: (data) => { if (data?.url) window.location.href = data.url; },
+    onError: (e: any) => showError(e?.response?.data?.message || 'Erreur de paiement'),
   });
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    const sessionId = searchParams.get('session_id');
+    if (payment === 'success') {
+      if (sessionId) {
+        confirmStripeRegistration(sessionId)
+          .then(() => {
+            invalidate();
+            showSuccess('Paiement réussi, vous êtes inscrit à l\'événement.');
+          })
+          .catch(() => showError('Erreur lors de la confirmation de l\'inscription.'))
+          .finally(() => setSearchParams({}, { replace: true }));
+      } else {
+        invalidate();
+        showSuccess('Paiement réussi, vous êtes inscrit à l\'événement.');
+        setSearchParams({}, { replace: true });
+      }
+    } else if (payment === 'cancelled') {
+      showError('Paiement annulé.');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
 
   // Build a Set of event IDs the user is registered to (from myRegistrationsList)
   // This is reliable regardless of whether spectatorRegistrations is populated on the event
@@ -107,11 +133,8 @@ export default function SpectatorEventsPage() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const favoritesUpcoming = favoritesList
-    .filter((e) => new Date(e.date) >= now && e.status?.toLowerCase() !== 'cancelled')
+    .filter((e) => new Date(e.date) >= now && e.status?.toLowerCase() !== 'cancelled' && !isUserWithdrawn(e))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const favoritesArchived = favoritesList
-    .filter((e) => new Date(e.date) < now || e.status?.toLowerCase() === 'cancelled')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const isLoading = loadingRegistrations || loadingFavorites;
 
@@ -134,7 +157,7 @@ export default function SpectatorEventsPage() {
         }}
       >
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <h1 style={{ marginBottom: 24, fontSize: '1.75rem' }}>Évènements</h1>
+          <h1 style={{ marginBottom: 24, fontSize: '1.75rem' }}>Mes évènements</h1>
 
           {/* Onglets filtre */}
           <div
@@ -270,18 +293,17 @@ export default function SpectatorEventsPage() {
           ) : (
             <Section
               title="Favoris"
-              events={[...favoritesUpcoming, ...favoritesArchived]}
-              emptyMessage="Aucun favori."
+              events={favoritesUpcoming}
+              emptyMessage="Aucun favori à venir."
               onEventClick={setSelectedEvent}
-              onRegister={(e) => registerMutation.mutate(e._id)}
+              onRegister={(e) => stripeCheckoutMutation.mutate(e._id)}
               onUnregister={(e) => openUnregisterConfirm(e)}
               onRemoveFavorite={(e) => removeFavoriteMutation.mutate(e._id)}
               isUnregistering={unregisterMutation.isPending}
-              isRegistering={registerMutation.isPending}
+              isRegistering={stripeCheckoutMutation.isPending}
               showUnregister
               showRemoveFavorite
               isRegistered={isUserRegistered}
-              isWithdrawn={isUserWithdrawn}
             />
           )}
         </div>
@@ -319,7 +341,6 @@ function Section({
   showUnregister,
   showRemoveFavorite = false,
   isRegistered,
-  isWithdrawn,
 }: {
   title: string;
   events: IEvent[];
@@ -333,7 +354,6 @@ function Section({
   showUnregister: boolean;
   showRemoveFavorite?: boolean;
   isRegistered?: (e: IEvent) => boolean;
-  isWithdrawn?: (e: IEvent) => boolean;
 }) {
   return (
     <section style={{ marginBottom: 40 }}>
@@ -357,7 +377,6 @@ function Section({
               onUnregister={showUnregister && onUnregister ? () => onUnregister(event) : undefined}
               onRemoveFavorite={showRemoveFavorite ? () => onRemoveFavorite(event) : undefined}
               isRegistered={isRegistered ? isRegistered(event) : false}
-              isWithdrawn={isWithdrawn ? isWithdrawn(event) : false}
               isUnregistering={isUnregistering}
               isRegistering={isRegistering}
             />
@@ -375,7 +394,6 @@ function EventCard({
   onUnregister,
   onRemoveFavorite,
   isRegistered,
-  isWithdrawn = false,
   isUnregistering,
   isRegistering = false,
 }: {
@@ -385,7 +403,6 @@ function EventCard({
   onUnregister?: () => void;
   onRemoveFavorite?: () => void;
   isRegistered: boolean;
-  isWithdrawn?: boolean;
   isUnregistering: boolean;
   isRegistering?: boolean;
 }) {
@@ -401,61 +418,95 @@ function EventCard({
   const maxSpectators = event.maxSpectators;
   const registeredCount = Array.isArray(event.spectatorRegistrations) ? event.spectatorRegistrations.length : 0;
   const placesRemaining = maxSpectators != null ? Math.max(0, maxSpectators - registeredCount) : null;
-  const canRegister = onRegister && !isRegistered && !isWithdrawn && !isPast && !isCancelled && (placesRemaining === null || placesRemaining > 0);
+  const canRegister = onRegister && !isRegistered && !isPast && !isCancelled && (placesRemaining === null || placesRemaining > 0);
+  const imageUrl = event.imageUrl;
+  const hasBg = !!imageUrl;
+  const textColor = hasBg ? '#fff' : '#1a1a2e';
+  const textColorMuted = hasBg ? 'rgba(255,255,255,0.92)' : '#555';
+  const textColorMuted2 = hasBg ? 'rgba(255,255,255,0.88)' : '#666';
+  const textShadow = hasBg ? '0 1px 2px rgba(0,0,0,0.8)' : 'none';
 
   return (
     <div
       style={{
-        background: '#fff',
+        position: 'relative',
+        background: hasBg ? undefined : '#fff',
+        backgroundImage: hasBg ? `url(${imageUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         border: '1px solid rgba(0,0,0,0.1)',
         borderRadius: 12,
-        padding: 16,
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 0,
       }}
     >
-      <h3
-        style={{
-          margin: 0,
-          fontSize: '1rem',
-          color: '#1a1a2e',
-          cursor: onEventClick ? 'pointer' : 'default',
-          textDecoration: onEventClick ? 'underline' : 'none',
-        }}
-        onClick={onEventClick}
-        title={onEventClick ? 'Voir les détails' : undefined}
-      >
-        {event.title}
-      </h3>
-      <div
-        role={onEventClick ? 'button' : undefined}
-        tabIndex={onEventClick ? 0 : undefined}
-        onClick={onEventClick}
-        onKeyDown={onEventClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onEventClick(); } : undefined}
-        style={{ cursor: onEventClick ? 'pointer' : 'default' }}
-      >
-        <p style={{ margin: 0, fontSize: '0.85rem', color: '#555' }}>{dateStr}</p>
-        {city && <p style={{ margin: 0, fontSize: '0.85rem', color: '#666' }}>📍 {city}</p>}
-        <p style={{ margin: 0, fontSize: '0.8rem', color: '#666', lineHeight: 1.4 }}>
-          {event.description?.slice(0, 100)}
-          {event.description && event.description.length > 100 ? '…' : ''}
-        </p>
-        {placesRemaining !== null && (
-          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#555', fontWeight: 500 }}>
-            {placesRemaining === 0 ? 'Complet' : `${placesRemaining} place${placesRemaining > 1 ? 's' : ''} restante${placesRemaining > 1 ? 's' : ''}`}
-          </p>
-        )}
-      </div>
-      {isPast && (
-        <span style={{ fontSize: '0.75rem', color: '#888' }}>Passé</span>
+      {hasBg && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.7) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
       )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        {isWithdrawn && !isRegistered && (
-          <span style={{ fontSize: '0.85rem', color: '#888' }}>
-            Vous vous êtes désinscrit de cet événement. La réinscription n'est pas possible.
+      <div style={{ position: 'relative', zIndex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1rem',
+            color: textColor,
+            textShadow,
+            cursor: onEventClick ? 'pointer' : 'default',
+            textDecoration: onEventClick ? 'underline' : 'none',
+          }}
+          onClick={onEventClick}
+          title={onEventClick ? 'Voir les détails' : undefined}
+        >
+          {event.title}
+        </h3>
+        {isRegistered && (
+          <span
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#fff',
+              background: 'rgba(34, 197, 94, 0.95)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }}
+          >
+            Je participe
           </span>
         )}
+        </div>
+        <div
+          role={onEventClick ? 'button' : undefined}
+          tabIndex={onEventClick ? 0 : undefined}
+          onClick={onEventClick}
+          onKeyDown={onEventClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onEventClick(); } : undefined}
+          style={{ cursor: onEventClick ? 'pointer' : 'default' }}
+        >
+          <p style={{ margin: 0, fontSize: '0.85rem', color: textColorMuted, textShadow }}>{dateStr}</p>
+          {city && <p style={{ margin: 0, fontSize: '0.85rem', color: textColorMuted2, textShadow }}>📍 {city}</p>}
+          <p style={{ margin: 0, fontSize: '0.8rem', color: textColorMuted2, lineHeight: 1.4, textShadow }}>
+            {event.description?.slice(0, 100)}
+            {event.description && event.description.length > 100 ? '…' : ''}
+          </p>
+          {placesRemaining !== null && (
+            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', fontWeight: 500, color: textColorMuted, textShadow }}>
+              {placesRemaining === 0 ? 'Complet' : `${placesRemaining} place${placesRemaining > 1 ? 's' : ''} restante${placesRemaining > 1 ? 's' : ''}`}
+            </p>
+          )}
+        </div>
+        {isPast && (
+          <span style={{ fontSize: '0.75rem', color: hasBg ? 'rgba(255,255,255,0.85)' : '#888' }}>Passé</span>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
         {canRegister && (
           <button
             type="button"
@@ -471,7 +522,7 @@ function EventCard({
               fontSize: '0.9rem',
             }}
           >
-            Je participe
+            Je participe pour 1€
           </button>
         )}
         {onUnregister && isRegistered && (
@@ -509,6 +560,7 @@ function EventCard({
             Retirer des favoris
           </button>
         )}
+        </div>
       </div>
     </div>
   );

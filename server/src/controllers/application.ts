@@ -569,7 +569,7 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
       })
       .populate({
         path: 'comedian',
-        select: 'firstName lastName email phone avatarUrl profile'
+        select: 'firstName lastName email phone avatarUrl profile avatar'
       });
 
     // Récupérer les informations de l'utilisateur pour vérifier son rôle

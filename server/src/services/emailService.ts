@@ -972,12 +972,27 @@ L'équipe Connect Comedy Club
 export const sendEventUpdatedNotificationToApplicants = async (
   applications: Array<{ _id: string; comedian: any }>,
   event: any,
-  organizer: { firstName: string; lastName: string; email: string }
+  organizer: { firstName: string; lastName: string; email: string },
+  changes: string[] = []
 ) => {
   if (!applications || applications.length === 0) return;
 
   const subject = `✏️ Mise à jour de l'évènement "${event.title}"`;
   const frontendBase = config.frontend.url;
+
+  const changesHtml = changes.length > 0
+    ? `
+        <div style="margin: 16px 0; padding: 16px; background: #fff3e0; border-left: 4px solid #ff9800; border-radius: 8px;">
+          <strong style="display: block; margin-bottom: 8px;">📋 Informations modifiées :</strong>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${changes.map(c => `<li style="margin-bottom: 4px;">${c}</li>`).join('')}
+          </ul>
+        </div>`
+    : '';
+
+  const changesText = changes.length > 0
+    ? `\nInformations modifiées :\n${changes.map(c => `  • ${c}`).join('\n')}\n`
+    : '';
 
   const sendAll = applications.map(async (app: any) => {
     const comedian = app.comedian;
@@ -999,7 +1014,9 @@ export const sendEventUpdatedNotificationToApplicants = async (
         <h2 style="margin-top:0">✏️ L'organisateur a modifié un évènement</h2>
         <p>Bonjour ${comedian.firstName || ''},</p>
         <p>L'évènement auquel vous avez postulé a été mis à jour par <b>${organizer.firstName} ${organizer.lastName}</b>.</p>
+        ${changesHtml}
         <div style="margin: 16px 0; padding: 16px; background:#e3f2fd; border-left: 4px solid #2196f3; border-radius: 8px;">
+          <strong style="display: block; margin-bottom: 8px;">État actuel de l'évènement</strong>
           <div><b>📛 Titre:</b> ${event.title}</div>
           <div><b>📅 Date:</b> ${new Date(event.date).toLocaleDateString('fr-FR')}</div>
           <div><b>📍 Lieu:</b> ${event.location?.address || ''} ${event.location?.city ? `- ${event.location.city}` : ''}</div>
@@ -1030,7 +1047,9 @@ export const sendEventUpdatedNotificationToApplicants = async (
 Bonjour ${comedian.firstName || ''},
 
 L'évènement auquel vous avez postulé a été mis à jour par ${organizer.firstName} ${organizer.lastName}.
+${changesText}
 
+État actuel de l'évènement:
 Évènement: ${event.title}
 Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
 Lieu: ${event.location?.address || ''} ${event.location?.city ? `- ${event.location.city}` : ''}
@@ -1976,7 +1995,7 @@ Se désabonner: ${unsubscribeUrl}
 L'équipe Connect Comedy Club
     `.trim();
 
-    await sgMail.send({
+    const [response] = await sgMail.send({
       from: {
         email: config.email.smtpUser,
         name: 'Connect Comedy Club'
@@ -2005,7 +2024,7 @@ L'équipe Connect Comedy Club
       }
     });
 
-    console.log(`✅ Email mobilité envoyé à ${comedian.email} pour l'événement "${event.title}" à ${event.location?.city}`);
+    console.log(`✅ Email mobilité envoyé à ${comedian.email} pour l'événement "${event.title}" à ${event.location?.city} [SendGrid status: ${response?.statusCode ?? 'N/A'}]`);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

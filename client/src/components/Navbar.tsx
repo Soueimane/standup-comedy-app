@@ -111,7 +111,7 @@ function Navbar() {
     if (user?.role === 'SPECTATOR') {
       return [
         { to: '/spectateur', label: 'Accueil', icon: '🏠', show: true },
-        { to: '/spectateur/events', label: 'Évènements', icon: '📅', show: true },
+        { to: '/spectateur/events', label: 'Mes évènements', icon: '📅', show: true },
         { to: '/spectateur/profile', label: 'Profil', icon: '👤', show: true },
       ];
     }
@@ -201,7 +201,7 @@ function Navbar() {
             {user?.role === 'SPECTATOR' ? (
               <>
                 <Link to="/spectateur" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur' ? activeLinkStyle : {}) }}>Accueil</Link>
-                <Link to="/spectateur/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur/events' ? activeLinkStyle : {}) }}>Évènements</Link>
+                <Link to="/spectateur/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur/events' ? activeLinkStyle : {}) }}>Mes évènements</Link>
                 <Link to="/spectateur/profile" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur/profile' ? activeLinkStyle : {}) }}>Profil</Link>
               </>
             ) : (

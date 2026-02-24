@@ -4038,6 +4038,7 @@ useEffect(() => {
               endTime: eventToDuplicate.endTime || '',
               minExperience: eventToDuplicate.requirements?.minExperience,
               maxComedians: eventToDuplicate.requirements?.maxPerformers,
+              imageUrl: eventToDuplicate.imageUrl || '',
             } : undefined}
           />
         )}

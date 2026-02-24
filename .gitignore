@@ -24,6 +24,9 @@ server/dist/config/env.js
 # Fichiers de debug avec credentials
 server/debug-events.js
 
+# Fichiers uploadés (photos événements)
+server/uploads/
+
 # Fichiers de base de données locaux
 *.db
 *.sqlite

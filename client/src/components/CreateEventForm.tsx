@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import { X, ChevronDown, MapPin, Calendar, Users } from 'lucide-react';
-import api from '../services/api';
+import api, { uploadEventImage } from '../services/api';
 import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface CreateEventFormProps {
@@ -25,6 +25,7 @@ interface CreateEventFormProps {
       minExperience?: number;
       maxComedians?: number;
       requiredExperienceLevel?: 'all' | '0-50' | '50-200' | '200+';
+      imageUrl?: string;
     };
 }
 
@@ -72,6 +73,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     maxComedians: initialData?.maxComedians?.toString() || '',
     requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
     status: 'PUBLISHED',
+    imageUrl: initialData?.imageUrl || '',
   });
 
   // Type d'événement : unique ou récurrent
@@ -84,6 +86,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   const [recurringDates, setRecurringDates] = useState<string[]>([]);
   // Heures personnalisées par date (clé = date YYYY-MM-DD, valeur = { startTime, endTime })
   const [dateTimeOverrides, setDateTimeOverrides] = useState<Record<string, { startTime: string; endTime: string }>>({});
+  const [uploadingEventImage, setUploadingEventImage] = useState(false);
 
   // Formater une date en YYYY-MM-DD en heure locale (évite le décalage UTC qui affichait le jour précédent)
   const toLocalDateString = (d: Date) =>
@@ -152,6 +155,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         maxComedians: initialData.maxComedians?.toString() || '',
         requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
         status: 'PUBLISHED',
+        imageUrl: initialData.imageUrl || '',
       });
     } else {
       // Réinitialiser à vide si pas de données initiales
@@ -172,6 +176,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         maxComedians: '',
         requiredExperienceLevel: 'all',
         status: 'PUBLISHED',
+        imageUrl: '',
       });
     }
   }, [initialData]);
@@ -533,6 +538,33 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     }
   };
 
+  const ALLOWED_EVENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+  const handleEventImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showWarning('Fichier trop volumineux. Formats acceptés: JPG, PNG, GIF (max 5MB).');
+      return;
+    }
+    if (!ALLOWED_EVENT_IMAGE_TYPES.includes(file.type)) {
+      showWarning('Formats acceptés: JPG, PNG, GIF (max 5MB).');
+      return;
+    }
+    setUploadingEventImage(true);
+    try {
+      const { imageUrl } = await uploadEventImage(file);
+      setFormData(prev => ({ ...prev, imageUrl }));
+    } catch (err: any) {
+      showWarning(err?.response?.data?.message || 'Erreur lors de l\'upload.');
+    } finally {
+      setUploadingEventImage(false);
+      e.target.value = '';
+    }
+  };
+  const handleRemoveEventImage = () => {
+    setFormData(prev => ({ ...prev, imageUrl: '' }));
+  };
+
   // Fonction pour obtenir les créneaux horaires disponibles pour l'heure de début
   const getAvailableStartTimeSlots = () => {
     if (!formData.date) {
@@ -861,6 +893,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         startTime: formData.startTime,
         endTime: formData.endTime,
         maxSpectators: formData.maxSpectators && formData.maxSpectators.trim() ? parseInt(formData.maxSpectators, 10) : undefined,
+        imageUrl: formData.imageUrl && formData.imageUrl.trim() ? formData.imageUrl.trim() : undefined,
       };
 
       const config = {
@@ -1125,6 +1158,62 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     {errors.description}
                   </p>
                 )}
+              </div>
+
+              {/* Photo de l'événement */}
+              <div style={{ marginTop: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                  Photo de l'événement
+                </label>
+                {formData.imageUrl && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <img
+                      src={formData.imageUrl}
+                      alt="Aperçu"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: 160,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: '1px solid #444',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveEventImage}
+                      style={{
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        background: 'rgba(220, 53, 69, 0.15)',
+                        color: '#ffb3b3',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      Supprimer la photo
+                    </button>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif"
+                  onChange={handleEventImageChange}
+                  disabled={uploadingEventImage}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: 5,
+                    border: '1px solid #444',
+                    backgroundColor: '#333',
+                    color: '#fff',
+                    cursor: uploadingEventImage ? 'wait' : 'pointer',
+                  }}
+                />
+                <p style={{ fontSize: '0.85em', color: '#aaa', marginTop: '5px' }}>
+                  Formats acceptés: JPG, PNG, GIF (max 5MB)
+                </p>
               </div>
             </div>
 

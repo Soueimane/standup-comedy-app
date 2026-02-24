@@ -54,7 +54,12 @@ export const config = {
     get issuer() {
       return `${this.url}/realms/${this.realm}`;
     },
-  }
+  },
+
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  },
 };
 
 // Validation de la configuration

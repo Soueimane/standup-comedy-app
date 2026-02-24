@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config/env';
@@ -25,6 +26,8 @@ import oauthRoutes from './routes/oauth';
 import recommendationsRoutes from './routes/recommendations';
 import comediansRoutes from './routes/comedians';
 import usersRoutes from './routes/users';
+import stripeRoutes from './routes/stripe';
+import { handleStripeWebhook } from './controllers/stripe';
 import { sseManager } from './services/sseManager';
 
 const app = express();
@@ -78,6 +81,10 @@ app.options('*', (req, res) => {
   res.header('Access-Control-Max-Age', '86400');
   res.sendStatus(200);
 });
+
+// Webhook Stripe : doit recevoir le body brut pour la signature (avant express.json)
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
 app.use(express.json({ limit: '6mb' }));
 app.use(express.urlencoded({ extended: true, limit: '6mb' }));
 
@@ -95,6 +102,9 @@ app.get('/health', (req, res) => {
     uptime: process.uptime()
   });
 });
+
+// Fichiers uploadés (photos événements, etc.)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -115,6 +125,7 @@ app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/comedians', comediansRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

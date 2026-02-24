@@ -159,8 +159,7 @@ function ApplicationsPage() {
   const [statusMessage, setStatusMessage] = useState('');
   const messageInputRef = useRef<HTMLInputElement | null>(null);
   const [comedianFilter, setComedianFilter] = useState<string>('all');
-  const [selectedEventId, setSelectedEventId] = useState<string>('all');
-  const [organizerEvents, setOrganizerEvents] = useState<Array<{ id: string; title: string }>>([]);
+  const [selectedEventId] = useState<string>('all');
   const [sortKey, setSortKey] = useState<'dateAsc' | 'dateDesc' | 'statusAsc' | 'statusDesc'>('dateDesc');
   // États pour les filtres spécifiques COMEDIAN
   const [comedianSortKey, setComedianSortKey] = useState<'dateAsc' | 'dateDesc'>('dateDesc');
@@ -211,7 +210,7 @@ function ApplicationsPage() {
       console.log('📋 Applications chargées:', list.length);
       list.forEach((app: IApplication, idx: number) => {
         if (app.comedian?.profile?.mobilityZone) {
-          console.log(`  Application ${idx + 1} - Humoriste: ${app.comedian.firstName} ${app.comedian.lastName}`, {
+          console.log(`  Application ${idx + 1} - Humoriste: ${app.comedian?.firstName ?? ''} ${app.comedian?.lastName ?? ''}`, {
             mobilityZones: app.comedian.profile.mobilityZone,
             eventCity: app.event.location.city
           });
@@ -376,26 +375,10 @@ function ApplicationsPage() {
 
   // Charger les évènements de l'organisateur pour le sélecteur
   useEffect(() => {
-    const loadOrganizerEvents = async () => {
-      if (!token || user?.role !== 'ORGANIZER') return;
-      try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        const res = await api.get<any[]>('/events', config);
-        const list = Array.isArray(res.data) ? res.data : [];
-        const options = list.map((ev: any) => ({ id: ev._id, title: ev.title }));
-        setOrganizerEvents(options);
-      } catch (err) {
-        console.error('Erreur chargement évènements pour filtre:', err);
-      }
-    };
-    loadOrganizerEvents();
-  }, [token, user?.role]);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [selectedTab, selectedEventId, comedianFilter, sortKey, applications.length, eventZoneSearch, organizerExperienceFilter]);
   const organizerFilteredApplications = user?.role === 'ORGANIZER'
-    ? getFilteredApplications().filter(app => app.event)
+    ? getFilteredApplications().filter(app => app.event && app.comedian && app.event.organizer)
     : [];
 
   const totalOrganizerPages = Math.max(1, Math.ceil(organizerFilteredApplications.length / ITEMS_PER_PAGE));
@@ -915,7 +898,7 @@ function ApplicationsPage() {
     width: isMobile ? '48px' : '56px',
     height: isMobile ? '48px' : '56px',
     borderRadius: '50%',
-    background: 'rgba(255, 255, 255, 0.15)',
+    background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
     color: '#fff',
     display: 'flex',
     alignItems: 'center',
@@ -1310,17 +1293,6 @@ function ApplicationsPage() {
               </select>
 
               <select
-                value={selectedEventId}
-                onChange={e => setSelectedEventId(e.target.value)}
-                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220 }}
-              >
-                <option value="all">Tous les évènements</option>
-                {organizerEvents.map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.title}</option>
-                ))}
-              </select>
-
-              <select
                 value={sortKey}
                 onChange={e => setSortKey(e.target.value as any)}
                 style={{ padding: '8px', borderRadius: '6px', border: '1px solid #444', background: '#222', color: '#fff', minWidth: 220, marginLeft: 'auto' }}
@@ -1541,7 +1513,7 @@ function ApplicationsPage() {
 
                           {/* Ligne 2 : Organisateur */}
                           <p style={{ ...cardDetailStyle, margin: 0, marginBottom: '4px', color: (app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? '#64748B' : '#9ad7ff' }}>
-                            · Organisateur: {app.event.organizer.firstName} {app.event.organizer.lastName}
+                            · Organisateur: {app.event.organizer?.firstName ?? ''} {app.event.organizer?.lastName ?? ''}
                           </p>
 
                           {/* Heure de l'évènement */}
@@ -1608,8 +1580,44 @@ function ApplicationsPage() {
                               {app.status === 'ACCEPTED' ? '✓ Acceptée' : app.status === 'REJECTED' ? '✕ Refusée' : ''}
                             </span>
                           )}
-                          {/* Boutons de confirmation/désinscription pour les événements modifiés (masqués si événement annulé) */}
-                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
+                          {/* Candidature acceptée SANS modification de l'événement : uniquement "Me désinscrire" */}
+                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                  e.stopPropagation();
+                                  if (!token) return;
+                                  setConfirmDialog({
+                                    isOpen: true,
+                                    title: 'Confirmer la désinscription',
+                                    message: ConfirmMessages.UNSUBSCRIBE_DETAIL,
+                                     onConfirm: async () => {
+                                       console.log('🔄 Début de la désinscription (accepted) pour application:', app._id);
+                                       try {
+                                         const config = { headers: { Authorization: `Bearer ${token}` } };
+                                         console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
+                                         await api.delete(`/applications/${app._id}`, config);
+                                         console.log('✅ API call réussi, affichage de l\'alerte de succès');
+                                         showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
+                                         queryClient.invalidateQueries({ queryKey: ['applications'] });
+                                         refreshUser();
+                                         setConfirmDialog({ ...confirmDialog, isOpen: false });
+                                       } catch (err: any) {
+                                         console.log('❌ Erreur lors de la désinscription:', err);
+                                         console.log('📢 Affichage de l\'alerte d\'erreur');
+                                         showError(ErrorMessages.APPLICATION_WITHDRAW_FAILED);
+                                       }
+                                     },
+                                  });
+                                }}
+                                style={{ ...actionButtonStyle, backgroundColor: '#dc3545', width: isMobile ? '100%' : 'auto' }}
+                              >
+                                Me désinscrire
+                              </button>
+                            </div>
+                          )}
+                          {/* Candidature acceptée ET événement modifié par l'organisateur : "Je reste inscrit" + "Me désinscrire" */}
+                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && comedianTab === 'accepted' && app.status === 'ACCEPTED' && wasEventUpdatedAfterApplication(app) && app.event?.date && isEventUpcoming(app.event.date) && (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button
                                 onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -1656,42 +1664,6 @@ function ApplicationsPage() {
                                   });
                                 }}
                                 style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}
-                              >
-                                Me désinscrire
-                              </button>
-                            </div>
-                          )}
-                          {/* Bouton de désinscription pour le tab "accepted" (masqué si événement annulé) */}
-                          {user?.role === 'COMEDIAN' && !isEventCancelled(app.event) && comedianTab === 'accepted' && app.status === 'ACCEPTED' && app.event?.date && isEventUpcoming(app.event.date) && !wasEventUpdatedAfterApplication(app) && (
-                            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                  e.stopPropagation();
-                                  if (!token) return;
-                                  setConfirmDialog({
-                                    isOpen: true,
-                                    title: 'Confirmer la désinscription',
-                                    message: ConfirmMessages.UNSUBSCRIBE_DETAIL,
-                                     onConfirm: async () => {
-                                       console.log('🔄 Début de la désinscription (accepted) pour application:', app._id);
-                                       try {
-                                         const config = { headers: { Authorization: `Bearer ${token}` } };
-                                         console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
-                                         await api.delete(`/applications/${app._id}`, config);
-                                         console.log('✅ API call réussi, affichage de l\'alerte de succès');
-                                         showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
-                                         queryClient.invalidateQueries({ queryKey: ['applications'] });
-                                         refreshUser();
-                                         setConfirmDialog({ ...confirmDialog, isOpen: false });
-                                       } catch (err: any) {
-                                         console.log('❌ Erreur lors de la désinscription:', err);
-                                         console.log('📢 Affichage de l\'alerte d\'erreur');
-                                         showError(ErrorMessages.APPLICATION_WITHDRAW_FAILED);
-                                       }
-                                     },
-                                  });
-                                }}
-                                style={{ ...actionButtonStyle, backgroundColor: '#dc3545', width: isMobile ? '100%' : 'auto' }}
                               >
                                 Me désinscrire
                               </button>
@@ -1764,7 +1736,7 @@ function ApplicationsPage() {
                           {app.comedian?.avatarUrl ? (
                             <img
                               src={app.comedian.avatarUrl}
-                              alt={`${app.comedian.firstName} ${app.comedian.lastName}`}
+                              alt={`${app.comedian?.firstName ?? ''} ${app.comedian?.lastName ?? ''}`}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                             />
                           ) : (
@@ -1772,7 +1744,7 @@ function ApplicationsPage() {
                           )}
                         </div>
                         <div style={comedianDetailsStyle}>
-                          <p style={{ ...comedianNameTextStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a' } : {}) }}>{app.comedian.firstName} {app.comedian.lastName}</p>
+                          <p style={{ ...comedianNameTextStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#1a1a1a' } : {}) }}>{app.comedian?.firstName ?? ''} {app.comedian?.lastName ?? ''}</p>
                           <p style={{ ...comedianRoleTextStyle, ...((app.status === 'PENDING' || app.status === 'ACCEPTED' || app.status === 'REJECTED' || app.status === 'EXPIRED' || app.status === 'WITHDRAWN') ? { color: '#64748B' } : {}) }}>Humoriste</p>
                           <GeographicCompatibilityBadge 
                             eventCity={app.event.location.city} 
@@ -1783,7 +1755,7 @@ function ApplicationsPage() {
                           style={viewProfileInlineButtonStyle}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
-                            handleViewComedianProfile(e, app.comedian._id, app._id);
+                            if (app.comedian?._id) handleViewComedianProfile(e, app.comedian._id, app._id);
                           }}
                         >
                           👤 Voir le profil
