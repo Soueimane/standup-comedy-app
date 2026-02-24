@@ -120,6 +120,13 @@ const LANDING_CSS = `
   .landing-dark .step h3 { font-size: 22px; font-weight: 700; margin-bottom: 16px; color: #1a1a1a; }
   .landing-dark .step p { color: #64748B; font-size: 16px; line-height: 1.7; }
   .landing-dark .steps-conclusion { text-align: center; font-size: 24px; font-weight: 700; color: var(--primary); margin-top: 60px; padding: 32px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 2px solid var(--primary); }
+  .landing-dark .tutorial-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 60px; position: relative; z-index: 1; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .landing-dark .tutorial-link-card { display: block; background: white; border: 2px solid var(--border); border-radius: 24px; overflow: hidden; text-align: center; transition: all 0.4s; color: #1a1a1a; text-decoration: none; }
+  .landing-dark .tutorial-link-card:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: var(--shadow-2xl); color: #1a1a1a; }
+  .landing-dark .tutorial-thumbnail-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #0f172a; overflow: hidden; }
+  .landing-dark .tutorial-thumbnail-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .landing-dark .tutorial-link-card h3 { font-size: 16px; font-weight: 700; margin: 0; padding: 20px 16px; color: #1a1a1a; line-height: 1.3; }
+  @media (max-width: 968px) { .landing-dark .tutorial-links { grid-template-columns: 1fr; } }
   .landing-dark .features-section { padding: 120px 0; background: transparent; }
   .landing-dark .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; margin-top: 80px; }
   .landing-dark .feature-card { background: rgba(255,255,255,0.06); border-radius: 24px; padding: 48px; border: 2px solid var(--border); transition: all 0.4s; }
@@ -149,6 +156,21 @@ const LANDING_CSS = `
   @media (max-width: 968px) { .landing-dark .hero-content { grid-template-columns: 1fr; text-align: center; } .landing-dark .hero-text { max-width: 100%; } .landing-dark .hero-visual { display: none; } .landing-dark .role-cards, .landing-dark .steps-container, .landing-dark .features-grid, .landing-dark .footer-content { grid-template-columns: 1fr; } .landing-dark .header-nav { display: none; } .landing-dark .steps-line { display: none; } }
   @media (max-width: 640px) { .landing-dark .hero-ctas { flex-direction: column; } .landing-dark .hero-stats { flex-direction: column; gap: 20px; } }
 `;
+
+const YOUTUBE_TUTORIAL_ORGANISATEUR = ''; // À remplir : lien YouTube "tutoriel s'inscrire en tant qu'organisateur"
+const YOUTUBE_TUTORIAL_HUMORISTE = '';   // À remplir : lien YouTube "tutoriel s'inscrire en tant qu'humoriste"
+
+function getYoutubeVideoId(url: string): string | null {
+  if (!url || url === '#') return null;
+  const trimmed = url.trim();
+  const match = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : (trimmed.length === 11 ? trimmed : null);
+}
+
+function youtubeThumbnailUrl(videoId: string | null): string | null {
+  if (!videoId) return null;
+  return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+}
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -455,6 +477,54 @@ function LandingPage() {
                 <h3>Valider le plateau</h3>
                 <p>Sélectionnez les humoristes et confirmez-les automatiquement</p>
               </div>
+            </div>
+            <div className="tutorial-links">
+              {(() => {
+                const urlOrg = YOUTUBE_TUTORIAL_ORGANISATEUR || 'https://youtu.be/TfmNkTyyrqs';
+                const videoIdOrg = getYoutubeVideoId(urlOrg);
+                const thumbOrg = videoIdOrg ? youtubeThumbnailUrl(videoIdOrg) : null;
+                return (
+                  <a
+                    className="tutorial-link-card"
+                    href={urlOrg}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Tutoriel d'utilisastion en tant qu'Organisateur"
+                  >
+                    <div className="tutorial-thumbnail-wrap">
+                      {thumbOrg ? (
+                        <img src={thumbOrg} alt="" />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 48 }}>▶</div>
+                      )}
+                    </div>
+                    <h3>🎥 Tutoriel d'utilisastion en tant qu'Organisateur</h3>
+                  </a>
+                );
+              })()}
+              {(() => {
+                const urlHum = YOUTUBE_TUTORIAL_HUMORISTE || 'https://youtu.be/gfwhgVEwe4k';
+                const videoIdHum = getYoutubeVideoId(urlHum);
+                const thumbHum = videoIdHum ? youtubeThumbnailUrl(videoIdHum) : null;
+                return (
+                  <a
+                    className="tutorial-link-card"
+                    href={urlHum}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Tutoriel d'utilisastion en tant qu'Humoriste"
+                  >
+                    <div className="tutorial-thumbnail-wrap">
+                      {thumbHum ? (
+                        <img src={thumbHum} alt="" />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 48 }}>▶</div>
+                      )}
+                    </div>
+                    <h3>🎥 Tutoriel d'utilisastion en tant qu'Humoriste</h3>
+                  </a>
+                );
+              })()}
             </div>
           </div>
         </div>
