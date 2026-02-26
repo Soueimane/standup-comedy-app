@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { config } from '../config/env';
 import {
   generatePKCE,
@@ -9,10 +10,48 @@ import {
   refreshAccessToken,
   getUserInfo,
   buildLogoutUrl,
+  revokeKeycloakTokens,
+  deleteKeycloakUser,
   isKeycloakEnabled,
 } from '../config/keycloak';
 import { UserModel } from '../models/User';
 import { OAuthStateModel } from '../models/OAuthState';
+import { TempAuthCodeModel } from '../models/TempAuthCode';
+
+// ══════════════════════════════════════════════════════════
+// AMÉLIORATION 5: Liste blanche des redirect URIs autorisées
+// ══════════════════════════════════════════════════════════
+const ALLOWED_REDIRECT_URI_PATTERNS = [
+  /^https:\/\/dev\.connectcomedyclub\.com\/api\/auth\/oauth\/callback$/,
+  /^https:\/\/connectcomedyclub\.com\/api\/auth\/oauth\/callback$/,
+  /^http:\/\/localhost:\d+\/api\/auth\/oauth\/callback$/,
+];
+
+const isValidRedirectUri = (uri: string): boolean => {
+  return ALLOWED_REDIRECT_URI_PATTERNS.some(pattern => pattern.test(uri));
+};
+
+// ══════════════════════════════════════════════════════════
+// AMÉLIORATION 6: Fonctions de masquage pour logs sécurisés
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Masque partiellement une adresse email pour les logs
+ */
+const maskEmail = (email: string): string => {
+  if (!email || !email.includes('@')) return '***';
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local[0]}***@${domain}`;
+  return `${local.substring(0, 2)}***@${domain}`;
+};
+
+/**
+ * Masque un token pour les logs (affiche seulement les 8 premiers caractères)
+ */
+const maskToken = (token: string): string => {
+  if (!token || token.length < 10) return '***';
+  return `${token.substring(0, 8)}...`;
+};
 
 /**
  * GET /api/auth/oauth/authorize
@@ -28,6 +67,13 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
     // Use full API URL including /api for proper Nginx routing
     const redirectUri = `${config.api.url}/auth/oauth/callback`;
 
+    // Validation de sécurité du redirect URI
+    if (!isValidRedirectUri(redirectUri)) {
+      console.error(`🚫 [OAuth] Invalid redirect URI attempted: ${redirectUri}`);
+      res.status(400).json({ error: 'Invalid redirect URI configuration' });
+      return;
+    }
+
     // Optional: specify a particular social provider configured in Keycloak
     // via the "provider" query parameter (google, facebook, github, etc.).
     // This is mapped to Keycloak's kc_idp_hint parameter.
@@ -38,11 +84,13 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
     // Generate PKCE challenge
     const { codeVerifier, codeChallenge } = await generatePKCE();
     const state = generateState();
+    const nonce = crypto.randomBytes(16).toString('hex'); // Protection replay attacks
 
     // Store in MongoDB for later verification (TTL: 10 minutes)
     await OAuthStateModel.create({
       state,
       codeVerifier,
+      nonce,
     });
 
     // Build authorization URL
@@ -54,9 +102,13 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
       provider
     );
 
+    // Ajouter le nonce à l'URL (pour validation dans l'id_token)
+    const authUrlWithNonce = new URL(authUrl);
+    authUrlWithNonce.searchParams.set('nonce', nonce);
+
     // Return authorization URL for frontend to redirect
     res.json({
-      authorizationUrl: authUrl,
+      authorizationUrl: authUrlWithNonce.href,
       state,
     });
   } catch (error: any) {
@@ -118,6 +170,8 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     // Get user info from Keycloak
     const userInfo = await getUserInfo(tokens.access_token);
     if (!userInfo) {
+      // tokens were exchanged but userinfo failed — revoke to close the Keycloak session
+      await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
       res.redirect(`${config.frontend.url}/auth/callback?error=userinfo_failed&error_description=Failed to get user info`);
       return;
     }
@@ -126,8 +180,11 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     let user = await UserModel.findOne({ email: userInfo.email });
 
     if (!user) {
-      // OAuth login-only: user must register first via standard registration
-      console.log(`⚠️ [OAuth] Tentative de connexion sans compte existant: ${userInfo.email}`);
+      // OAuth login-only: user must register first via standard registration.
+      // Revoke Keycloak tokens so the session is not left open on Keycloak's side.
+      console.log(`⚠️ [OAuth] Tentative de connexion sans compte existant: ${maskEmail(userInfo.email)}`);
+      await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
+      await deleteKeycloakUser(userInfo.sub);
       res.redirect(`${config.frontend.url}/auth/callback?error=account_not_found&error_description=${encodeURIComponent('Aucun compte trouvé. Veuillez d\'abord créer un compte.')}`);
       return;
     } else {
@@ -136,11 +193,13 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       if (!user.keycloakId) {
         user.keycloakId = userInfo.sub;
         await user.save();
-        console.log(`✅ [OAuth] Compte existant associé à Keycloak: ${user.email}`);
+        console.log(`✅ [OAuth] Compte existant associé à Keycloak: ${maskEmail(user.email)}`);
       } else if (user.keycloakId !== userInfo.sub) {
-        // Different Keycloak ID - security risk, block login
-        console.error(`🚫 [OAuth] Keycloak ID mismatch for ${user.email}: stored=${user.keycloakId}, received=${userInfo.sub}`);
-        res.redirect(`${config.frontend.url}/auth/callback?error=account_mismatch&error_description=${encodeURIComponent('Ce compte est déjà lié à un autre identifiant. Contactez le support.')}`);
+        // Should not happen: Keycloak federation ensures same sub for all linked providers
+        console.error(`🚫 [OAuth] Keycloak ID mismatch for ${maskEmail(user.email)}: stored=${maskToken(user.keycloakId)}, received=${maskToken(userInfo.sub)}`);
+        await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
+        await deleteKeycloakUser(userInfo.sub);
+        res.redirect(`${config.frontend.url}/auth/callback?error=account_mismatch&error_description=${encodeURIComponent('Ce compte ne peut pas être utilisé pour se connecter. Veuillez réessayer.')}`);
         return;
       }
     }
@@ -157,18 +216,20 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '1h' }
     );
 
-    // Redirect to frontend with tokens
-    const callbackUrl = new URL(`${config.frontend.url}/auth/callback`);
-    callbackUrl.searchParams.set('token', internalToken);
-    callbackUrl.searchParams.set('access_token', tokens.access_token);
-    if (tokens.refresh_token) {
-      callbackUrl.searchParams.set('refresh_token', tokens.refresh_token);
-    }
-    if (tokens.id_token) {
-      callbackUrl.searchParams.set('id_token', tokens.id_token);
-    }
+    // Générer un code temporaire au lieu de passer les tokens dans l'URL
+    const tempCode = crypto.randomBytes(32).toString('hex');
 
-    res.redirect(callbackUrl.href);
+    await TempAuthCodeModel.create({
+      code: tempCode,
+      token: internalToken,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      idToken: tokens.id_token,
+    });
+
+    // Rediriger avec seulement le code temporaire (pas les tokens)
+    const callbackUrl = `${config.frontend.url}/auth/callback?code=${tempCode}`;
+    res.redirect(callbackUrl);
   } catch (error) {
     console.error('OAuth callback error:', error);
     res.redirect(`${config.frontend.url}/auth/callback?error=token_exchange_failed&error_description=Failed to exchange code for tokens`);
@@ -216,6 +277,39 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error('OAuth logout error:', error);
     res.status(500).json({ error: 'Failed to build logout URL' });
+  }
+};
+
+/**
+ * POST /api/auth/oauth/exchange
+ * Échange un code temporaire contre les tokens
+ */
+export const exchange = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      res.status(400).json({ error: 'Code is required' });
+      return;
+    }
+
+    // Récupérer et supprimer le code (usage unique)
+    const tempAuth = await TempAuthCodeModel.findOneAndDelete({ code });
+
+    if (!tempAuth) {
+      res.status(400).json({ error: 'Invalid or expired code' });
+      return;
+    }
+
+    res.json({
+      token: tempAuth.token,
+      access_token: tempAuth.accessToken,
+      refresh_token: tempAuth.refreshToken,
+      id_token: tempAuth.idToken,
+    });
+  } catch (error) {
+    console.error('OAuth exchange error:', error);
+    res.status(500).json({ error: 'Failed to exchange code' });
   }
 };
 

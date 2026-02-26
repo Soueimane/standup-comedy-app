@@ -7,6 +7,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IOAuthState extends Document {
   state: string;
   codeVerifier: string;
+  nonce: string; // Protection contre les replay attacks
   createdAt: Date;
 }
 
@@ -22,6 +23,10 @@ const OAuthStateSchema = new Schema<IOAuthState>({
     index: true
   },
   codeVerifier: {
+    type: String,
+    required: true
+  },
+  nonce: {
     type: String,
     required: true
   },

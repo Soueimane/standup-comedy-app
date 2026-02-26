@@ -147,7 +147,8 @@ function LoginPage() {
     try {
       await loginWithKeycloak(provider);
     } catch (error: any) {
-      setOAuthError(translateOAuthError(error.message));
+      const apiMessage = error?.response?.data?.message;
+      setOAuthError(translateOAuthError(apiMessage || error.message));
     }
   };
 

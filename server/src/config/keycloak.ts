@@ -132,6 +132,7 @@ export async function exchangeCodeForTokens(
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      timeout: 10000, // Timeout de 10 secondes
     }
   );
 
@@ -193,6 +194,85 @@ export const buildLogoutUrl = async (
   }
 
   return logoutUrl.href;
+};
+
+/**
+ * Revoke Keycloak tokens to terminate the session when login is rejected by the application.
+ * Should be called whenever we exchange tokens successfully but then refuse the login
+ * (e.g. user not found in MongoDB, Keycloak ID mismatch).
+ * Non-blocking: errors are logged but not re-thrown.
+ */
+export const revokeKeycloakTokens = async (
+  accessToken: string,
+  refreshToken?: string
+): Promise<void> => {
+  const revokeUrl = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
+
+  const revokeOne = async (token: string, hint: string) => {
+    await axios.post(
+      revokeUrl,
+      new URLSearchParams({
+        token,
+        token_type_hint: hint,
+        client_id: config.keycloak.clientId,
+        client_secret: config.keycloak.clientSecret,
+      }),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 5000,
+      }
+    );
+  };
+
+  try {
+    // Revoke refresh token first — this also invalidates the associated access token
+    if (refreshToken) {
+      await revokeOne(refreshToken, 'refresh_token');
+    }
+    await revokeOne(accessToken, 'access_token');
+    console.log('🔒 [OAuth] Keycloak tokens revoked after application login rejection');
+  } catch (error) {
+    console.error('⚠️ [OAuth] Failed to revoke Keycloak tokens:', error);
+    // Non-blocking — the application login rejection still proceeds
+  }
+};
+
+/**
+ * Delete a Keycloak user via the Admin API.
+ * Must be called when our application rejects a login that already created a Keycloak user
+ * (account_not_found, account_mismatch) to avoid leaving orphaned users in Keycloak.
+ * Requires the client's service account to have the "manage-users" role in realm-management.
+ * Non-blocking: errors are logged but not re-thrown.
+ */
+export const deleteKeycloakUser = async (keycloakUserId: string): Promise<void> => {
+  try {
+    const tokenResponse = await axios.post(
+      `${config.keycloak.issuer}/protocol/openid-connect/token`,
+      new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: config.keycloak.clientId,
+        client_secret: config.keycloak.clientSecret,
+      }),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 5000,
+      }
+    );
+
+    const adminToken: string = tokenResponse.data.access_token;
+
+    await axios.delete(
+      `${config.keycloak.url}/admin/realms/${config.keycloak.realm}/users/${keycloakUserId}`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+        timeout: 5000,
+      }
+    );
+
+    console.log(`🗑️ [OAuth] Keycloak user ${keycloakUserId} deleted after login rejection`);
+  } catch (error: any) {
+    console.error('⚠️ [OAuth] Failed to delete Keycloak user:', error?.response?.data || error?.message);
+  }
 };
 
 /**
