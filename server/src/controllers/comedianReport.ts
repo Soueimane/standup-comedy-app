@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { ComedianReportModel } from '../models/ComedianReport';
 import { UserModel } from '../models/User';
 import { Types } from 'mongoose';
+import { sendComedianReportAccountDeactivatedEmail, sendComedianReportAccountValidatedEmail } from '../services/emailService';
 
 /**
  * POST /api/comedian-reports
@@ -190,6 +191,36 @@ export const updateComedianReport = async (req: AuthRequest, res: Response): Pro
     }
 
     await report.save();
+
+    // Envoyer l'email au compte signalé selon le statut
+    if (status === 'validated' || status === 'rejected') {
+      const comedianDoc = await UserModel.findById(report.comedian).select('email firstName lastName _id');
+      if (comedianDoc?.email) {
+        const comedianPayload = {
+          email: comedianDoc.email,
+          _id: String(comedianDoc._id),
+          firstName: comedianDoc.firstName,
+          lastName: comedianDoc.lastName
+        };
+        try {
+          if (status === 'validated') {
+            // Désactiver le compte
+            await UserModel.findByIdAndUpdate(report.comedian, {
+              isActive: false,
+              deactivatedAt: new Date(),
+              deactivatedBy: req.user.id,
+              deactivationReason: 'Report validé par l\'équipe'
+            });
+            await sendComedianReportAccountDeactivatedEmail(comedianPayload);
+          } else {
+            await sendComedianReportAccountValidatedEmail(comedianPayload);
+          }
+        } catch (emailError: any) {
+          console.error('Erreur lors de l\'envoi de l\'email au compte signalé:', emailError);
+          // Ne pas faire échouer la mise à jour du signalement
+        }
+      }
+    }
 
     const updatedReport = await ComedianReportModel.findById(reportId)
       .populate('comedian', 'firstName lastName email role')

@@ -121,7 +121,7 @@ const LANDING_CSS = `
   .landing-dark .step p { color: #64748B; font-size: 16px; line-height: 1.7; }
   .landing-dark .steps-conclusion { text-align: center; font-size: 24px; font-weight: 700; color: var(--primary); margin-top: 60px; padding: 32px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 2px solid var(--primary); }
   .landing-dark .tutorial-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 60px; position: relative; z-index: 1; max-width: 800px; margin-left: auto; margin-right: auto; }
-  .landing-dark .tutorial-link-card { display: block; background: white; border: 2px solid var(--border); border-radius: 24px; overflow: hidden; text-align: center; transition: all 0.4s; color: #1a1a1a; text-decoration: none; padding: 0; margin: 0; font: inherit; }
+  .landing-dark .tutorial-link-card { display: block; background: white; border: 2px solid var(--border); border-top: none; border-radius: 24px; overflow: hidden; text-align: center; transition: all 0.4s; color: #1a1a1a; text-decoration: none; padding: 0; margin: 0; font: inherit; }
   .landing-dark .tutorial-link-card:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: var(--shadow-2xl); color: #1a1a1a; }
   .landing-dark .tutorial-thumbnail-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #0f172a; overflow: hidden; }
   .landing-dark .tutorial-thumbnail-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -190,6 +190,7 @@ function LandingPage() {
   }, [videoModalId]);
 
   const goRegister = () => navigate('/register');
+  const scrollToRoles = () => document.getElementById('roles')?.scrollIntoView({ behavior: 'smooth' });
   const goLogin = () => navigate('/login');
   const goOrganisateur = () => navigate('/organisateur');
   const goRegisterOrganisateur = () => navigate('/register/organisateur');
@@ -226,7 +227,7 @@ function LandingPage() {
             </nav>
             <div className="header-buttons">
               <button type="button" className="btn btn-secondary" onClick={goLogin}>Se connecter</button>
-              <button type="button" className="btn btn-primary" onClick={goRegister}>S'inscrire</button>
+              <button type="button" className="btn btn-primary" onClick={scrollToRoles}>S'inscrire</button>
             </div>
           </div>
         </div>
@@ -494,7 +495,7 @@ function LandingPage() {
             </div>
             <div className="tutorial-links">
               {(() => {
-                const urlOrg = YOUTUBE_TUTORIAL_ORGANISATEUR || 'https://youtu.be/TfmNkTyyrqs';
+                const urlOrg = YOUTUBE_TUTORIAL_ORGANISATEUR || 'https://youtu.be/tmj67H38i8s';
                 const videoIdOrg = getYoutubeVideoId(urlOrg);
                 const thumbOrg = videoIdOrg ? youtubeThumbnailUrl(videoIdOrg) : null;
                 return (
@@ -511,12 +512,12 @@ function LandingPage() {
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 48 }}>▶</div>
                       )}
                     </div>
-                    <h3>🎥 Tutoriel d'utilisastion en tant qu'Organisateur</h3>
+                    <h3>🎥 Tutoriel d'utilisastion de l'application en tant qu'Organisateur</h3>
                   </button>
                 );
               })()}
               {(() => {
-                const urlHum = YOUTUBE_TUTORIAL_HUMORISTE || 'https://youtu.be/gfwhgVEwe4k';
+                const urlHum = YOUTUBE_TUTORIAL_HUMORISTE || 'https://youtu.be/AxD32X-VnBc';
                 const videoIdHum = getYoutubeVideoId(urlHum);
                 const thumbHum = videoIdHum ? youtubeThumbnailUrl(videoIdHum) : null;
                 return (
@@ -533,7 +534,7 @@ function LandingPage() {
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 48 }}>▶</div>
                       )}
                     </div>
-                    <h3>🎥 Tutoriel d'utilisastion en tant qu'Humoriste</h3>
+                    <h3>🎥 Tutoriel d'utilisastion de l'application en tant qu'Humoriste</h3>
                   </button>
                 );
               })()}
