@@ -1190,6 +1190,121 @@ L'équipe Connect Comedy Club
   });
 };
 
+/**
+ * Envoie un email au compte signalé quand le signalement est validé (compte désactivé)
+ */
+export const sendComedianReportAccountDeactivatedEmail = async (
+  comedian: { email: string; _id?: string; id?: string; firstName?: string; lastName?: string }
+) => {
+  const comedianId = comedian._id || comedian.id;
+  if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+    console.log(`⏭️ Comédien ${comedian.email} est désabonné - email non envoyé`);
+    return;
+  }
+  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') return;
+  if (!config.email.smtpUser || !config.email.smtpPass) return;
+
+  const subject = 'Votre compte a été désactivé';
+  const textContent = `Votre compte a été désactivé
+
+Bonjour,
+
+Suite à l'examen de votre compte, nous sommes au regret de vous informer qu'il a été désactivé et n'est plus accessible. Cette décision est définitive et votre compte est désormais inactif.
+
+Pour toute question, vous pouvez nous contacter à l'adresse suivante : contact@connectcomedyclub.com
+
+Cordialement,
+L'équipe Connect Comedy Club`;
+
+  const htmlContent = `
+  <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 24px;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 32px;">
+      <h2 style="color: #dc3545; margin-top: 0;">Votre compte a été désactivé</h2>
+      <p>Bonjour,</p>
+      <p>Suite à l'examen de votre compte, nous sommes au regret de vous informer qu'il a été désactivé et n'est plus accessible. Cette décision est définitive et votre compte est désormais inactif.</p>
+      <p>Pour toute question, vous pouvez nous contacter à l'adresse suivante : <a href="mailto:contact@connectcomedyclub.com">contact@connectcomedyclub.com</a></p>
+      <p>Cordialement,<br/>L'équipe Connect Comedy Club</p>
+    </div>
+  </div>`;
+
+  const unsubscribeUrl = comedianId
+    ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
+    : `${config.frontend.url}/unsubscribe`;
+
+  await sgMail.send({
+    from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+    to: comedian.email,
+    subject,
+    html: htmlContent,
+    text: textContent,
+    mailSettings: { sandboxMode: { enable: false } },
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-Entity-Ref-ID': `report-deactivated-${Date.now()}`
+    },
+    categories: ['signalement', 'desactivation'],
+  });
+};
+
+/**
+ * Envoie un email au compte signalé quand le signalement est rejeté (compte validé)
+ */
+export const sendComedianReportAccountValidatedEmail = async (
+  comedian: { email: string; _id?: string; id?: string; firstName?: string; lastName?: string }
+) => {
+  const comedianId = comedian._id || comedian.id;
+  if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+    console.log(`⏭️ Comédien ${comedian.email} est désabonné - email non envoyé`);
+    return;
+  }
+  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') return;
+  if (!config.email.smtpUser || !config.email.smtpPass) return;
+
+  const subject = 'Votre compte a été validé avec succès';
+  const loginUrl = 'https://www.connectcomedyclub.com/';
+  const textContent = `Votre compte a été validé avec succès
+
+Nous vous informons que votre compte a été examiné et validé par notre équipe. Il est désormais actif et vous pouvez accéder à l'ensemble des fonctionnalités de notre plateforme.
+
+Pour vous connecter, rendez-vous sur ${loginUrl}.
+
+N'hésitez pas à nous contacter si vous avez la moindre question.
+
+Cordialement,
+L'équipe Connect Comedy Club`;
+
+  const htmlContent = `
+  <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 24px;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); padding: 32px;">
+      <h2 style="color: #28a745; margin-top: 0;">Votre compte a été validé avec succès</h2>
+      <p>Nous vous informons que votre compte a été examiné et validé par notre équipe. Il est désormais actif et vous pouvez accéder à l'ensemble des fonctionnalités de notre plateforme.</p>
+      <p>Pour vous connecter, rendez-vous sur <a href="${loginUrl}">${loginUrl}</a>.</p>
+      <p>N'hésitez pas à nous contacter si vous avez la moindre question.</p>
+      <p>Cordialement,<br/>L'équipe Connect Comedy Club</p>
+    </div>
+  </div>`;
+
+  const unsubscribeUrl = comedianId
+    ? generateUnsubscribeUrl(comedianId.toString(), comedian.email)
+    : `${config.frontend.url}/unsubscribe`;
+
+  await sgMail.send({
+    from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+    to: comedian.email,
+    subject,
+    html: htmlContent,
+    text: textContent,
+    mailSettings: { sandboxMode: { enable: false } },
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-Entity-Ref-ID': `report-validated-${Date.now()}`
+    },
+    categories: ['signalement', 'validation'],
+  });
+};
+
 // Notifier les participants d'un évènement annulé (avec raison)
 export const sendEventCancellationToParticipants = async (
   participants: Array<{ email: string; firstName?: string; lastName?: string }>,
