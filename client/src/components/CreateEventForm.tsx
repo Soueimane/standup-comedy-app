@@ -915,7 +915,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
@@ -926,7 +926,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   };
 
   const formStyle: CSSProperties = {
-    backgroundColor: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: 'linear-gradient(to bottom, #1a1a2e 0%, #16213e 40%, #331f41 100%)',
     borderRadius: '16px',
     width: '100%',
     maxWidth: isMobile ? '100%' : '800px',
@@ -947,7 +947,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     alignItems: 'center',
     position: isMobile ? 'sticky' : 'static',
     top: 0,
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: 'linear-gradient(to bottom, #1a1a2e 0%, #16213e 40%, #331f41 100%)',
     zIndex: 1
   };
 
@@ -960,10 +960,10 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     width: '100%',
     padding: isMobile ? '14px 16px' : '12px 16px',
     fontSize: isMobile ? '16px' : '14px', // 16px prevents zoom on iOS
-    border: '1px solid #444',
+    border: '1px solid #ccc',
     borderRadius: '8px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#fff',
+    background: '#ffffff',
+    color: '#000000',
     marginBottom: '4px'
   };
 
@@ -973,7 +973,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     appearance: 'none', // Supprime le style par défaut du navigateur
     WebkitAppearance: 'none', // Pour Safari/Chrome
     MozAppearance: 'none', // Pour Firefox
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23000000' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 12px center',
     backgroundSize: '12px',
@@ -985,12 +985,12 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   
   const addressSuggestionListStyle: CSSProperties = {
     marginTop: '8px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid #ccc',
     borderRadius: '8px',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: '#ffffff',
     maxHeight: '180px',
     overflowY: 'auto',
-    boxShadow: '0 8px 20px rgba(0,0,0,0.4)'
+    boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
   };
 
   const addressSuggestionItemStyle: CSSProperties = {
@@ -999,7 +999,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     padding: '10px 12px',
     background: 'transparent',
     border: 'none',
-    color: '#fff',
+    color: '#000000',
     cursor: 'pointer',
     display: 'flex',
     flexDirection: 'column',
@@ -1045,7 +1045,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   };
 
   return (
-    <div style={modalStyle} onClick={(e: React.MouseEvent<HTMLDivElement>) => e.target === e.currentTarget && onClose()}>
+    <div style={modalStyle}>
       <div style={formStyle}>
         {/* Header */}
         <div style={headerStyle}>
@@ -1092,7 +1092,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   onChange={handleChange}
                   style={{
                     ...inputStyle,
-                    borderColor: errors.title ? '#ef4444' : '#444'
+                    borderColor: errors.title ? '#ef4444' : '#ccc'
                   }}
                   placeholder="Ex: Soirée Stand-Up Comedy"
                 />
@@ -1116,7 +1116,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     ...inputStyle,
                     minHeight: '100px',
                     resize: 'vertical',
-                    borderColor: errors.description ? '#ef4444' : '#444'
+                    borderColor: errors.description ? '#ef4444' : '#ccc'
                   }}
                   placeholder="Décrivez votre évènement en détail..."
                 />
@@ -1147,7 +1147,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.venue ? '#ef4444' : '#444'
+                      borderColor: errors.venue ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: Le Comedy Club"
                   />
@@ -1170,7 +1170,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.address ? '#ef4444' : '#444'
+                      borderColor: errors.address ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 123 rue de la Comédie"
                   />
@@ -1213,7 +1213,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onBlur={validatePostalCode}
                     style={{
                       ...inputStyle,
-                      borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#444'
+                      borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 75001"
                     maxLength={5}
@@ -1233,7 +1233,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       left: 0,
                       right: 0,
                       backgroundColor: '#2a2a2a',
-                      border: '1px solid #444',
+                      border: '1px solid #ccc',
                       borderRadius: '4px',
                       marginTop: '4px',
                       maxHeight: '200px',
@@ -1241,7 +1241,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       zIndex: 1000,
                       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
                     }}>
-                      <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #444' }}>
+                      <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #ccc' }}>
                         Plusieurs villes possibles pour ce code postal :
                       </div>
                       {citySuggestions.map((option, index) => (
@@ -1277,7 +1277,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.city ? '#ef4444' : '#444'
+                      borderColor: errors.city ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: Paris"
                   />
@@ -1300,7 +1300,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.country ? '#ef4444' : '#444'
+                      borderColor: errors.country ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: France"
                   />
@@ -1387,7 +1387,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       id="date"
                       value={formData.date}
                       onChange={handleChange}
-                      style={{ ...inputStyle, borderColor: errors.date ? '#ef4444' : '#444' }}
+                      style={{ ...inputStyle, borderColor: errors.date ? '#ef4444' : '#ccc' }}
                     />
                     {errors.date && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.date}</p>}
                   </div>
@@ -1405,7 +1405,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                         type="date"
                         value={recurrenceStartDate}
                         onChange={(e) => setRecurrenceStartDate(e.target.value)}
-                        style={{ ...inputStyle, borderColor: errors.recurrenceStartDate ? '#ef4444' : '#444' }}
+                        style={{ ...inputStyle, borderColor: errors.recurrenceStartDate ? '#ef4444' : '#ccc' }}
                         min={new Date().toISOString().split('T')[0]}
                       />
                       {errors.recurrenceStartDate && (
@@ -1427,7 +1427,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                             flex: 1,
                             minWidth: 0,
                             marginBottom: 0,
-                            borderColor: errors.recurrenceEndDate ? '#ef4444' : '#444',
+                            borderColor: errors.recurrenceEndDate ? '#ef4444' : '#ccc',
                           }}
                           min={recurrenceStartDate || new Date().toISOString().split('T')[0]}
                         />
@@ -1467,7 +1467,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                             style={{
                               padding: '10px 14px',
                               borderRadius: '8px',
-                              border: recurrenceWeeklyDays.includes(value) ? '1px solid #ff416c' : '1px solid #444',
+                              border: recurrenceWeeklyDays.includes(value) ? '1px solid #ff416c' : '1px solid #ccc',
                               background: recurrenceWeeklyDays.includes(value) ? 'rgba(255, 65, 108, 0.25)' : 'rgba(255, 255, 255, 0.05)',
                               color: '#fff',
                               cursor: 'pointer',
@@ -1564,7 +1564,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     }}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.startTime ? '#ef4444' : '#444',
+                      borderColor: errors.startTime ? '#ef4444' : '#ccc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -1593,7 +1593,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       right: 0,
                       marginTop: '4px',
                       backgroundColor: '#1a1a2e',
-                      border: '1px solid #444',
+                      border: '1px solid #ccc',
                       borderRadius: '8px',
                       maxHeight: '200px',
                       overflowY: 'auto',
@@ -1647,7 +1647,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     }}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.endTime ? '#ef4444' : '#444',
+                      borderColor: errors.endTime ? '#ef4444' : '#ccc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -1676,7 +1676,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       right: 0,
                       marginTop: '4px',
                       backgroundColor: '#1a1a2e',
-                      border: '1px solid #444',
+                      border: '1px solid #ccc',
                       borderRadius: '8px',
                       maxHeight: '200px',
                       overflowY: 'auto',
@@ -1753,7 +1753,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     placeholder="Nombre de places pour spectateur"
                     style={{
                       ...inputStyle,
-                      borderColor: errors.maxSpectators ? '#ef4444' : '#444'
+                      borderColor: errors.maxSpectators ? '#ef4444' : '#ccc'
                     }}
                   />
                   {errors.maxSpectators && (
@@ -1784,7 +1784,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.minExperience ? '#ef4444' : '#444'
+                      borderColor: errors.minExperience ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 2"
                     min="0"
@@ -1808,7 +1808,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.maxComedians ? '#ef4444' : '#444'
+                      borderColor: errors.maxComedians ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 5"
                     min="1"
@@ -1831,7 +1831,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                     onChange={handleChange}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#444'
+                      borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#ccc'
                     }}
                   >
                     <option value="all">Tous les niveaux</option>

@@ -5,9 +5,11 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
+  /** Si false, le clic sur le fond (backdrop) ne ferme pas le modal. Défaut: true */
+  closeOnBackdropClick?: boolean;
 }
 
-function Modal({ isOpen, onClose, children }: ModalProps) {
+function Modal({ isOpen, onClose, children, closeOnBackdropClick = true }: ModalProps) {
   if (!isOpen) return null;
 
   const overlayStyle: CSSProperties = {
@@ -53,7 +55,7 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div style={overlayStyle} onClick={closeOnBackdropClick ? onClose : undefined}>
       <style>{`
         .modal-content::-webkit-scrollbar {
           display: none;
