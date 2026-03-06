@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import { Link } from 'react-router-dom';
 import { getErrorMessage, ErrorMessages } from '../services/systemMessages';
+import { sendSmsVerification } from '../services/api';
 
 function RegisterOrganizerPage() {
   const { registerMutation } = useAuth();
@@ -13,11 +14,14 @@ function RegisterOrganizerPage() {
     firstName: '',
     email: '',
     phone: '',
+    smsCode: '',
     city: '',
     password: '',
     confirmPassword: '',
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [smsCodeSent, setSmsCodeSent] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
@@ -38,13 +42,20 @@ function RegisterOrganizerPage() {
       const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
       if (!emailRegex.test(formData.email.trim())) newErrors.email = "Format d'email invalide";
     }
-    if (formData.phone.trim()) {
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Le numéro de téléphone est requis";
+    } else {
       const cleanPhone = formData.phone.replace(/[\s\-\(\)\+]/g, '');
       const frenchPhoneRegex = /^(0[1-9])[0-9]{8}$/;
       const belgianPhoneRegex = /^(0[1-9][0-9]{7,8})$/;
       if (!frenchPhoneRegex.test(cleanPhone) && !belgianPhoneRegex.test(cleanPhone)) {
         newErrors.phone = 'Numéro invalide (format français ou belge)';
       }
+    }
+    if (!formData.smsCode.trim()) {
+      newErrors.smsCode = 'Le code de vérification SMS est requis';
+    } else if (!/^\d{6}$/.test(formData.smsCode.trim())) {
+      newErrors.smsCode = 'Le code doit contenir 6 chiffres';
     }
     if (!formData.password.trim()) {
       newErrors.password = 'Le mot de passe est requis';
@@ -80,6 +91,7 @@ function RegisterOrganizerPage() {
       await registerMutation.mutateAsync({
         email: formData.email.trim(),
         phone: formData.phone.trim() || '',
+        smsCode: formData.smsCode.trim(),
         password: formData.password,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
@@ -108,10 +120,31 @@ function RegisterOrganizerPage() {
     });
   };
 
+  const handleSendSmsCode = async () => {
+    if (!formData.phone.trim()) {
+      setErrors((p) => ({ ...p, phone: 'Le numéro est requis' }));
+      return;
+    }
+    setSmsLoading(true);
+    setErrors((p) => ({ ...p, phone: '', smsCode: '' }));
+    try {
+      await sendSmsVerification(formData.phone.trim());
+      setSmsCodeSent(true);
+    } catch (err: any) {
+      showError(getErrorMessage(err, ErrorMessages.GENERIC_ERROR));
+    } finally {
+      setSmsLoading(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
     if (name === 'password') validatePassword(value);
+    if (name === 'phone') {
+      setSmsCodeSent(false);
+      setFormData((prev) => ({ ...prev, smsCode: '' }));
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -176,6 +209,17 @@ function RegisterOrganizerPage() {
           <div>
             <input
               type="text"
+              name="lastName"
+              placeholder="Nom *"
+              value={formData.lastName}
+              onChange={handleChange}
+              style={{ ...inputStyle, borderColor: errors.lastName ? '#ef4444' : '#444' }}
+            />
+            {errors.lastName && <div style={errorStyle}>{errors.lastName}</div>}
+          </div>
+          <div>
+            <input
+              type="text"
               name="firstName"
               placeholder="Prénom *"
               value={formData.firstName}
@@ -187,13 +231,12 @@ function RegisterOrganizerPage() {
           <div>
             <input
               type="text"
-              name="lastName"
-              placeholder="Nom *"
-              value={formData.lastName}
+              name="city"
+              placeholder="Ville (optionnel)"
+              value={formData.city}
               onChange={handleChange}
-              style={{ ...inputStyle, borderColor: errors.lastName ? '#ef4444' : '#444' }}
+              style={inputStyle}
             />
-            {errors.lastName && <div style={errorStyle}>{errors.lastName}</div>}
           </div>
           <div>
             <input
@@ -205,27 +248,6 @@ function RegisterOrganizerPage() {
               style={{ ...inputStyle, borderColor: errors.email ? '#ef4444' : '#444' }}
             />
             {errors.email && <div style={errorStyle}>{errors.email}</div>}
-          </div>
-          <div>
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Téléphone (optionnel)"
-              value={formData.phone}
-              onChange={handleChange}
-              style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
-            />
-            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
-          </div>
-          <div>
-            <input
-              type="text"
-              name="city"
-              placeholder="Ville (optionnel)"
-              value={formData.city}
-              onChange={handleChange}
-              style={inputStyle}
-            />
           </div>
           <div>
             <input
@@ -255,6 +277,47 @@ function RegisterOrganizerPage() {
             />
             {errors.confirmPassword && <div style={errorStyle}>{errors.confirmPassword}</div>}
           </div>
+          <div>
+            <input
+              type="tel"
+              name="phone"
+              placeholder="Téléphone *"
+              value={formData.phone}
+              onChange={handleChange}
+              style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
+            />
+            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleSendSmsCode}
+                disabled={smsLoading || !formData.phone.trim()}
+                style={{
+                  ...inputStyle,
+                  padding: '10px 16px',
+                  cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
+                  opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1
+                }}
+              >
+                {smsLoading ? 'Envoi...' : 'Recevoir le code SMS'}
+              </button>
+              {smsCodeSent && <span style={{ fontSize: 12, color: '#28a745' }}>✓ Code envoyé</span>}
+            </div>
+          </div>
+          {smsCodeSent && (
+            <div>
+              <input
+                type="text"
+                name="smsCode"
+                placeholder="Code à 6 chiffres reçu par SMS *"
+                value={formData.smsCode}
+                onChange={handleChange}
+                maxLength={6}
+                style={{ ...inputStyle, borderColor: errors.smsCode ? '#ef4444' : '#444' }}
+              />
+              {errors.smsCode && <div style={errorStyle}>{errors.smsCode}</div>}
+            </div>
+          )}
           <div style={{ textAlign: 'left', marginBottom: 15 }}>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
               <input

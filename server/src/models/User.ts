@@ -327,6 +327,15 @@ const userSchema = new Schema<UserDocument>({
     type: String,
     trim: true
   },
+  // Restriction temporaire (ex: signalement en cours d'examen)
+  isRestricted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  restrictedAt: {
+    type: Date
+  },
   // Consentement RGPD
   consent: {
     termsAccepted: {
@@ -364,7 +373,7 @@ const userSchema = new Schema<UserDocument>({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
-  const doc = this as UserDocument;
+  const doc = this as unknown as UserDocument;
   if (!doc.isModified('password')) return next();
   try {
     doc.password = await bcrypt.hash(doc.password!, 10);
@@ -376,13 +385,13 @@ userSchema.pre('save', async function(next) {
 
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
-  const user = this as UserDocument;
+  const user = this as unknown as UserDocument;
   return bcrypt.compare(candidatePassword, user.password!);
 };
 
 // Middleware pour gérer les profils en fonction du userType avant la sauvegarde
 userSchema.pre('save', function(next) {
-  const doc = this as UserDocument;
+  const doc = this as unknown as UserDocument;
   if (doc.isModified('role') || doc.isNew) {
     if (doc.role === 'COMEDIAN' && !doc.profile) {
       doc.profile = {

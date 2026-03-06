@@ -70,7 +70,8 @@ export const registerSchema = z.object({
     termsAccepted: z.boolean(),
     privacyAccepted: z.boolean(),
     isAdult: z.boolean()
-  }).optional()
+  }).optional(),
+  smsCode: z.string().optional()
 })
   .refine((data) => {
     if (data.role === 'COMEDIAN') {
@@ -232,6 +233,14 @@ export const createEventSchema = z.object({
     .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
       message: 'Invalid end time'
     }),
+  /** Date de fin (événement unique qui dépasse minuit, ex. 22h → 1h lendemain) */
+  endDate: z.string()
+    .refine((str) => {
+      const date = new Date(str);
+      return !isNaN(date.getTime());
+    }, { message: 'Invalid end date' })
+    .transform((str) => new Date(str))
+    .optional(),
   budget: z.number()
     .min(0, { message: 'Event budget is invalid' })
     .optional(),
@@ -274,6 +283,8 @@ export const createEventSchema = z.object({
   const endParts = data.endTime.split(':');
   const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
   const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+  // Si endDate est fourni, la fin peut être le lendemain (endTime <= startTime autorisé)
+  if (data.endDate) return true;
   return endMinutes > startMinutes;
 }, {
   message: 'End time must be after start time',

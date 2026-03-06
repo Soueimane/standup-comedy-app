@@ -329,7 +329,7 @@ function LandingPage() {
                 <li>Notifier automatiquement</li>
                 <li>Gérer plusieurs événements</li>
               </ul>
-              <button type="button" className="role-cta" onClick={goRegisterOrganisateur}>Commencer →</button>
+              <button type="button" className="role-cta" onClick={goRegisterOrganisateur}>S'inscrire →</button>
             </div>
             <div className="role-card">
               <div className="role-icon">🎭</div>

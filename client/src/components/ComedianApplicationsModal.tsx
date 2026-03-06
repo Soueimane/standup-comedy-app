@@ -16,7 +16,7 @@ interface ComedianApplicationsModalProps {
 
 interface Application {
   _id: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'WITHDRAWN' | 'CANCELLED_BY_PLATFORM';
   message?: string;
   organizerMessage?: string;
   createdAt: string;
@@ -89,6 +89,7 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'PENDING': return 'En attente';
       case 'EXPIRED': return 'Expirée';
       case 'WITHDRAWN': return 'Retirée';
+      case 'CANCELLED_BY_PLATFORM': return 'Annulée par la plateforme';
       default: return status;
     }
   };
@@ -99,6 +100,8 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'REJECTED': return '#dc3545';
       case 'PENDING': return '#ffc107';
       case 'EXPIRED': return '#6c757d';
+      case 'WITHDRAWN': return '#6c757d';
+      case 'CANCELLED_BY_PLATFORM': return '#6c757d';
       default: return '#6c757d';
     }
   };
@@ -109,6 +112,8 @@ function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplic
       case 'REJECTED': return '❌';
       case 'PENDING': return '⏳';
       case 'EXPIRED': return '⏰';
+      case 'WITHDRAWN': return '↩';
+      case 'CANCELLED_BY_PLATFORM': return '🚫';
       default: return '❓';
     }
   };

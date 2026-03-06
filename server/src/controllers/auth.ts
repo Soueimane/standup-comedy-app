@@ -14,6 +14,7 @@ import { config } from '../config/env';
 import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
 import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter';
+import { sendSmsVerificationCode, verifySmsCode, toE164 } from '../services/smsService';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -22,6 +23,23 @@ export const register = async (req: Request, res: Response) => {
 
     console.log('📝 [REGISTER] Rôle:', role);
     console.log('📝 [REGISTER] Profile data:', profileData);
+
+    // Téléphone obligatoire pour humoristes et organisateurs
+    if ((role === 'COMEDIAN' || role === 'ORGANIZER') && (!phone || typeof phone !== 'string' || !phone.trim())) {
+      return res.status(400).json({ message: 'Le numéro de téléphone est requis' });
+    }
+
+    // Vérification SMS obligatoire pour humoristes et organisateurs (Twilio Verify API)
+    const smsCode = req.body.smsCode;
+    if (role === 'COMEDIAN' || role === 'ORGANIZER') {
+      if (!smsCode || typeof smsCode !== 'string' || !smsCode.trim()) {
+        return res.status(400).json({ message: 'Le code de vérification SMS est requis' });
+      }
+      const isValid = await verifySmsCode(phone.trim(), smsCode.trim());
+      if (!isValid) {
+        return res.status(400).json({ message: 'Code de vérification invalide ou expiré' });
+      }
+    }
 
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await UserModel.findOne({ email });
@@ -180,6 +198,35 @@ export const register = async (req: Request, res: Response) => {
     res.status(500).json({ 
       message: 'Erreur lors de l\'enregistrement de l\'utilisateur',
       error: process.env.NODE_ENV === 'production' ? 'Erreur serveur' : errorMessage // Cacher les détails en production
+    });
+  }
+};
+
+/**
+ * POST /auth/send-sms-verification
+ * Envoie un code de vérification par SMS (pour inscription humoriste/organisateur)
+ */
+export const sendSmsVerification = async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || typeof phone !== 'string' || !phone.trim()) {
+      return res.status(400).json({ message: 'Le numéro de téléphone est requis' });
+    }
+
+    if (!config.twilio.accountSid || !config.twilio.authToken || !config.twilio.verifyServiceSid) {
+      return res.status(503).json({ message: 'La vérification SMS n\'est pas configurée' });
+    }
+
+    await sendSmsVerificationCode(phone.trim());
+
+    res.status(200).json({ message: 'Code envoyé par SMS' });
+  } catch (error: any) {
+    console.error('Erreur envoi SMS:', error);
+    if (error.code === 21211 || error.message?.includes('invalid')) {
+      return res.status(400).json({ message: 'Numéro de téléphone invalide' });
+    }
+    res.status(500).json({
+      message: 'Erreur lors de l\'envoi du SMS. Réessayez dans quelques instants.'
     });
   }
 };

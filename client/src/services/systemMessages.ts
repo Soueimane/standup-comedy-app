@@ -50,6 +50,7 @@ export const ErrorMessages = {
 
   // Events
   EVENT_CREATE_FAILED: "Impossible de créer l'événement.",
+  EVENT_DUPLICATE: "Un événement avec le même titre, la même date et la même heure existe déjà. Modifiez le titre, la date ou l'heure pour créer un nouvel événement.",
   EVENT_UPDATE_FAILED: "Impossible de mettre à jour l'événement.",
   EVENT_DELETE_FAILED: "Impossible de supprimer l'événement.",
   EVENT_NOT_FOUND: "Cet événement n'a pas été trouvé ou vous n'êtes pas autorisé à y accéder.",
@@ -159,6 +160,8 @@ const SAFE_SERVER_MESSAGES = new Set([
   "Impossible de postuler a un evenement annule",
   "Impossible de postuler a un evenement termine",
   "Vous ne pouvez pas postuler a nouveau apres vous etre retire de cet evenement",
+  "Impossible de postuler : l'événement commence dans moins d'une heure ou a déjà commencé.",
+  "Impossible de vous désinscrire : l'événement commence dans moins d'une heure ou a déjà commencé.",
 
   // Permission-related
   "Seuls les organisateurs peuvent signaler des humoristes",
@@ -171,6 +174,11 @@ const SAFE_SERVER_MESSAGES = new Set([
   "Cet humoriste est deja dans vos favoris",
   "Cet evenement est deja dans vos favoris",
   "Ce humoriste n'est pas participant a cet evenement.",
+
+  // SMS verification
+  "La vérification SMS n'est pas configurée",
+  "Numéro de téléphone invalide",
+  "Erreur lors de l'envoi du SMS. Réessayez dans quelques instants.",
 ]);
 
 /**

@@ -63,6 +63,30 @@ function getEventChanges(oldEvent: any, newEvent: any): string[] {
   return changes;
 }
 
+/**
+ * Vérifie si l'organisateur a déjà un événement avec le même titre, la même date (jour) et la même heure de début.
+ * Les événements annulés sont exclus (on peut recréer après annulation).
+ */
+async function hasDuplicateEvent(
+  organizerId: string,
+  title: string,
+  dateStr: string,
+  startTime: string
+): Promise<boolean> {
+  const trimmedTitle = String(title ?? '').trim();
+  if (!trimmedTitle || !dateStr || !startTime) return false;
+  const startDay = new Date(dateStr + 'T00:00:00.000Z');
+  const endDay = new Date(startDay.getTime() + 86400000);
+  const existing = await EventModel.findOne({
+    organizer: organizerId,
+    startTime: String(startTime).trim(),
+    date: { $gte: startDay, $lt: endDay },
+    status: { $in: ['draft', 'published', 'completed'] },
+  }).lean();
+  if (!existing) return false;
+  return (existing.title ?? '').trim() === trimmedTitle;
+}
+
 // ============================================================================
 // CREATE EVENT
 // ============================================================================
@@ -77,7 +101,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, maxSpectators, isRecurring, dateTimes, imageUrl } = req.body;
+    const { title, description, date, dates, location, requirements, startTime, endTime, endDate, budget, maxPerformers, maxSpectators, isRecurring, dateTimes, imageUrl } = req.body;
 
     // Si c'est un événement récurrent avec plusieurs dates
     if (isRecurring && dates && Array.isArray(dates) && dates.length > 0) {
@@ -99,6 +123,16 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
     // Sinon, création d'un événement unique (comportement existant)
     console.log('📅 Date reçue:', date, 'Type:', typeof date);
     console.log('📅 Date parsée:', new Date(date));
+
+    // Vérifier qu'il n'existe pas déjà un événement identique (même titre, date, heure de début)
+    const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
+    const isDuplicate = await hasDuplicateEvent(organizerId, title, dateStr, startTime ?? '');
+    if (isDuplicate) {
+      res.status(409).json({
+        message: 'Un événement avec le même titre, la même date et la même heure de début existe déjà. Modifiez le titre, la date ou l\'heure pour créer un nouvel événement.',
+      });
+      return;
+    }
 
     // Extraire le code postal de l'adresse et calculer le département
     let enhancedLocation = { ...location };
@@ -125,6 +159,7 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       applications: [],
       startTime,
       endTime,
+      endDate: endDate || undefined,
       venue: location.venue,
       budget,
       maxPerformers,
@@ -343,6 +378,23 @@ const createRecurringEvents = async (
       for (const dt of eventData.dateTimes) {
         const key = typeof dt.date === 'string' ? dt.date.split('T')[0] : String(dt.date).split('T')[0];
         dateTimesMap.set(key, { startTime: dt.startTime, endTime: dt.endTime });
+      }
+    }
+
+    // Vérifier les doublons (même titre + date + heure) pour chaque date avant de créer
+    for (const dateStr of eventData.dates) {
+      const override = dateTimesMap.get(dateStr);
+      const startTime = override?.startTime ?? eventData.startTime;
+      if (startTime) {
+        const isDup = await hasDuplicateEvent(organizerId, eventData.title, dateStr, startTime);
+        if (isDup) {
+          await session.abortTransaction();
+          session.endSession();
+          res.status(409).json({
+            message: `Un événement identique (même titre, date et heure) existe déjà pour le ${new Date(dateStr).toLocaleDateString('fr-FR')}. Modifiez le titre, les dates ou les heures pour créer ces événements.`,
+          });
+          return;
+        }
       }
     }
 

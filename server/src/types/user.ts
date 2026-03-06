@@ -100,6 +100,9 @@ export interface User {
   deactivatedAt?: Date;
   deactivatedBy?: Types.ObjectId;
   deactivationReason?: string;
+  // Restriction temporaire (ex: signalement en cours)
+  isRestricted?: boolean;
+  restrictedAt?: Date;
   // Consentement RGPD
   consent?: {
     termsAccepted?: boolean;

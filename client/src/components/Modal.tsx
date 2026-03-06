@@ -5,10 +5,18 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
+  /** Si false, la modale ne se ferme qu'au clic sur la croix ou le bouton Annuler (pas au clic sur l'overlay). Défaut: true */
+  closeOnOverlayClick?: boolean;
+  /** Si true, l'overlay est plus transparent pour laisser voir la plateforme en arrière-plan. Défaut: false */
+  transparentOverlay?: boolean;
 }
 
-function Modal({ isOpen, onClose, children }: ModalProps) {
+function Modal({ isOpen, onClose, children, closeOnOverlayClick = true, transparentOverlay = false }: ModalProps) {
   if (!isOpen) return null;
+
+  const handleOverlayClick = () => {
+    if (closeOnOverlayClick) onClose();
+  };
 
   const overlayStyle: CSSProperties = {
     position: 'fixed',
@@ -16,7 +24,8 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: transparentOverlay ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.7)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -53,7 +62,7 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div style={overlayStyle} onClick={handleOverlayClick}>
       <style>{`
         .modal-content::-webkit-scrollbar {
           display: none;

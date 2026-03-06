@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import { Link } from 'react-router-dom';
 import { getErrorMessage, ErrorMessages } from '../services/systemMessages';
+import { sendSmsVerification } from '../services/api';
 
 function RegisterPage() {
   const { registerMutation } = useAuth();
@@ -11,6 +12,7 @@ function RegisterPage() {
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
+    smsCode: '',
     password: '',
     firstName: '',
     lastName: '',
@@ -23,6 +25,8 @@ function RegisterPage() {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [smsCodeSent, setSmsCodeSent] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
@@ -66,8 +70,10 @@ function RegisterPage() {
       }
     }
     
-    // Validation du téléphone français et belge (mobiles + fixes) - optionnel
-    if (formData.phone.trim()) {
+    // Validation du téléphone français et belge (mobiles + fixes) - obligatoire
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Le numéro de téléphone est requis';
+    } else {
       // Nettoyer le numéro (supprimer espaces, tirets, parenthèses, +)
       const cleanPhone = formData.phone.replace(/[\s\-\(\)\+]/g, '');
       
@@ -84,6 +90,13 @@ function RegisterPage() {
       if (!frenchPhoneRegex.test(cleanPhone) && !belgianPhoneRegex.test(cleanPhone)) {
         newErrors.phone = 'Numéro de téléphone invalide (format français: 0XXXXXXXXX, format belge: 0XXXXXXXX ou 0XXXXXXXXX)';
       }
+    }
+
+    // Validation du code SMS (obligatoire pour humoriste)
+    if (!formData.smsCode.trim()) {
+      newErrors.smsCode = 'Le code de vérification SMS est requis';
+    } else if (!/^\d{6}$/.test(formData.smsCode.trim())) {
+      newErrors.smsCode = 'Le code doit contenir 6 chiffres';
     }
     
     // Validation du mot de passe
@@ -196,9 +209,26 @@ function RegisterPage() {
     });
   };
 
+  const handleSendSmsCode = async () => {
+    if (!formData.phone.trim()) {
+      setErrors((p) => ({ ...p, phone: 'Le numéro est requis' }));
+      return;
+    }
+    setSmsLoading(true);
+    setErrors((p) => ({ ...p, phone: '', smsCode: '' }));
+    try {
+      await sendSmsVerification(formData.phone.trim());
+      setSmsCodeSent(true);
+    } catch (err: any) {
+      showError(getErrorMessage(err, ErrorMessages.GENERIC_ERROR));
+    } finally {
+      setSmsLoading(false);
+    }
+  };
+
   const handleChangeRegister = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -210,6 +240,10 @@ function RegisterPage() {
     // Validation en temps réel du mot de passe
     if (name === 'password') {
       validatePassword(value);
+    }
+    if (name === 'phone') {
+      setSmsCodeSent(false);
+      setFormData(prev => ({ ...prev, smsCode: '' }));
     }
     
     if (name === 'bio' || name === 'experience') {
@@ -299,14 +333,78 @@ function RegisterPage() {
         <p>Crée ton compte pour rejoindre la communauté</p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Email */}
+          {/* 1. Nom */}
           <div>
-          <input
-            type="email"
-            name="email"
+            <input
+              type="text"
+              name="lastName"
+              placeholder="Nom *"
+              value={formData.lastName}
+              onChange={handleChangeRegister}
+              style={{
+                ...inputStyle,
+                borderColor: errors.lastName ? '#ef4444' : '#444'
+              }}
+            />
+            {errors.lastName && <div style={errorStyle}>{errors.lastName}</div>}
+          </div>
+
+          {/* 2. Prénom */}
+          <div>
+            <input
+              type="text"
+              name="firstName"
+              placeholder="Prénom *"
+              value={formData.firstName}
+              onChange={handleChangeRegister}
+              style={{
+                ...inputStyle,
+                borderColor: errors.firstName ? '#ef4444' : '#444'
+              }}
+            />
+            {errors.firstName && <div style={errorStyle}>{errors.firstName}</div>}
+          </div>
+
+          {/* 3. Biographie, expérience */}
+          <div>
+            <textarea
+              name="bio"
+              placeholder="Biographie * (10-500 caractères)"
+              value={formData.profile.bio}
+              onChange={handleChangeRegister}
+              style={{ 
+                ...inputStyle, 
+                minHeight: '80px',
+                borderColor: errors.bio ? '#ef4444' : '#444'
+              }}
+            />
+            {errors.bio && <div style={errorStyle}>{errors.bio}</div>}
+          </div>
+          <div>
+            <input
+              type="number"
+              name="experience"
+              placeholder="Expérience (années) *"
+              value={formData.profile.experience}
+              onChange={handleChangeRegister}
+              style={{
+                ...inputStyle,
+                borderColor: errors.experience ? '#ef4444' : '#444'
+              }}
+              min="0"
+              max="50"
+            />
+            {errors.experience && <div style={errorStyle}>{errors.experience}</div>}
+          </div>
+
+          {/* 4. Email */}
+          <div>
+            <input
+              type="email"
+              name="email"
               placeholder="Email *"
-            value={formData.email}
-            onChange={handleChangeRegister}
+              value={formData.email}
+              onChange={handleChangeRegister}
               style={{
                 ...inputStyle,
                 borderColor: errors.email ? '#ef4444' : '#444'
@@ -315,30 +413,14 @@ function RegisterPage() {
             {errors.email && <div style={errorStyle}>{errors.email}</div>}
           </div>
 
-          {/* Téléphone */}
+          {/* 5. Mot de passe */}
           <div>
-          <input
-            type="tel"
-            name="phone"
-              placeholder="Numéro de téléphone (optionnel)"
-            value={formData.phone}
-            onChange={handleChangeRegister}
-              style={{
-                ...inputStyle,
-                borderColor: errors.phone ? '#ef4444' : '#444'
-              }}
-            />
-            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
-          </div>
-
-          {/* Mot de passe */}
-          <div>
-          <input
-            type="password"
-            name="password"
+            <input
+              type="password"
+              name="password"
               placeholder="Mot de passe *"
-            value={formData.password}
-            onChange={handleChangeRegister}
+              value={formData.password}
+              onChange={handleChangeRegister}
               style={{
                 ...inputStyle,
                 borderColor: errors.password ? '#ef4444' : '#444'
@@ -387,87 +469,72 @@ function RegisterPage() {
             </div>
           </div>
 
-          {/* Confirmation du mot de passe */}
+          {/* 6. Confirmer le mot de passe */}
           <div>
-          <input
-            type="password"
-            name="confirmPassword"
-              placeholder="Confirme ton mot de passe *"
-            value={formData.confirmPassword}
-            onChange={handleChangeRegister}
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirmer le mot de passe *"
+              value={formData.confirmPassword}
+              onChange={handleChangeRegister}
               style={{
                 ...inputStyle,
                 borderColor: errors.confirmPassword ? '#ef4444' : '#444'
               }}
-          />
+            />
             {errors.confirmPassword && <div style={errorStyle}>{errors.confirmPassword}</div>}
           </div>
 
-          {/* Prénom */}
+          {/* 7. Téléphone + Recevoir le code SMS (authentification) */}
           <div>
-          <input
-            type="text"
-            name="firstName"
-              placeholder="Prénom *"
-            value={formData.firstName}
-            onChange={handleChangeRegister}
+            <input
+              type="tel"
+              name="phone"
+              placeholder="Téléphone *"
+              value={formData.phone}
+              onChange={handleChangeRegister}
               style={{
                 ...inputStyle,
-                borderColor: errors.firstName ? '#ef4444' : '#444'
+                borderColor: errors.phone ? '#ef4444' : '#444'
               }}
             />
-            {errors.firstName && <div style={errorStyle}>{errors.firstName}</div>}
+            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleSendSmsCode}
+                disabled={smsLoading || !formData.phone.trim()}
+                style={{
+                  ...inputStyle,
+                  padding: '10px 16px',
+                  cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
+                  opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1
+                }}
+              >
+                {smsLoading ? 'Envoi...' : 'Recevoir le code SMS'}
+              </button>
+              {smsCodeSent && <span style={{ fontSize: 12, color: '#28a745' }}>✓ Code envoyé</span>}
+            </div>
           </div>
 
-          {/* Nom */}
-          <div>
-          <input
-            type="text"
-            name="lastName"
-              placeholder="Nom *"
-            value={formData.lastName}
-            onChange={handleChangeRegister}
-              style={{
-                ...inputStyle,
-                borderColor: errors.lastName ? '#ef4444' : '#444'
-              }}
-            />
-            {errors.lastName && <div style={errorStyle}>{errors.lastName}</div>}
-          </div>
-
-          {/* Biographie */}
-          <div>
-          <textarea
-            name="bio"
-              placeholder="Biographie * (10-500 caractères)"
-            value={formData.profile.bio}
-            onChange={handleChangeRegister}
-              style={{ 
-                ...inputStyle, 
-                minHeight: '80px',
-                borderColor: errors.bio ? '#ef4444' : '#444'
-              }}
-            />
-            {errors.bio && <div style={errorStyle}>{errors.bio}</div>}
-          </div>
-
-          {/* Expérience */}
-          <div>
-          <input
-            type="number"
-            name="experience"
-              placeholder="Expérience (années) *"
-            value={formData.profile.experience}
-            onChange={handleChangeRegister}
-              style={{
-                ...inputStyle,
-                borderColor: errors.experience ? '#ef4444' : '#444'
-              }}
-              min="0"
-              max="50"
-            />
-            {errors.experience && <div style={errorStyle}>{errors.experience}</div>}
-          </div>
+          {/* Code de vérification SMS */}
+          {smsCodeSent && (
+            <div>
+              <input
+                type="text"
+                name="smsCode"
+                placeholder="Code à 6 chiffres reçu par SMS *"
+                value={formData.smsCode}
+                onChange={handleChangeRegister}
+                maxLength={6}
+                style={{
+                  ...inputStyle,
+                  borderColor: errors.smsCode ? '#ef4444' : '#444'
+                }}
+              />
+              {errors.smsCode && <div style={errorStyle}>{errors.smsCode}</div>}
+            </div>
+          )}
 
           {/* Consentement CGU/RGPD */}
           <div style={{ marginTop: '15px', marginBottom: '10px' }}>

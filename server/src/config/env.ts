@@ -60,6 +60,13 @@ export const config = {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   },
+
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID || '',
+    verifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID || '',
+  },
 };
 
 // Validation de la configuration

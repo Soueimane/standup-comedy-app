@@ -54,6 +54,12 @@ api.interceptors.response.use(
   }
 );
 
+/** Envoie un code de vérification SMS pour l'inscription */
+export const sendSmsVerification = async (phone: string) => {
+  const response = await api.post('/auth/send-sms-verification', { phone });
+  return response.data;
+};
+
 // Fonctions pour gérer les absences
 export const markAbsence = async (eventId: string, comedianId: string, reason?: string) => {
   const response = await api.post('/absences', { eventId, comedianId, reason });

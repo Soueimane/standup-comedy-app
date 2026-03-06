@@ -568,6 +568,16 @@ useEffect(() => {
     return map;
   }, [comedianApplications]);
 
+  /** true si l'événement commence dans moins d'1 h ou a déjà commencé → plus de postuler ni désinscrire */
+  const isEventWithinOneHour = (event: { date: string; startTime?: string }): boolean => {
+    if (!event?.date) return false;
+    const dateStr = typeof event.date === 'string' ? event.date.split('T')[0] : new Date(event.date).toISOString().split('T')[0];
+    const startTime = (event.startTime || '00:00').trim();
+    const eventStart = new Date(dateStr + 'T' + startTime + ':00');
+    const oneHourFromNow = Date.now() + 60 * 60 * 1000;
+    return eventStart.getTime() <= oneHourFromNow;
+  };
+
   // Fonction utilitaire pour comparer les dates (ignorer l'heure)
   const isEventPast = (eventDateString: string, endTime?: string): boolean => {
     // Si endTime n'est pas fourni, on considère la fin de la journée
@@ -2894,7 +2904,11 @@ useEffect(() => {
                     return null;
                   })()}
                   <div style={cardActionStackStyle}>
-                    {!appliedEventIds.has(event._id) ? (
+                    {isEventWithinOneHour(event) ? (
+                      <span style={{ fontSize: '12px', color: '#888' }}>
+                        Plus de modification possible (événement dans moins d'1 h)
+                      </span>
+                    ) : !appliedEventIds.has(event._id) ? (
                       <button
                         onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleApplyClick(event); }}
                         style={
@@ -4018,7 +4032,7 @@ useEffect(() => {
         )}
       </Modal>
 
-      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => { setShowCreateEventForm(false); setEventToDuplicate(null); }} title={eventToDuplicate ? "Dupliquer l'évènement" : "Créer un évènement"}>
+      <Modal isOpen={showCreateEventForm && user?.role === 'ORGANIZER'} onClose={() => { setShowCreateEventForm(false); setEventToDuplicate(null); }} title={eventToDuplicate ? "Dupliquer l'évènement" : "Créer un évènement"} closeOnOverlayClick={false} transparentOverlay>
         {showCreateEventForm && user?.role === 'ORGANIZER' && (
           <CreateEventForm 
             onClose={() => { setShowCreateEventForm(false); setEventToDuplicate(null); }} 

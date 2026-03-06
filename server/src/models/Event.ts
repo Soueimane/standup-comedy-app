@@ -16,6 +16,8 @@ export interface EventDocument extends Document {
   withdrawnSpectators?: Types.ObjectId[]; // Spectateurs qui se sont désinscrits (réinscription interdite)
   startTime?: string;
   endTime?: string;
+  /** Date de fin (quand l'événement se termine après minuit, ex. début 22h → fin 1h le lendemain) */
+  endDate?: Date;
   venue?: string;
   budget?: {
     min: number;
@@ -140,6 +142,10 @@ const eventSchema = new Schema<EventDocument>({
   },
   endTime: {
     type: String,
+    required: false
+  },
+  endDate: {
+    type: Date,
     required: false
   },
   venue: {
