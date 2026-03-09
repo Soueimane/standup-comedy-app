@@ -568,17 +568,24 @@ useEffect(() => {
     return map;
   }, [comedianApplications]);
 
-  // Fonction utilitaire pour comparer les dates (ignorer l'heure)
-  const isEventPast = (eventDateString: string, endTime?: string): boolean => {
-    // Si endTime n'est pas fourni, on considère la fin de la journée
+  // Fonction utilitaire pour comparer les dates : l'événement est-il terminé ?
+  // Si endTime < startTime (ex. 01:00 après 23:00), la fin est le lendemain.
+  const isEventPast = (eventDateString: string, endTime?: string, startTime?: string): boolean => {
     const eventDate = new Date(eventDateString);
     let eventEndDateTime: Date;
     if (endTime) {
-      // On suppose que endTime est au format "HH:mm" (ex: "23:30")
-      const [hours, minutes] = endTime.split(":").map(Number);
-      eventEndDateTime = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), hours, minutes);
+      const [endH, endM] = endTime.split(":").map(Number);
+      const endMinutes = endH * 60 + endM;
+      let endDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+      if (startTime) {
+        const [startH, startM] = startTime.split(":").map(Number);
+        const startMinutes = startH * 60 + startM;
+        if (endMinutes <= startMinutes) {
+          endDate.setDate(endDate.getDate() + 1);
+        }
+      }
+      eventEndDateTime = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), endH, endM);
     } else {
-      // Fin de la journée si pas d'heure de fin
       eventEndDateTime = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
     }
     const now = new Date();
@@ -738,7 +745,7 @@ useEffect(() => {
           return;
         }
         // Utilise la nouvelle logique avec endTime
-        const eventIsPast = isEventPast(event.date, event.endTime);
+        const eventIsPast = isEventPast(event.date, event.endTime, event.startTime);
         const eventDate = new Date(event.date);
         
         // Debug logging détaillé pour tracer TOUS les évènements

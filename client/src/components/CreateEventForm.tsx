@@ -47,6 +47,26 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   };
 
   const timeSlots = generateTimeSlots();
+
+  // Options de durée en minutes (affichées après sélection de l'heure de début)
+  const DURATION_OPTIONS = [
+    { value: 30, label: '30 min' },
+    { value: 60, label: '1 h' },
+    { value: 90, label: '1 h 30' },
+    { value: 120, label: '2 h' },
+    { value: 150, label: '2 h 30' },
+    { value: 180, label: '3 h' },
+    { value: 240, label: '4 h' },
+  ];
+
+  const computeEndTimeFromDuration = (startTime: string, durationMinutes: number): string => {
+    if (!startTime || !durationMinutes) return '';
+    const [h, m] = startTime.split(':').map(Number);
+    const totalMinutes = h * 60 + m + durationMinutes;
+    const endH = Math.floor(totalMinutes / 60) % 24;
+    const endM = totalMinutes % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  };
   
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -55,6 +75,17 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
+  const getInitialDuration = (): number => {
+    if (!initialData?.startTime || !initialData?.endTime) return 0;
+    const [h1, m1] = initialData.startTime.split(':').map(Number);
+    const [h2, m2] = initialData.endTime.split(':').map(Number);
+    const startMin = h1 * 60 + m1;
+    let endMin = h2 * 60 + m2;
+    if (endMin <= startMin) endMin += 24 * 60;
+    const dur = endMin - startMin;
+    return DURATION_OPTIONS.some(o => o.value === dur) ? dur : 0;
+  };
+
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
@@ -68,6 +99,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     maxSpectators: initialData?.maxSpectators != null ? String(initialData.maxSpectators) : '',
     startTime: initialData?.startTime || '',
     endTime: initialData?.endTime || '',
+    durationMinutes: getInitialDuration(),
     minExperience: initialData?.minExperience?.toString() || '',
     maxComedians: initialData?.maxComedians?.toString() || '',
     requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
@@ -135,6 +167,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   // Réinitialiser le formulaire quand initialData change
   React.useEffect(() => {
     if (initialData) {
+      const dur = getInitialDuration();
       setFormData({
         title: initialData.title || '',
         description: initialData.description || '',
@@ -148,6 +181,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         maxSpectators: initialData.maxSpectators != null ? String(initialData.maxSpectators) : '',
         startTime: initialData.startTime || '',
         endTime: initialData.endTime || '',
+        durationMinutes: dur,
         minExperience: initialData.minExperience?.toString() || '',
         maxComedians: initialData.maxComedians?.toString() || '',
         requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
@@ -168,6 +202,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         maxSpectators: '',
         startTime: '',
         endTime: '',
+        durationMinutes: 0,
         minExperience: '',
         maxComedians: '',
         requiredExperienceLevel: 'all',
@@ -179,9 +214,9 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [openStartTimeDropdown, setOpenStartTimeDropdown] = useState(false);
-  const [openEndTimeDropdown, setOpenEndTimeDropdown] = useState(false);
+  const [openDurationDropdown, setOpenDurationDropdown] = useState(false);
   const startTimeRef = useRef<HTMLDivElement>(null);
-  const endTimeRef = useRef<HTMLDivElement>(null);
+  const durationRef = useRef<HTMLDivElement>(null);
   const addressSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAutoFillingRef = useRef(false);
@@ -221,8 +256,8 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
       if (startTimeRef.current && !startTimeRef.current.contains(event.target as Node)) {
         setOpenStartTimeDropdown(false);
       }
-      if (endTimeRef.current && !endTimeRef.current.contains(event.target as Node)) {
-        setOpenEndTimeDropdown(false);
+      if (durationRef.current && !durationRef.current.contains(event.target as Node)) {
+        setOpenDurationDropdown(false);
       }
     };
 
@@ -480,10 +515,13 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
   };
 
   const handleTimeSelect = (timeValue: string, field: 'startTime' | 'endTime') => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: timeValue
-    }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: timeValue };
+      if (field === 'startTime' && prev.durationMinutes > 0) {
+        next.endTime = computeEndTimeFromDuration(timeValue, prev.durationMinutes);
+      }
+      return next;
+    });
     if (field === 'startTime') {
       setOpenStartTimeDropdown(false);
       
@@ -521,16 +559,17 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           }));
         }
       }
-    } else {
-      setOpenEndTimeDropdown(false);
-      // Clear error pour l'heure de fin
-      if (errors[field]) {
-        setErrors(prev => ({
-          ...prev,
-          [field]: ''
-        }));
-      }
     }
+  };
+
+  const handleDurationSelect = (durationMinutes: number) => {
+    setFormData(prev => ({
+      ...prev,
+      durationMinutes,
+      endTime: computeEndTimeFromDuration(prev.startTime, durationMinutes),
+    }));
+    setOpenDurationDropdown(false);
+    setErrors(prev => ({ ...prev, durationMinutes: '' }));
   };
 
   // Fonction pour obtenir les créneaux horaires disponibles pour l'heure de début
@@ -682,20 +721,9 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
       }
     }
     
-    // Validation de l'heure de fin
-    if (!formData.endTime) {
-      newErrors.endTime = 'L\'heure de fin est requise';
-    } else {
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(formData.endTime)) {
-        newErrors.endTime = 'Format d\'heure invalide (HH:MM)';
-      } else if (formData.startTime && formData.endTime) {
-        const startTime = new Date(`2000-01-01T${formData.startTime}`);
-        const endTime = new Date(`2000-01-01T${formData.endTime}`);
-        if (endTime <= startTime) {
-          newErrors.endTime = 'L\'heure de fin doit être après l\'heure de début';
-        }
-      }
+    // Validation de la durée (après heure de début)
+    if (formData.startTime && !formData.durationMinutes) {
+      newErrors.durationMinutes = 'La durée est requise';
     }
     
     // Validation de l'expérience minimale
@@ -797,18 +825,22 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     setIsSubmitting(true);
 
     try {
-      // Calculate duration in minutes
       const parseTime = (timeStr: string) => {
         if (!timeStr) return 0;
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
       };
+
+      // Recalculer l'heure de fin à partir de la durée (peut dépasser minuit → lendemain)
+      const endTimeToSend = formData.startTime && formData.durationMinutes > 0
+        ? computeEndTimeFromDuration(formData.startTime, formData.durationMinutes)
+        : formData.endTime;
       const startMinutes = parseTime(formData.startTime);
-      const endMinutes = parseTime(formData.endTime);
+      const endMinutes = parseTime(endTimeToSend);
       let durationInMinutes = 0;
       if (endMinutes >= startMinutes) {
         durationInMinutes = endMinutes - startMinutes;
-      } else {
+      } else if (startMinutes > 0 || endMinutes > 0) {
         durationInMinutes = (24 * 60 - startMinutes) + endMinutes;
       }
 
@@ -859,7 +891,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         },
         status: formData.status,
         startTime: formData.startTime,
-        endTime: formData.endTime,
+        endTime: endTimeToSend || formData.endTime,
         maxSpectators: formData.maxSpectators && formData.maxSpectators.trim() ? parseInt(formData.maxSpectators, 10) : undefined,
       };
 
@@ -876,7 +908,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           .map((d) => {
             const override = dateTimeOverrides[d];
             const start = override?.startTime ?? formData.startTime;
-            const end = override?.endTime ?? formData.endTime;
+            const end = override?.endTime ?? (endTimeToSend || formData.endTime);
             return { date: d, startTime: start, endTime: end };
           })
           .filter((x) => x.startTime && x.endTime);
@@ -1560,7 +1592,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   <div
                     onClick={() => {
                       setOpenStartTimeDropdown(!openStartTimeDropdown);
-                      setOpenEndTimeDropdown(false);
+                      setOpenDurationDropdown(false);
                     }}
                     style={{
                       ...selectStyle,
@@ -1571,9 +1603,9 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                       cursor: 'pointer'
                     }}
                   >
-                    <span style={{ color: formData.startTime ? '#fff' : '#999' }}>
-                      {formData.startTime 
-                        ? timeSlots.find(slot => slot.value === formData.startTime)?.label 
+<span style={{ color: formData.startTime ? '#000' : '#999' }}>
+                      {formData.startTime
+                        ? timeSlots.find(slot => slot.value === formData.startTime)?.label
                         : 'Sélectionnez une heure'}
                     </span>
                     <ChevronDown 
@@ -1635,85 +1667,102 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
                   )}
                 </div>
 
-                {/* Heure de fin - Dropdown personnalisé */}
-                <div ref={endTimeRef} style={{ position: 'relative', zIndex: 99 }}>
+                {/* Durée - Dropdown (affiché après sélection de l'heure de début) */}
+                <div ref={durationRef} style={{ position: 'relative', zIndex: 99 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                    Heure de fin *
+                    Durée *
                   </label>
                   <div
                     onClick={() => {
-                      setOpenEndTimeDropdown(!openEndTimeDropdown);
+                      if (!formData.startTime) return;
+                      setOpenDurationDropdown(!openDurationDropdown);
                       setOpenStartTimeDropdown(false);
                     }}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.endTime ? '#ef4444' : '#ccc',
+                      borderColor: errors.durationMinutes ? '#ef4444' : '#ccc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: 'pointer'
+                      cursor: formData.startTime ? 'pointer' : 'not-allowed',
+                      opacity: formData.startTime ? 1 : 0.7,
                     }}
                   >
-                    <span style={{ color: formData.endTime ? '#fff' : '#999' }}>
-                      {formData.endTime 
-                        ? timeSlots.find(slot => slot.value === formData.endTime)?.label 
-                        : 'Sélectionnez une heure'}
+                    <span style={{ color: formData.durationMinutes ? '#000' : '#999' }}>
+                      {formData.durationMinutes
+                        ? DURATION_OPTIONS.find(o => o.value === formData.durationMinutes)?.label
+                        : formData.startTime
+                          ? 'Sélectionnez une durée'
+                          : 'Sélectionnez d\'abord l\'heure de début'}
                     </span>
-                    <ChevronDown 
-                      size={18} 
-                      style={{ 
-                        color: '#fff', 
-                        transform: openEndTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease'
-                      }} 
+                    <ChevronDown
+                      size={18}
+                      style={{
+                        color: '#666',
+                        transform: openDurationDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
                     />
                   </div>
-                  {openEndTimeDropdown && (
+                  {openDurationDropdown && formData.startTime && (
                     <div style={{
                       position: 'absolute',
                       top: '100%',
                       left: 0,
                       right: 0,
                       marginTop: '4px',
-                      backgroundColor: '#1a1a2e',
+                      backgroundColor: '#ffffff',
                       border: '1px solid #ccc',
                       borderRadius: '8px',
                       maxHeight: '200px',
                       overflowY: 'auto',
                       zIndex: 1000,
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
                     }}>
-                      {timeSlots.map((slot) => (
+                      {DURATION_OPTIONS.map((opt) => (
                         <div
-                          key={slot.value}
-                          onClick={() => handleTimeSelect(slot.value, 'endTime')}
+                          key={opt.value}
+                          onClick={() => handleDurationSelect(opt.value)}
                           style={{
                             padding: '12px 16px',
                             cursor: 'pointer',
-                            color: '#fff',
-                            backgroundColor: formData.endTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                            transition: 'background-color 0.2s ease'
+                            color: formData.durationMinutes === opt.value ? '#000' : '#333',
+                            backgroundColor: formData.durationMinutes === opt.value ? 'rgba(255, 65, 108, 0.15)' : 'transparent',
+                            borderBottom: '1px solid rgba(0,0,0,0.06)',
+                            transition: 'background-color 0.2s ease',
                           }}
                           onMouseEnter={(e) => {
-                            if (formData.endTime !== slot.value) {
-                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            if (formData.durationMinutes !== opt.value) {
+                              e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (formData.endTime !== slot.value) {
+                            if (formData.durationMinutes !== opt.value) {
                               e.currentTarget.style.backgroundColor = 'transparent';
                             }
                           }}
                         >
-                          {slot.label}
+                          {opt.label}
                         </div>
                       ))}
                     </div>
                   )}
-                  {errors.endTime && (
+                  {formData.startTime && formData.durationMinutes > 0 && (
+                    <p style={{ color: '#64748B', fontSize: '13px', margin: '8px 0 0' }}>
+                      Heure de fin : {(() => {
+                        const end = computeEndTimeFromDuration(formData.startTime, formData.durationMinutes);
+                        const [h, m] = end.split(':').map(Number);
+                        const [startH, startM] = formData.startTime.split(':').map(Number);
+                        const endMin = h * 60 + m;
+                        const startMin = startH * 60 + startM;
+                        const isNextDay = endMin <= startMin;
+                        return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}${isNextDay ? ' (lendemain)' : ''}`;
+                      })()}
+                    </p>
+                  )}
+                  {errors.durationMinutes && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                      {errors.endTime}
+                      {errors.durationMinutes}
                     </p>
                   )}
                 </div>

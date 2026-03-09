@@ -1800,17 +1800,17 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
         let eventEndDateTime: Date;
 
         if (event.endTime) {
-          // Si endTime est défini, l'utiliser
-          const [hours, minutes] = event.endTime.split(':').map(Number);
-          eventEndDateTime = new Date(
-            eventDate.getFullYear(),
-            eventDate.getMonth(),
-            eventDate.getDate(),
-            hours,
-            minutes,
-            0,
-            0
-          );
+          const [endH, endM] = event.endTime.split(':').map(Number);
+          const endMinutes = endH * 60 + endM;
+          let endDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+          if (event.startTime) {
+            const [startH, startM] = event.startTime.split(':').map(Number);
+            const startMinutes = startH * 60 + startM;
+            if (endMinutes <= startMinutes) {
+              endDate.setDate(endDate.getDate() + 1);
+            }
+          }
+          eventEndDateTime = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), endH, endM, 0, 0);
         } else {
           // Sinon, considérer la fin de la journée (23:59:59)
           eventEndDateTime = new Date(

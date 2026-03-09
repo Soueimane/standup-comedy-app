@@ -268,16 +268,8 @@ export const createEventSchema = z.object({
 }, {
   message: 'Pour un événement unique, fournissez "date". Pour un événement récurrent, fournissez "isRecurring: true" et "dates"',
   path: ['date']
-}).refine((data) => {
-  const startParts = data.startTime.split(':');
-  const endParts = data.endTime.split(':');
-  const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-  const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-  return endMinutes > startMinutes;
-}, {
-  message: 'End time must be after start time',
-  path: ['endTime']
 });
+// Note: on n'exige plus endTime > startTime pour autoriser les événements qui dépassent minuit (fin le lendemain)
 
 export const updateEventSchema = z.object({
   title: z.string()
@@ -327,20 +319,8 @@ export const updateEventSchema = z.object({
     .min(1, { message: 'Le nombre de places doit être au moins 1' })
     .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
     .optional(),
-}).partial().refine((data) => {
-  // Si les deux heures sont fournies, validez que la fin est après le début
-  if (data.startTime && data.endTime) {
-    const startParts = data.startTime.split(':');
-    const endParts = data.endTime.split(':');
-    const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-    const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-    return endMinutes > startMinutes;
-  }
-  return true;
-}, {
-  message: 'End time must be after start time',
-  path: ['endTime']
-});
+}).partial();
+// Note: on n'exige plus endTime > startTime pour autoriser les événements qui dépassent minuit (fin le lendemain)
 
 // ============================================================================
 // SCHÉMAS D'APPLICATION
