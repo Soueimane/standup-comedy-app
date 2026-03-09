@@ -189,6 +189,21 @@ function LandingPage() {
     return () => window.removeEventListener('keydown', onEscape);
   }, [videoModalId]);
 
+  // Scroll vers "Choisissez votre profil" quand on arrive avec #roles (ex: lien "Inscris-toi" depuis la page login)
+  useEffect(() => {
+    if (window.location.hash !== '#roles') return;
+    const t = setTimeout(() => {
+      const section = document.getElementById('roles');
+      if (!section) return;
+      const cards = section.querySelector('.role-cards');
+      const target = cards || section;
+      const headerOffset = 80;
+      const y = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(t);
+  }, []);
+
   const goRegister = () => navigate('/register');
   const scrollToRoles = () => {
     const section = document.getElementById('roles');
@@ -258,7 +273,7 @@ function LandingPage() {
                 Tout le stand-up, au même endroit.
               </p>
               <div className="hero-ctas animate-in delay-3">
-                <button type="button" className="btn btn-primary btn-large" onClick={goRegister}>Créer mon compte</button>
+                <button type="button" className="btn btn-primary btn-large" onClick={scrollToRoles}>Créer mon compte</button>
               </div>
               <div className="section-divider hero-divider" aria-hidden />
               {/* <div className="hero-stats animate-in delay-4">
@@ -591,7 +606,7 @@ function LandingPage() {
             <h2>Rejoignez l'écosystème<br />stand-up</h2>
             <p>Créez votre compte gratuitement et commencez dès aujourd'hui à simplifier votre organisation</p>
             <div className="cta-buttons">
-              <button type="button" className="btn btn-primary btn-large" onClick={goRegister}>Créer mon compte</button>
+              <button type="button" className="btn btn-primary btn-large" onClick={scrollToRoles}>Créer mon compte</button>
             </div>
           </div>
         </div>
@@ -616,7 +631,7 @@ function LandingPage() {
               <h4>Accès</h4>
               <ul>
                 <li><button type="button" className="footer-link-btn" onClick={goLogin}>Se connecter</button></li>
-                <li><button type="button" className="footer-link-btn" onClick={goRegister}>S'inscrire</button></li>
+                <li><button type="button" className="footer-link-btn" onClick={scrollToRoles}>S'inscrire</button></li>
               </ul>
             </div>
             <div className="footer-links">
