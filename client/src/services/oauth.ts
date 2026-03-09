@@ -4,10 +4,15 @@ const POPUP_WIDTH = 500;
 const POPUP_HEIGHT = 600;
 
 interface OAuthTokens {
-  token: string;
-  access_token: string;
+  access_token?: string;
   refresh_token?: string;
   id_token?: string;
+  pendingRegistration?: boolean;
+  pendingCode?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  userType?: string;
 }
 
 interface OAuthStatus {
@@ -32,12 +37,15 @@ export const checkOAuthStatus = async (): Promise<OAuthStatus> => {
  * Optionally accepts a provider name that will be forwarded to the backend
  * and then to Keycloak as kc_idp_hint (google, facebook, github, etc.)
  */
-export const loginWithKeycloak = (provider?: string): Promise<OAuthTokens> => {
+export const loginWithKeycloak = (provider?: string, userType?: string): Promise<OAuthTokens> => {
   return new Promise(async (resolve, reject) => {
     try {
       // Get authorization URL from backend
+      const params: Record<string, string> = {};
+      if (provider) params.provider = provider;
+      if (userType) params.userType = userType;
       const response = await api.get('/auth/oauth/authorize', {
-        params: provider ? { provider } : undefined,
+        params: Object.keys(params).length > 0 ? params : undefined,
       });
       const { authorizationUrl, state } = response.data;
 
@@ -70,15 +78,23 @@ export const loginWithKeycloak = (provider?: string): Promise<OAuthTokens> => {
 
           if (event.data.error) {
             reject(new Error(event.data.error_description || event.data.error));
-          } else if (event.data.token) {
+          } else if (event.data.pendingRegistration) {
+            // Inscription en attente : renvoyer les infos pour afficher le formulaire
             resolve({
-              token: event.data.token,
+              pendingRegistration: true,
+              pendingCode: event.data.pendingCode,
+              email: event.data.email,
+              firstName: event.data.firstName,
+              lastName: event.data.lastName,
+              userType: event.data.userType,
+            });
+          } else {
+            // Login success: HttpOnly cookie already set by server
+            resolve({
               access_token: event.data.access_token,
               refresh_token: event.data.refresh_token,
               id_token: event.data.id_token,
             });
-          } else {
-            reject(new Error('No token received'));
           }
 
           popup.close();
@@ -146,45 +162,49 @@ export const logoutFromKeycloak = async (idToken?: string, redirect = false): Pr
   }
 };
 
+// In-memory storage for Keycloak tokens — never persisted to localStorage to prevent XSS theft
+// The JWT (internal token) is stored in an HttpOnly cookie by the server
+let _inMemoryAccessToken: string | undefined;
+let _inMemoryRefreshToken: string | undefined;
+let _inMemoryIdToken: string | undefined;
+
 /**
- * Store OAuth tokens in localStorage
+ * Store OAuth tokens:
+ * - Internal JWT → localStorage (kept for backward compat with Authorization header)
+ * - Keycloak access/refresh/id tokens → in-memory only (not accessible to XSS)
+ * Note: the server also sets an HttpOnly cookie for the JWT as a secondary protection
  */
 export const storeOAuthTokens = (tokens: OAuthTokens): void => {
-  localStorage.setItem('token', tokens.token);
-
   if (tokens.access_token) {
-    localStorage.setItem('keycloak_access_token', tokens.access_token);
+    _inMemoryAccessToken = tokens.access_token;
   }
 
   if (tokens.refresh_token) {
-    localStorage.setItem('keycloak_refresh_token', tokens.refresh_token);
+    _inMemoryRefreshToken = tokens.refresh_token;
   }
 
   if (tokens.id_token) {
-    localStorage.setItem('keycloak_id_token', tokens.id_token);
+    _inMemoryIdToken = tokens.id_token;
   }
 };
 
 /**
- * Clear OAuth tokens from localStorage
+ * Clear OAuth tokens from all storage locations
  */
 export const clearOAuthTokens = (): void => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('keycloak_access_token');
-  localStorage.removeItem('keycloak_refresh_token');
-  localStorage.removeItem('keycloak_id_token');
-  localStorage.removeItem('user');
+  _inMemoryAccessToken = undefined;
+  _inMemoryRefreshToken = undefined;
+  _inMemoryIdToken = undefined;
 };
 
 /**
- * Get stored OAuth tokens
+ * Get stored OAuth tokens (Keycloak tokens from memory, JWT from localStorage)
  */
 export const getStoredOAuthTokens = (): Partial<OAuthTokens> => {
   return {
-    token: localStorage.getItem('token') || undefined,
-    access_token: localStorage.getItem('keycloak_access_token') || undefined,
-    refresh_token: localStorage.getItem('keycloak_refresh_token') || undefined,
-    id_token: localStorage.getItem('keycloak_id_token') || undefined,
+    access_token: _inMemoryAccessToken,
+    refresh_token: _inMemoryRefreshToken,
+    id_token: _inMemoryIdToken,
   };
 };
 

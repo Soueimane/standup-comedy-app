@@ -77,12 +77,9 @@ export const unsubscribeRateLimiter = (
   res: Response,
   next: NextFunction
 ) => {
-  // Identifier par IP (avec fallback)
-  const identifier =
-    req.ip ||
-    req.headers['x-forwarded-for'] as string ||
-    req.socket.remoteAddress ||
-    'unknown';
+  // Identifier par IP — req.ip respecte le trust proxy d'Express
+  // Ne jamais utiliser x-forwarded-for brut (forgeable par l'attaquant)
+  const identifier = req.ip || req.socket.remoteAddress || 'unknown';
 
   if (!unsubscribeLimiter.isAllowed(identifier)) {
     console.warn(`⚠️ Rate limit exceeded for IP: ${identifier}`);
@@ -106,11 +103,7 @@ export const oauthRateLimiter = (
   res: Response,
   next: NextFunction
 ) => {
-  const identifier =
-    req.ip ||
-    req.headers['x-forwarded-for'] as string ||
-    req.socket.remoteAddress ||
-    'unknown';
+  const identifier = req.ip || req.socket.remoteAddress || 'unknown';
 
   if (!oauthLimiter.isAllowed(identifier)) {
     console.warn(`⚠️ OAuth rate limit exceeded for IP: ${identifier}`);

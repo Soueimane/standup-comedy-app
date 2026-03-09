@@ -2,20 +2,35 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 /**
  * Interface for temporary auth code document
- * Used to exchange a short-lived code for tokens (tokens never exposed in URL)
+ * Used for two purposes:
+ * 1. Exchange a short-lived code for tokens (login flow) - token required
+ * 2. Pending registration after OAuth (registration flow) - pendingRegistration required
  */
 export interface ITempAuthCode extends Document {
   code: string;
-  token: string;
-  accessToken: string;
+  // Login flow fields
+  token?: string;
+  accessToken?: string;
   refreshToken?: string;
   idToken?: string;
+  // Pending registration fields (when userType was passed and user doesn't exist)
+  pendingRegistration?: boolean;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  keycloakId?: string;
+  userType?: 'COMEDIAN' | 'ORGANIZER' | 'SPECTATOR';
+  keycloakAccessToken?: string;
+  keycloakRefreshToken?: string;
+  keycloakIdToken?: string;
   createdAt: Date;
 }
 
 /**
  * Schema for temporary auth code with TTL index
- * Documents are automatically deleted after 30 seconds
+ * Documents are automatically deleted after 10 minutes (600 seconds)
+ * Regular login codes are deleted on use (one-time); pending registrations
+ * persist until the user completes the form or the TTL expires.
  */
 const TempAuthCodeSchema = new Schema<ITempAuthCode>({
   code: {
@@ -24,20 +39,28 @@ const TempAuthCodeSchema = new Schema<ITempAuthCode>({
     unique: true,
     index: true
   },
-  token: {
-    type: String,
-    required: true
-  },
-  accessToken: {
-    type: String,
-    required: true
-  },
+  // Login flow
+  token: String,
+  accessToken: String,
   refreshToken: String,
   idToken: String,
+  // Pending registration flow
+  pendingRegistration: { type: Boolean, default: false },
+  email: String,
+  firstName: String,
+  lastName: String,
+  keycloakId: String,
+  userType: {
+    type: String,
+    enum: ['COMEDIAN', 'ORGANIZER', 'SPECTATOR'],
+  },
+  keycloakAccessToken: String,
+  keycloakRefreshToken: String,
+  keycloakIdToken: String,
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 30 // TTL: 30 secondes seulement
+    expires: 120 // TTL: 2 minutes (réduit pour limiter l'exposition des tokens chiffrés)
   }
 });
 

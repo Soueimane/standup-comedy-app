@@ -3,6 +3,7 @@ import {
   register,
   sendSmsVerification,
   login,
+  logoutClassic,
   reactivateAccount,
   getProfile,
   getAllUsers,
@@ -27,6 +28,7 @@ router.post('/login', validate(loginSchema), login);
 router.post('/reactivate', validate(loginSchema), reactivateAccount);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/logout', logoutClassic);
 
 // Routes protégées
 router.get('/profile', authMiddleware, getProfile);

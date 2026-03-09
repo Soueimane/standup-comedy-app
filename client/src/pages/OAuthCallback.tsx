@@ -45,18 +45,36 @@ const OAuthCallback = () => {
       }
 
       try {
-        // Échanger le code contre les tokens via POST (sécurisé)
+        // Échanger le code contre les tokens (login) ou les infos d'inscription (inscription)
         const response = await api.post('/auth/oauth/exchange', { code });
-        const { token, access_token, refresh_token, id_token } = response.data;
 
-        if (token && window.opener) {
+        if (response.data.pendingRegistration) {
+          // Flux inscription : renvoi les infos au parent pour afficher le formulaire
+          const { pendingCode, email, firstName, lastName, userType } = response.data;
+          if (window.opener) {
+            window.opener.postMessage(
+              { type: 'oauth-callback', pendingRegistration: true, pendingCode, email, firstName, lastName, userType },
+              window.location.origin
+            );
+            setStatus('success');
+            setTimeout(() => window.close(), 100);
+          } else {
+            window.location.href = '/login';
+          }
+          return;
+        }
+
+        // Flux connexion normal : cookie HttpOnly posé par le serveur lors du /exchange
+        const { access_token, refresh_token, id_token } = response.data;
+
+        if (window.opener) {
           window.opener.postMessage(
-            { type: 'oauth-callback', token, access_token, refresh_token, id_token },
+            { type: 'oauth-callback', access_token, refresh_token, id_token },
             window.location.origin
           );
           setStatus('success');
           setTimeout(() => window.close(), 100);
-        } else if (!window.opener) {
+        } else {
           window.location.href = '/login';
         }
       } catch (err: unknown) {

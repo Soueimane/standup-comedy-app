@@ -1,5 +1,6 @@
 import * as client from 'openid-client';
 import axios from 'axios';
+import { createPublicKey, createVerify } from 'crypto';
 import { config } from './env';
 
 let keycloakConfig: client.Configuration | null = null;
@@ -93,11 +94,6 @@ export const buildAuthorizationUrl = async (
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    // Force account selection to allow users to choose a different account
-    // even if they have an active session with the provider
-    prompt: 'select_account',
-    // Force re-authentication to bypass Keycloak session cache
-    max_age: '0',
   };
 
   // If a specific Identity Provider is requested (google, facebook, github, etc.)
@@ -273,6 +269,73 @@ export const deleteKeycloakUser = async (keycloakUserId: string): Promise<void> 
   } catch (error: any) {
     console.error('⚠️ [OAuth] Failed to delete Keycloak user:', error?.response?.data || error?.message);
   }
+};
+
+/**
+ * Verify an ID token signature via Keycloak JWKS endpoint
+ * Returns the decoded payload if valid, throws if invalid
+ */
+export const verifyIdToken = async (idToken: string, nonce?: string): Promise<Record<string, unknown>> => {
+  const keycloakCfg = await getKeycloakConfig();
+
+  const jwksUri = keycloakCfg.serverMetadata().jwks_uri;
+  if (!jwksUri) {
+    throw new Error('JWKS URI not found in Keycloak metadata');
+  }
+
+  const jwksResponse = await axios.get(jwksUri, { timeout: 5000 });
+  const jwks = jwksResponse.data;
+
+  const parts = idToken.split('.');
+  if (parts.length !== 3) {
+    throw new Error('Invalid ID token format');
+  }
+  const [headerPart, payloadPart, signaturePart] = parts;
+
+  const header = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf-8'));
+  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf-8'));
+
+  const jwk = jwks.keys.find((k: any) => k.kid === header.kid);
+  if (!jwk) {
+    throw new Error(`No matching JWK found for kid: ${header.kid}`);
+  }
+
+  const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
+
+  const signingInput = `${headerPart}.${payloadPart}`;
+  const signature = Buffer.from(signaturePart, 'base64url');
+
+  const alg: string = header.alg || 'RS256';
+  const hashAlg = alg.startsWith('RS') ? `SHA${alg.slice(2)}` : alg;
+
+  const verifier = createVerify(hashAlg);
+  verifier.update(signingInput);
+  const isValid = verifier.verify(publicKey, signature);
+
+  if (!isValid) {
+    throw new Error('ID token signature verification failed');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp && payload.exp < now) {
+    throw new Error('ID token has expired');
+  }
+
+  const issuer = getKeycloakIssuer();
+  if (payload.iss !== issuer) {
+    throw new Error(`ID token issuer mismatch: expected ${issuer}, got ${payload.iss}`);
+  }
+
+  if (payload.aud !== config.keycloak.clientId &&
+      !(Array.isArray(payload.aud) && (payload.aud as string[]).includes(config.keycloak.clientId))) {
+    throw new Error('ID token audience mismatch');
+  }
+
+  if (nonce && payload.nonce !== nonce) {
+    throw new Error('ID token nonce mismatch — possible replay attack');
+  }
+
+  return payload as Record<string, unknown>;
 };
 
 /**

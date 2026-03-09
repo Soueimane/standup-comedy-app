@@ -30,10 +30,7 @@ const Dashboard = () => {
   const { data: eventStats, isLoading: loading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['events', 'stats'],
     queryFn: async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Vous devez être connecté pour voir les statistiques d'évènements.");
-      }
+      // Auth is handled via HttpOnly cookie — no need to check localStorage
       const response = await api.get('/events/stats');
       console.log('📊 Statistiques reçues du serveur:', response.data);
       console.log('👤 Rôle utilisateur:', (user as any)?.role);
@@ -107,11 +104,6 @@ const Dashboard = () => {
 
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Token d\'authentification manquant');
-      }
-
       const response = await api.post('/events/process-completed-events', {});
 
       const result = response.data;

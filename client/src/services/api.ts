@@ -10,48 +10,17 @@ const baseURL =
       : 'http://localhost:3001/api');
 const api = axios.create({
   baseURL,
+  withCredentials: true, // Send HttpOnly cookies with every request
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Intercepteur pour ajouter le token d'authentification
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-
 // Intercepteur pour gérer les erreurs
+// La redirection 401 est gérée par AuthContext (séparation des responsabilités)
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Ne rediriger que si :
-      // 1. On a un token (donc c'était une session authentifiée)
-      // 2. On n'est PAS déjà sur une page de login
-      const currentPath = window.location.pathname;
-      const isLoginPage = currentPath === '/login' || currentPath === '/organisateur';
-      const hadToken = localStorage.getItem('token');
-
-      // Toujours supprimer le token s'il existe
-      if (hadToken) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-
-      // Ne rediriger que si on n'est pas déjà sur une page de login
-      // et qu'on avait un token (session expirée)
-      if (!isLoginPage && hadToken) {
-        window.location.href = '/login';
-      }
-    }
-
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 /** Envoie un code de vérification SMS pour l'inscription */

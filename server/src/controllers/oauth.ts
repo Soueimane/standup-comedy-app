@@ -13,10 +13,12 @@ import {
   revokeKeycloakTokens,
   deleteKeycloakUser,
   isKeycloakEnabled,
+  verifyIdToken,
 } from '../config/keycloak';
 import { UserModel } from '../models/User';
 import { OAuthStateModel } from '../models/OAuthState';
 import { TempAuthCodeModel } from '../models/TempAuthCode';
+import { encrypt, decrypt } from '../utils/encryption';
 
 // ══════════════════════════════════════════════════════════
 // AMÉLIORATION 5: Liste blanche des redirect URIs autorisées
@@ -81,6 +83,16 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
       ? req.query.provider
       : undefined;
 
+    const userType = typeof req.query.userType === 'string'
+      ? req.query.userType
+      : undefined;
+
+    const validUserTypes = ['COMEDIAN', 'ORGANIZER', 'SPECTATOR'];
+    if (userType && !validUserTypes.includes(userType)) {
+      res.status(400).json({ error: 'Invalid userType' });
+      return;
+    }
+
     // Generate PKCE challenge
     const { codeVerifier, codeChallenge } = await generatePKCE();
     const state = generateState();
@@ -91,6 +103,7 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
       state,
       codeVerifier,
       nonce,
+      ...(userType && { userType: userType as 'COMEDIAN' | 'ORGANIZER' | 'SPECTATOR' }),
     });
 
     // Build authorization URL
@@ -167,6 +180,18 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       pending.codeVerifier
     );
 
+    // Validate ID token signature via JWKS (protection against token tampering)
+    if (tokens.id_token) {
+      try {
+        await verifyIdToken(tokens.id_token, pending.nonce);
+      } catch (idTokenError: any) {
+        console.error('❌ [OAuth] ID token validation failed:', idTokenError.message);
+        await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
+        res.redirect(`${config.frontend.url}/auth/callback?error=invalid_id_token&error_description=${encodeURIComponent('ID token validation failed')}`);
+        return;
+      }
+    }
+
     // Get user info from Keycloak
     const userInfo = await getUserInfo(tokens.access_token);
     if (!userInfo) {
@@ -176,17 +201,57 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Find or create user in MongoDB
-    let user = await UserModel.findOne({ email: userInfo.email });
+    // Find user: prefer keycloakId (sub) for precision, fallback on email for account linking
+    let user = await UserModel.findOne({ keycloakId: userInfo.sub });
+    if (!user && userInfo.email) {
+      user = await UserModel.findOne({ email: userInfo.email });
+    }
 
     if (!user) {
-      // OAuth login-only: user must register first via standard registration.
-      // Revoke Keycloak tokens so the session is not left open on Keycloak's side.
-      console.log(`⚠️ [OAuth] Tentative de connexion sans compte existant: ${maskEmail(userInfo.email)}`);
-      await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
-      await deleteKeycloakUser(userInfo.sub);
-      res.redirect(`${config.frontend.url}/auth/callback?error=account_not_found&error_description=${encodeURIComponent('Aucun compte trouvé. Veuillez d\'abord créer un compte.')}`);
-      return;
+      if (pending.userType) {
+        // Inscription via social auth : NE PAS créer le compte maintenant.
+        // Stocker les infos dans un code temporaire ; le compte sera créé
+        // seulement quand l'utilisateur aura rempli et soumis le formulaire.
+        const nameParts = (userInfo.name || '').split(' ').filter(Boolean);
+        const firstName = userInfo.given_name || nameParts[0] || userInfo.email.split('@')[0] || '';
+        const lastName = userInfo.family_name || nameParts.slice(1).join(' ') || '';
+
+        // Supprimer immédiatement la session Keycloak pour éviter les comptes orphelins
+        // si l'utilisateur quitte le formulaire sans le compléter.
+        // Keycloak recréera le compte lors de la prochaine authentification.
+        try {
+          await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
+          await deleteKeycloakUser(userInfo.sub);
+          console.log(`🧹 [OAuth] Session Keycloak nettoyée pour inscription en attente: ${maskEmail(userInfo.email)}`);
+        } catch (cleanupErr) {
+          console.warn(`⚠️ [OAuth] Échec nettoyage Keycloak (non bloquant): ${cleanupErr}`);
+        }
+
+        const tempCode = crypto.randomBytes(32).toString('hex');
+        await TempAuthCodeModel.create({
+          code: tempCode,
+          pendingRegistration: true,
+          email: userInfo.email,
+          firstName,
+          lastName,
+          userType: pending.userType,
+          // On ne stocke plus les tokens Keycloak : la session a été révoquée.
+        });
+
+        console.log(`⏳ [OAuth] Inscription en attente de formulaire pour ${maskEmail(userInfo.email)} (${pending.userType})`);
+        const callbackUrl = `${config.frontend.url}/auth/callback?code=${tempCode}`;
+        res.redirect(callbackUrl);
+        return;
+      } else {
+        // Connexion sans compte existant et sans userType → refuser
+        // On révoque les tokens mais on NE supprime PAS le compte Keycloak :
+        // l'utilisateur peut vouloir s'inscrire juste après, auquel cas le même
+        // compte Keycloak sera réutilisé sans avoir à refaire un flux OAuth complet.
+        console.log(`⚠️ [OAuth] Tentative de connexion sans compte existant: ${maskEmail(userInfo.email)}`);
+        await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
+        res.redirect(`${config.frontend.url}/auth/callback?error=account_not_found&error_description=${encodeURIComponent('Aucun compte trouvé. Veuillez d\'abord créer un compte.')}`);
+        return;
+      }
     } else {
       // User exists - associate Keycloak ID if not already set (account linking)
       // This handles the case where a user registered via email and later signs in via OAuth
@@ -195,12 +260,12 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
         await user.save();
         console.log(`✅ [OAuth] Compte existant associé à Keycloak: ${maskEmail(user.email)}`);
       } else if (user.keycloakId !== userInfo.sub) {
-        // Should not happen: Keycloak federation ensures same sub for all linked providers
-        console.error(`🚫 [OAuth] Keycloak ID mismatch for ${maskEmail(user.email)}: stored=${maskToken(user.keycloakId)}, received=${maskToken(userInfo.sub)}`);
-        await revokeKeycloakTokens(tokens.access_token, tokens.refresh_token);
-        await deleteKeycloakUser(userInfo.sub);
-        res.redirect(`${config.frontend.url}/auth/callback?error=account_mismatch&error_description=${encodeURIComponent('Ce compte ne peut pas être utilisé pour se connecter. Veuillez réessayer.')}`);
-        return;
+        // Le sub Keycloak a changé — typiquement parce que l'utilisateur Keycloak a été supprimé
+        // et recréé (ex: reset admin). On fait confiance à l'email vérifié par le provider OAuth
+        // (Google / Facebook) pour relier le nouveau sub au compte existant.
+        console.warn(`⚠️ [OAuth] Keycloak sub mis à jour pour ${maskEmail(user.email)}: ${maskToken(user.keycloakId!)} → ${maskToken(userInfo.sub)}`);
+        user.keycloakId = userInfo.sub;
+        await user.save();
       }
     }
 
@@ -216,23 +281,37 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '1h' }
     );
 
-    // Générer un code temporaire au lieu de passer les tokens dans l'URL
+    // Store JWT in HttpOnly cookie — never exposed to JS
+    const isProduction = config.nodeEnv === 'production';
+    res.cookie('auth_token', internalToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 60 * 60 * 1000, // 1 hour
+      path: '/',
+    });
+
+    // Store Keycloak tokens in a temp code for the frontend to retrieve via POST
+    // (access_token and refresh_token are kept server-side exchange only)
     const tempCode = crypto.randomBytes(32).toString('hex');
 
     await TempAuthCodeModel.create({
       code: tempCode,
       token: internalToken,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      idToken: tokens.id_token,
+      accessToken: encrypt(tokens.access_token),
+      refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
+      idToken: tokens.id_token ? encrypt(tokens.id_token) : undefined,
     });
 
-    // Rediriger avec seulement le code temporaire (pas les tokens)
+    // Rediriger avec seulement le code temporaire (pas les tokens dans l'URL)
     const callbackUrl = `${config.frontend.url}/auth/callback?code=${tempCode}`;
     res.redirect(callbackUrl);
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.redirect(`${config.frontend.url}/auth/callback?error=token_exchange_failed&error_description=Failed to exchange code for tokens`);
+  } catch (error: any) {
+    console.error('OAuth callback error:', error?.message || error);
+    if (error?.name === 'ValidationError') {
+      console.error('Mongoose validation errors:', JSON.stringify(error.errors, null, 2));
+    }
+    res.redirect(`${config.frontend.url}/auth/callback?error=auth_failed&error_description=${encodeURIComponent('Une erreur est survenue lors de l\'authentification. Veuillez réessayer.')}`);
   }
 };
 
@@ -250,6 +329,15 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     }
 
     const tokens = await refreshAccessToken(refresh_token);
+
+    // Refresh Token Rotation: revoke the old refresh token after getting a new one
+    // This ensures the old token cannot be reused (prevents token theft replay)
+    try {
+      await revokeKeycloakTokens(refresh_token);
+    } catch (revokeError) {
+      // Non-blocking — new tokens are valid regardless
+      console.warn('⚠️ [OAuth] Failed to revoke old refresh token:', revokeError);
+    }
 
     res.json({
       access_token: tokens.access_token,
@@ -273,6 +361,9 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 
     const logoutUrl = await buildLogoutUrl(id_token, postLogoutRedirectUri);
 
+    // Clear the HttpOnly JWT cookie on logout
+    res.clearCookie('auth_token', { path: '/' });
+
     res.json({ logoutUrl });
   } catch (error) {
     console.error('OAuth logout error:', error);
@@ -282,7 +373,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/auth/oauth/exchange
- * Échange un code temporaire contre les tokens
+ * Échange un code temporaire contre les tokens (login) ou les infos d'inscription (inscription)
  */
 export const exchange = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -293,23 +384,174 @@ export const exchange = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Récupérer et supprimer le code (usage unique)
-    const tempAuth = await TempAuthCodeModel.findOneAndDelete({ code });
+    // Chercher le code sans le supprimer d'abord
+    const tempAuth = await TempAuthCodeModel.findOne({ code });
 
     if (!tempAuth) {
       res.status(400).json({ error: 'Invalid or expired code' });
       return;
     }
 
+    // Inscription en attente : renvoyer les infos sans supprimer (sera supprimé par complete-registration)
+    if (tempAuth.pendingRegistration) {
+      res.json({
+        pendingRegistration: true,
+        pendingCode: code,
+        email: tempAuth.email,
+        firstName: tempAuth.firstName,
+        lastName: tempAuth.lastName,
+        userType: tempAuth.userType,
+      });
+      return;
+    }
+
+    // Flux de connexion normal : supprimer le code (usage unique) et retourner les tokens
+    await TempAuthCodeModel.deleteOne({ code });
+
+    // Set JWT in HttpOnly cookie — consistent with the cookie set during callback redirect
+    const isProduction = config.nodeEnv === 'production';
+    if (tempAuth.token) {
+      res.cookie('auth_token', tempAuth.token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 60 * 60 * 1000,
+        path: '/',
+      });
+    }
+
     res.json({
-      token: tempAuth.token,
-      access_token: tempAuth.accessToken,
-      refresh_token: tempAuth.refreshToken,
-      id_token: tempAuth.idToken,
+      access_token: tempAuth.accessToken ? decrypt(tempAuth.accessToken) : undefined,
+      refresh_token: tempAuth.refreshToken ? decrypt(tempAuth.refreshToken) : undefined,
+      id_token: tempAuth.idToken ? decrypt(tempAuth.idToken) : undefined,
     });
   } catch (error) {
     console.error('OAuth exchange error:', error);
     res.status(500).json({ error: 'Failed to exchange code' });
+  }
+};
+
+/**
+ * POST /api/auth/oauth/complete-registration
+ * Finalise l'inscription OAuth après que l'utilisateur a rempli le formulaire.
+ * Crée le compte et retourne un JWT.
+ */
+export const completeRegistration = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { pendingCode, phone, city, birthDate, bio, experience, consent, firstName: bodyFirstName, lastName: bodyLastName } = req.body;
+
+    if (!pendingCode) {
+      res.status(400).json({ error: 'pendingCode is required' });
+      return;
+    }
+
+    // Récupérer et supprimer le code d'inscription en attente
+    const tempAuth = await TempAuthCodeModel.findOneAndDelete({ code: pendingCode, pendingRegistration: true });
+
+    if (!tempAuth) {
+      res.status(400).json({ error: 'Code d\'inscription invalide ou expiré. Veuillez recommencer.' });
+      return;
+    }
+
+    // Vérifier que l'email n'est pas déjà utilisé (cas de double soumission)
+    const existing = await UserModel.findOne({ email: tempAuth.email });
+    if (existing) {
+      // Compte déjà créé (double soumission ou compte email existant) — générer un JWT
+      console.log(`ℹ️ [OAuth] Compte déjà existant pour ${maskEmail(tempAuth.email!)}, liaison Keycloak`);
+      if (!existing.keycloakId) {
+        existing.keycloakId = tempAuth.keycloakId;
+        await existing.save();
+      }
+      const internalToken = jwt.sign(
+        { id: existing._id, email: existing.email, role: existing.role, keycloakId: existing.keycloakId },
+        config.jwt.secret as string,
+        { expiresIn: '1h' }
+      );
+      const isProduction = config.nodeEnv === 'production';
+      res.cookie('auth_token', internalToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 60 * 60 * 1000,
+        path: '/',
+      });
+      const fullExistingUser = await UserModel.findById(existing._id).select('-password').lean();
+      res.json({ user: fullExistingUser });
+      return;
+    }
+
+    // Construire les données de création selon le rôle
+    // Note: pas de keycloakId ici — la session Keycloak a été supprimée lors du callback.
+    // Le lien Keycloak sera établi lors de la première connexion OAuth post-inscription.
+    const userData: any = {
+      email: tempAuth.email,
+      firstName: bodyFirstName?.trim() || tempAuth.firstName,
+      lastName: bodyLastName?.trim() || tempAuth.lastName,
+      role: tempAuth.userType,
+      password: crypto.randomBytes(32).toString('hex'),
+      consent: {
+        termsAccepted: consent?.termsAccepted ?? true,
+        privacyAccepted: consent?.privacyAccepted ?? true,
+        isAdult: consent?.isAdult ?? true,
+      },
+    };
+
+    if (phone) userData.phone = phone;
+    if (city) userData.city = city;
+    if (birthDate) userData.birthDate = new Date(birthDate);
+
+    if (tempAuth.userType === 'COMEDIAN' && (bio || experience !== undefined)) {
+      userData.profile = {};
+      if (bio) userData.profile.bio = bio;
+      if (experience !== undefined) userData.profile.experience = Number(experience);
+    }
+
+    if (tempAuth.userType === 'ORGANIZER') {
+      userData.organizerProfile = {
+        companyName: '',
+        description: '',
+        website: '',
+        venueTypes: [],
+        eventFrequency: 'monthly',
+        location: {
+          venue: '',
+          address: '',
+          city: city || '',
+          country: '',
+        },
+        phone: phone || '',
+      };
+    }
+
+    console.log(`🔍 [OAuth] userData avant create:`, JSON.stringify({ ...userData, password: '***' }, null, 2));
+    const user = await UserModel.create(userData);
+    console.log(`✅ [OAuth] Nouveau compte créé après formulaire: ${maskEmail(user.email)} (${tempAuth.userType})`);
+    console.log(`🔍 [OAuth] organizerProfile sauvegardé:`, JSON.stringify(user.organizerProfile, null, 2));
+
+    const internalToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      config.jwt.secret as string,
+      { expiresIn: '1h' }
+    );
+
+    const isProduction = config.nodeEnv === 'production';
+    res.cookie('auth_token', internalToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 60 * 60 * 1000,
+      path: '/',
+    });
+
+    const fullUser = await UserModel.findById(user._id).select('-password').lean();
+
+    res.json({ user: fullUser });
+  } catch (error: any) {
+    console.error('OAuth complete-registration error:', error?.message || error);
+    if (error?.name === 'ValidationError') {
+      console.error('Mongoose validation errors:', JSON.stringify(error.errors, null, 2));
+    }
+    res.status(500).json({ error: 'Erreur lors de la création du compte', details: error.message });
   }
 };
 

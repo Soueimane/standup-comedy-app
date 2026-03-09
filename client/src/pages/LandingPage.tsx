@@ -190,7 +190,15 @@ function LandingPage() {
   }, [videoModalId]);
 
   const goRegister = () => navigate('/register');
-  const scrollToRoles = () => document.getElementById('roles')?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToRoles = () => {
+    const section = document.getElementById('roles');
+    if (!section) return;
+    const cards = section.querySelector('.role-cards');
+    const target = cards || section;
+    const headerOffset = 80;
+    const y = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  };
   const goLogin = () => navigate('/login');
   const goOrganisateur = () => navigate('/organisateur');
   const goRegisterOrganisateur = () => navigate('/register/organisateur');
