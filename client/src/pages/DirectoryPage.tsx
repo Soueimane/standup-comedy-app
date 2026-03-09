@@ -71,7 +71,7 @@ const DirectoryPage: React.FC = () => {
     isDangerous?: boolean;
     isLoading?: boolean;
   }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { showError, showWarning, showSuccess } = useAlert();
   const queryClient = useQueryClient();
 
@@ -230,16 +230,7 @@ const DirectoryPage: React.FC = () => {
   const handleViewComedianProfile = async (e: React.MouseEvent, comedianId: string) => {
     e.stopPropagation();
     try {
-      if (!token) {
-        showWarning('Vous devez être connecté pour voir le profil');
-        return;
-      }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      const response = await api.get<IUserData>(`/profile/${comedianId}`, config);
+      const response = await api.get<IUserData>(`/profile/${comedianId}`);
       setSelectedComedianProfile(response.data);
       setIsComedianProfileModalOpen(true);
     } catch (err: any) {
@@ -251,16 +242,7 @@ const DirectoryPage: React.FC = () => {
   const handleViewOrganizerProfile = async (e: React.MouseEvent, organizerId: string) => {
     e.stopPropagation();
     try {
-      if (!token) {
-        showWarning('Vous devez être connecté pour voir le profil');
-        return;
-      }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      const response = await api.get<IUserData>(`/profile/${organizerId}`, config);
+      const response = await api.get<IUserData>(`/profile/${organizerId}`);
       setSelectedOrganizerProfile(response.data);
       setIsOrganizerProfileModalOpen(true);
     } catch (err: any) {

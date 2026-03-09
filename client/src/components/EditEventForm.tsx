@@ -1,5 +1,4 @@
 import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
-import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import type { IEvent } from '../types/event';
@@ -13,7 +12,6 @@ interface EditEventFormProps {
 }
 
 function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormProps) {
-  const { token } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState({
     title: '',
@@ -415,11 +413,6 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!token) {
-      showWarning(WarningMessages.AUTH_REQUIRED_EDIT_EVENT);
-      return;
-    }
-
     const isValid = await validateForm();
     if (!isValid) {
       return;
@@ -435,7 +428,6 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     console.log('🔍 [EditEventForm] Validation avant envoi', {
       eventId: eventToEdit._id,
       eventTitle: eventToEdit.title,
-      hasToken: !!token,
       eventOrganizer: eventToEdit.organizer,
     });
 
@@ -512,23 +504,15 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         endTime: formData.endTime,
       };
 
-      const config = {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
       console.log('🛠️ [EditEventForm] Envoi de la mise à jour évènement', {
         eventId: eventToEdit._id,
         eventIdType: typeof eventToEdit._id,
         eventIdLength: eventToEdit._id?.length,
         url: `/events/${eventToEdit._id}`,
         payload: eventData,
-        hasToken: !!token,
       });
-      
-      const response = await api.put(`/events/${eventToEdit._id}`, eventData, config);
+
+      const response = await api.put(`/events/${eventToEdit._id}`, eventData);
       console.log('✅ [EditEventForm] Réponse serveur:', response.data);
       showSuccess(SuccessMessages.EVENT_UPDATED);
       onEventUpdated();

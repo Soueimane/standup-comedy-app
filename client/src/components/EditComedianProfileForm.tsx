@@ -1,5 +1,4 @@
 import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
-import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
 import type { IUserData } from '../types/user';
 import Modal from './Modal';
@@ -15,7 +14,6 @@ interface EditComedianProfileFormProps {
 }
 
 function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditComedianProfileFormProps) {
-  const { token } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<IUserData>(currentUser);
   const [loading, setLoading] = useState(false);
@@ -159,12 +157,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     e.preventDefault();
     setLoading(true);
     try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
       // Traitement silencieux des zones de mobilité pour Paris
       const processedMobilityZone = formData.profile?.mobilityZone ? [...formData.profile.mobilityZone] : undefined;
       
@@ -209,7 +201,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         comedianProfileData.avatarUrl = avatarRemoved ? null : formData.avatarUrl;
       }
 
-      await api.put(`/profile/${currentUser._id}`, comedianProfileData, config);
+      await api.put(`/profile/${currentUser._id}`, comedianProfileData);
       showSuccess(SuccessMessages.PROFILE_UPDATED);
       onSaveSuccess();
     } catch (err: any) {

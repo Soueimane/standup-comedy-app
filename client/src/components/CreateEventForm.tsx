@@ -30,7 +30,7 @@ interface CreateEventFormProps {
 }
 
 function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [isMobile, setIsMobile] = useState(false);
 
@@ -829,7 +829,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     e.preventDefault();
     console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData, eventType, recurringDates });
 
-    if (!user || !token) {
+    if (!user) {
       showWarning(WarningMessages.AUTH_REQUIRED_CREATE_EVENT);
       return;
     }
@@ -946,13 +946,6 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         imageUrl: formData.imageUrl && formData.imageUrl.trim() ? formData.imageUrl.trim() : undefined,
       };
 
-      const config = {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
       let response;
       if (eventType === 'recurring' && recurringDates.length > 0) {
         const dateTimes = recurringDates
@@ -969,7 +962,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           dates: recurringDates,
           dateTimes: dateTimes.length > 0 ? dateTimes : undefined,
         };
-        response = await api.post('/events', eventData, config);
+        response = await api.post('/events', eventData);
         console.log('✅ Réponse serveur (récurrent):', response.data);
         showSuccess(`${response.data.count || recurringDates.length} événements récurrents créés avec succès !`);
       } else {
@@ -978,7 +971,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
           date: eventType === 'unique' ? formData.date : formData.date,
           ...(eventType === 'unique' && effectiveEndDate && { endDate: effectiveEndDate }),
         };
-        response = await api.post('/events', eventData, config);
+        response = await api.post('/events', eventData);
         console.log('✅ Réponse serveur:', response.data);
         showSuccess(SuccessMessages.EVENT_CREATED);
       }

@@ -34,7 +34,7 @@ type OrganizerFormData = {
 };
 
 function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditOrganizerProfileFormProps) {
-  const { token, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<OrganizerFormData>({
     firstName: currentUser.firstName || '',
@@ -210,9 +210,9 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('token:', token, 'currentUser.id:', currentUser?.id, 'currentUser._id:', currentUser?._id, 'currentUser:', currentUser);
+    console.log('currentUser.id:', currentUser?.id, 'currentUser._id:', currentUser?._id, 'currentUser:', currentUser);
     if (isLoading) return;
-    if (!token || !(currentUser?.id || currentUser?._id)) {
+    if (!(currentUser?.id || currentUser?._id)) {
       showWarning(WarningMessages.AUTH_REQUIRED_PROFILE_EDIT);
       return;
     }
@@ -243,15 +243,8 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         updatedData.avatarUrl = avatarRemoved ? null : formData.avatarUrl;
       }
 
-      const config = {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
       const userId = currentUser.id || currentUser._id;
-      const res = await api.put(`/profile/${userId}`, updatedData, config);
+      const res = await api.put(`/profile/${userId}`, updatedData);
       console.log('Profil mis à jour:', res.data);
       showSuccess(SuccessMessages.PROFILE_UPDATED);
       onSaveSuccess();
@@ -265,9 +258,6 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   if (!isOpen) return null;
   if (isLoading || !currentUser) {
     return <div style={{ color: '#fff', textAlign: 'center', marginTop: 40 }}>Chargement du profil...</div>;
-  }
-  if (!token) {
-    return <div style={{ color: '#fff', textAlign: 'center', marginTop: 40 }}>Vous devez être connecté pour modifier votre profil.</div>;
   }
 
   const formContainerStyle: CSSProperties = {

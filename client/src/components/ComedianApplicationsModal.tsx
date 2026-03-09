@@ -1,6 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
 import Modal from './Modal';
-import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 
 interface ComedianApplicationsModalProps {
@@ -42,27 +41,24 @@ interface Application {
 }
 
 function ComedianApplicationsModal({ isOpen, onClose, comedian }: ComedianApplicationsModalProps) {
-  const { token } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
-    if (isOpen && comedian?.id && token) {
+    if (isOpen && comedian?.id) {
       fetchApplications();
     }
-  }, [isOpen, comedian?.id, token]);
+  }, [isOpen, comedian?.id]);
 
   const fetchApplications = async () => {
-    if (!comedian?.id || !token) return;
+    if (!comedian?.id) return;
     
     setLoading(true);
     try {
       console.log('🔍 Récupération des candidatures pour:', comedian.firstName, comedian.lastName);
       
-      const response = await api.get('/applications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/applications');
       
       const allApplications = Array.isArray(response.data) ? response.data : (Array.isArray((response.data as any)?.applications) ? (response.data as any).applications : []);
       console.log('📊 Toutes les applications:', allApplications);

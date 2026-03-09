@@ -13,7 +13,7 @@ interface ApplyToEventFormProps {
 }
 
 function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEventFormProps) {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
@@ -29,12 +29,7 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
         return;
       }
       try {
-        const config = {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        };
-        const response = await api.get<{ hasApplied: boolean }>(`/applications/check/${event._id}/${comedianId}`, config);
+        const response = await api.get<{ hasApplied: boolean }>(`/applications/check/${event._id}/${comedianId}`);
         setHasApplied(response.data.hasApplied);
       } catch (error) {
         console.error('Erreur lors de la vérification de candidature:', error);
@@ -43,16 +38,11 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
       }
     };
     checkExistingApplication();
-  }, [event._id, comedianId, token]);
+  }, [event._id, comedianId]);
 
   const applyMutation = useMutation({
     mutationFn: async (applicationData: { eventId: string; comedianId: string; message?: string }) => {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      const response = await api.post('/applications', applicationData, config);
+      const response = await api.post('/applications', applicationData);
       return response.data;
     },
     onSuccess: () => {

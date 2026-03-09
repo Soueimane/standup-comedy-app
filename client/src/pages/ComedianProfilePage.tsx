@@ -23,7 +23,7 @@ function ComedianProfilePage() {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user: authUser, token, refreshUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'profil'>('info');
@@ -36,13 +36,10 @@ function ComedianProfilePage() {
   const { data: profileData, isLoading: loading } = useQuery({
     queryKey: ['profile', 'comedian', id],
     queryFn: async () => {
-      if (!token) throw new Error('Vous devez être connecté pour voir ce profil');
-      const response = await api.get<IUserData>(`/profile/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.get<IUserData>(`/profile/${id}`);
       return response.data;
     },
-    enabled: !!id && id !== authUser?._id && !!token,
+    enabled: !!id && id !== authUser?._id,
   });
 
   const user = isViewingOtherProfile ? profileData : authUser;
