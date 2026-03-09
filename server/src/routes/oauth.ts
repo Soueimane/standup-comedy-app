@@ -6,6 +6,7 @@ import {
   logout,
   status,
   exchange,
+  completeRegistration,
 } from '../controllers/oauth';
 import { oauthRateLimiter } from '../middleware/rateLimiter';
 
@@ -15,6 +16,7 @@ const router = Router();
 router.get('/authorize', oauthRateLimiter, authorize);
 router.get('/callback', oauthRateLimiter, callback);
 router.post('/exchange', oauthRateLimiter, exchange);
+router.post('/complete-registration', oauthRateLimiter, completeRegistration);
 router.post('/refresh', oauthRateLimiter, refresh);
 router.post('/logout', logout);
 router.get('/status', status);

@@ -8,6 +8,7 @@ export interface IOAuthState extends Document {
   state: string;
   codeVerifier: string;
   nonce: string; // Protection contre les replay attacks
+  userType?: 'COMEDIAN' | 'ORGANIZER' | 'SPECTATOR';
   createdAt: Date;
 }
 
@@ -29,6 +30,11 @@ const OAuthStateSchema = new Schema<IOAuthState>({
   nonce: {
     type: String,
     required: true
+  },
+  userType: {
+    type: String,
+    enum: ['COMEDIAN', 'ORGANIZER', 'SPECTATOR'],
+    required: false
   },
   createdAt: {
     type: Date,

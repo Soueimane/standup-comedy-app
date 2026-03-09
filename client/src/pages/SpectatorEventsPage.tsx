@@ -38,13 +38,13 @@ export default function SpectatorEventsPage() {
       const res = await api.get('/events?myRegistrations=true');
       return parseEventsResponse(res.data);
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
   const { data: favoritesResponse, isLoading: loadingFavorites } = useQuery({
     queryKey: ['event-favorites'],
     queryFn: getEventFavorites,
-    enabled: !!token,
+    enabled: !!user,
   });
   const favoritesList: IEvent[] = Array.isArray(favoritesResponse?.favorites) ? favoritesResponse.favorites : [];
 

@@ -454,6 +454,11 @@ export const updateProfileSchema = z.object({
     radiusKm: z.number().refine((n) => [5, 10, 20, 50].includes(n), { message: 'Rayon invalide (5, 10, 20 ou 50 km)' }).optional(),
     dailyRecapEmail: z.boolean().optional(),
   }).optional(),
+  consent: z.object({
+    termsAccepted: z.boolean().optional(),
+    privacyAccepted: z.boolean().optional(),
+    isAdult: z.boolean().optional(),
+  }).optional(),
 }).partial();
 
 // ============================================================================

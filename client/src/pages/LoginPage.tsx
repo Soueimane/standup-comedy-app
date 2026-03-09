@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { translateOAuthError } from '../services/oauth';
+import { useAlert } from '../contexts/AlertContext';
 
 interface PendingDeletionInfo {
   deactivatedAt: string;
@@ -12,14 +13,13 @@ interface PendingDeletionInfo {
 
 function LoginPage() {
   const { loginMutation, loginWithKeycloak, isOAuthEnabled, isOAuthLoading } = useAuth();
+  const { showError } = useAlert();
 
   const [loginData, setLoginData] = useState({
     email: '',
     password: '',
   });
   const [passwordError, setPasswordError] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [oauthError, setOAuthError] = useState('');
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     isValid: false
@@ -48,7 +48,6 @@ function LoginPage() {
   const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
-    setLoginError('');
     setPendingDeletion(null);
 
     // Vérifier la validation du mot de passe
@@ -86,7 +85,7 @@ function LoginPage() {
         }
 
         const errorMessage = responseData?.message || axiosError?.message || 'Une erreur est survenue lors de la connexion';
-        setLoginError(errorMessage);
+        showError(errorMessage);
 
         // Vider seulement le mot de passe, garder l'email
         setLoginData(prev => ({
@@ -99,7 +98,6 @@ function LoginPage() {
 
   const handleReactivateAccount = async () => {
     setIsReactivating(true);
-    setLoginError('');
 
     try {
       await api.post('/auth/reactivate', loginData);
@@ -115,7 +113,7 @@ function LoginPage() {
       }, 2000);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || 'Erreur lors de la réactivation du compte';
-      setLoginError(errorMessage);
+      showError(errorMessage);
       setPendingDeletion(null);
     } finally {
       setIsReactivating(false);
@@ -142,13 +140,11 @@ function LoginPage() {
   };
 
   const handleKeycloakLogin = async (provider?: string) => {
-    setOAuthError('');
-    setLoginError('');
     try {
       await loginWithKeycloak(provider);
     } catch (error: any) {
       const apiMessage = error?.response?.data?.message;
-      setOAuthError(translateOAuthError(apiMessage || error.message));
+      showError(translateOAuthError(apiMessage || error.message));
     }
   };
 
@@ -266,52 +262,35 @@ function LoginPage() {
               </p>
             </div>
           ) : (
-            <>
-              {loginError && (
-                <div style={{
-                  color: '#dc3545',
-                  marginBottom: '15px',
-                  fontSize: '0.9em',
-                  textAlign: 'left',
-                  padding: '10px',
-                  backgroundColor: 'rgba(220, 53, 69, 0.15)',
-                  borderRadius: '5px',
-                  border: '1px solid rgba(220, 53, 69, 0.4)',
-                }}>
-                  ⚠️ {loginError}
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={handleReactivateAccount}
+                disabled={isReactivating}
+                style={{
+                  ...buttonStyle,
+                  margin: 0,
+                  background: 'linear-gradient(135deg, #28a745, #20c997)',
+                  opacity: isReactivating ? 0.7 : 1,
+                  cursor: isReactivating ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isReactivating ? 'Réactivation...' : '✅ Réactiver mon compte'}
+              </button>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button
-                  onClick={handleReactivateAccount}
-                  disabled={isReactivating}
-                  style={{
-                    ...buttonStyle,
-                    margin: 0,
-                    background: 'linear-gradient(135deg, #28a745, #20c997)',
-                    opacity: isReactivating ? 0.7 : 1,
-                    cursor: isReactivating ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {isReactivating ? 'Réactivation...' : '✅ Réactiver mon compte'}
-                </button>
-
-                <button
-                  onClick={handleCancelReactivation}
-                  disabled={isReactivating}
-                  style={{
-                    ...buttonStyle,
-                    margin: 0,
-                    background: 'transparent',
-                    border: '1px solid #666',
-                    color: '#aaa',
-                  }}
-                >
-                  Annuler
-                </button>
-              </div>
-            </>
+              <button
+                onClick={handleCancelReactivation}
+                disabled={isReactivating}
+                style={{
+                  ...buttonStyle,
+                  margin: 0,
+                  background: 'transparent',
+                  border: '1px solid #666',
+                  color: '#aaa',
+                }}
+              >
+                Annuler
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -332,10 +311,7 @@ function LoginPage() {
             placeholder="Email"
             value={loginData.email}
             onChange={handleChangeLogin}
-            style={{
-              ...inputStyle,
-              borderColor: loginError ? '#dc3545' : '#444'
-            }}
+            style={inputStyle}
             required
           />
           <input
@@ -344,32 +320,9 @@ function LoginPage() {
             placeholder="Mot de passe"
             value={loginData.password}
             onChange={handleChangeLogin}
-            style={{
-              ...inputStyle,
-              borderColor: loginError ? '#dc3545' : '#444'
-            }}
+            style={inputStyle}
             required
           />
-
-          {/* Message d'erreur de connexion */}
-          {loginError && (
-            <div style={{
-              color: '#dc3545',
-              marginBottom: '10px',
-              fontSize: '0.9em',
-              textAlign: 'left',
-              padding: '10px',
-              backgroundColor: 'rgba(220, 53, 69, 0.15)',
-              borderRadius: '5px',
-              border: '1px solid rgba(220, 53, 69, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>⚠️</span>
-              <span>{loginError}</span>
-            </div>
-          )}
 
           {/* Message d'erreur du mot de passe */}
           {passwordError && (
@@ -411,27 +364,6 @@ function LoginPage() {
             {loginMutation.isPending ? 'Connexion en cours...' : <>Se connecter <span style={{ marginLeft: '10px' }}>🚀</span></>}
           </button>
         </form>
-
-        {/* OAuth Error */}
-        {oauthError && (
-          <div style={{
-            color: '#dc3545',
-            marginTop: '10px',
-            marginBottom: '10px',
-            fontSize: '0.9em',
-            textAlign: 'left',
-            padding: '10px',
-            backgroundColor: 'rgba(220, 53, 69, 0.15)',
-            borderRadius: '5px',
-            border: '1px solid rgba(220, 53, 69, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <span>⚠️</span>
-            <span>{oauthError}</span>
-          </div>
-        )}
 
         {/* Social Login Buttons (via Keycloak Identity Providers) */}
         {isOAuthEnabled && (

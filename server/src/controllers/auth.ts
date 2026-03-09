@@ -15,6 +15,15 @@ import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
 import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter';
 
+/**
+ * POST /api/auth/logout
+ * Clears the HttpOnly auth_token cookie (works for email/password and OAuth sessions)
+ */
+export const logoutClassic = async (_req: Request, res: Response) => {
+  res.clearCookie('auth_token', { path: '/' });
+  res.status(200).json({ message: 'Déconnexion réussie' });
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     console.log('📝 [REGISTER] Données reçues:', JSON.stringify(req.body, null, 2));
@@ -146,6 +155,15 @@ export const register = async (req: Request, res: Response) => {
       userResponse.organizerProfile = user.organizerProfile;
     }
 
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
     res.status(201).json({
       message: 'Utilisateur enregistré avec succès',
       token,
@@ -268,6 +286,15 @@ export const login = async (req: Request, res: Response) => {
     } else if (user.role === 'ORGANIZER' && user.organizerProfile) {
       userResponse.organizerProfile = user.organizerProfile;
     }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+    });
 
     res.status(200).json({
       message: 'Connexion réussie',

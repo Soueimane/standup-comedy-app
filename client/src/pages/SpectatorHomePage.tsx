@@ -40,7 +40,7 @@ export default function SpectatorHomePage() {
       const res = await api.get('/profile/me');
       return res.data;
     },
-    enabled: !!token && !!user?._id && user?.role === 'SPECTATOR',
+    enabled: !!user?._id && user?.role === 'SPECTATOR',
   });
 
   const radiusKm = profile?.spectatorPreferences?.radiusKm ?? 20;
@@ -72,7 +72,7 @@ export default function SpectatorHomePage() {
       const res = await api.get(url);
       return parseEventsResponse(res.data);
     },
-    enabled: !!token && hasSearchFilter,
+    enabled: !!user && hasSearchFilter,
   });
 
   // Fetch events the spectator is registered to (includes cancelled ones)
@@ -82,7 +82,7 @@ export default function SpectatorHomePage() {
       const res = await api.get('/events?myRegistrations=true');
       return parseEventsResponse(res.data);
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
   // Set of event IDs the user is registered to — reliable source of truth
@@ -98,7 +98,7 @@ export default function SpectatorHomePage() {
       const res = await api.get(`/events?${params.toString()}`);
       return parseEventsResponse(res.data);
     },
-    enabled: !!token && !!user?.city?.trim(),
+    enabled: !!user && !!user?.city?.trim(),
   });
 
   const updateRadiusMutation = useMutation({

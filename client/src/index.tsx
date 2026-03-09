@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
@@ -50,8 +50,18 @@ const RedirectSpectatorEvents: React.FC = () => {
   return <Navigate to={`/spectateur/events${search}`} replace />;
 };
 
+const ScrollToTop: React.FC = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
 const AppRouter: React.FC = () => {
   return (
+    <>
+    <ScrollToTop />
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -84,6 +94,7 @@ const AppRouter: React.FC = () => {
       <Route path="/cgu" element={<TermsOfServicePage />} />
       <Route path="/a-propos" element={<AboutPage />} />
     </Routes>
+    </>
   );
 };
 
