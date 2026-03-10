@@ -12,9 +12,12 @@ import {
   deleteEvent,
   getOrganizerEvents,
   notifyHumorists,
+  inviteComedian,
   processCompletedEvents,
   resetParticipations,
-  markEventsAsCompletedCron
+  markEventsAsCompletedCron,
+  registerSpectator,
+  unregisterSpectator,
 } from '../controllers/event';
 
 const router = express.Router();
@@ -53,6 +56,11 @@ router.get('/', authMiddleware, asyncHandler(getEventsList));
 // GET /api/events/user/my-events - Récupérer les évènements de l'organisateur connecté
 router.get('/user/my-events', authMiddleware, asyncHandler(getOrganizerEvents));
 
+// POST /api/events/:eventId/spectator-register - Inscription spectateur
+router.post('/:eventId/spectator-register', authMiddleware, asyncHandler(registerSpectator));
+// DELETE /api/events/:eventId/spectator-register - Désinscription spectateur
+router.delete('/:eventId/spectator-register', authMiddleware, asyncHandler(unregisterSpectator));
+
 // GET /api/events/:eventId - Récupérer un évènement par son ID
 router.get('/:eventId', asyncHandler(getEventById));
 
@@ -68,6 +76,9 @@ router.delete('/:eventId', authMiddleware, asyncHandler(deleteEvent));
 
 // POST /api/events/:id/notify - Envoyer des notifications manuelles aux humoristes
 router.post('/:id/notify', authMiddleware, asyncHandler(notifyHumorists));
+
+// POST /api/events/:eventId/invite-comedian/:comedianId - Inviter un humoriste spécifique à postuler pour un événement
+router.post('/:eventId/invite-comedian/:comedianId', authMiddleware, asyncHandler(inviteComedian));
 
 // POST /api/events/process-completed-events - Traiter automatiquement les évènements terminés (SUPER_ADMIN uniquement)
 router.post('/process-completed-events', authMiddleware, asyncHandler(processCompletedEvents));

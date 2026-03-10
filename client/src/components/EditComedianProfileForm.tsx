@@ -1,8 +1,11 @@
-import React, { type CSSProperties, useState, useEffect } from 'react';
+import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import type { IUserData } from '../types/user';
 import Modal from './Modal';
 import api from '../services/api';
+import { FRENCH_REGIONS, FRENCH_DEPARTMENTS, DEPARTMENTS_ORDER } from '../utils/geographicMatching';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditComedianProfileFormProps {
   isOpen: boolean;
@@ -13,16 +16,24 @@ interface EditComedianProfileFormProps {
 
 function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditComedianProfileFormProps) {
   const { token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<IUserData>(currentUser);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [avatarChanged, setAvatarChanged] = useState(false); // Track if avatar was actually changed
+
+  // États pour l'auto-complétion des villes
+  const [citySearchQuery, setCitySearchQuery] = useState<Record<number, string>>({});
+  const [citySuggestions, setCitySuggestions] = useState<Record<number, Array<{ city: string; postcode: string }>>>({});
+  const [showCityDropdown, setShowCityDropdown] = useState<Record<number, boolean>>({});
+  const searchTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
 
   useEffect(() => {
     setFormData(currentUser);
     setPreviewImage(currentUser?.avatarUrl || null);
     setAvatarRemoved(false);
+    setAvatarChanged(false);
   }, [currentUser]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,13 +41,13 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     if (file) {
       // Vérifier la taille du fichier (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('L\'image est trop grande. Taille maximale : 5MB');
+        showWarning(WarningMessages.IMAGE_TOO_LARGE);
         return;
       }
-      
+
       // Vérifier le type de fichier
       if (!file.type.startsWith('image/')) {
-        setError('Le fichier doit être une image');
+        showWarning(WarningMessages.IMAGE_REQUIRED);
         return;
       }
 
@@ -46,7 +57,7 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         setPreviewImage(base64String);
         setFormData(prev => ({ ...prev, avatarUrl: base64String }));
         setAvatarRemoved(false);
-        setError(null);
+        setAvatarChanged(true); // Mark avatar as changed
       };
       reader.readAsDataURL(file);
     }
@@ -56,7 +67,72 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
     setPreviewImage(null);
     setFormData(prev => ({ ...prev, avatarUrl: null }));
     setAvatarRemoved(true);
-    setError(null);
+    setAvatarChanged(true); // Mark avatar as changed (removed)
+  };
+
+  const searchCities = async (query: string, index: number) => {
+    if (query.length < 2) {
+      setCitySuggestions(prev => ({ ...prev, [index]: [] }));
+      setShowCityDropdown(prev => ({ ...prev, [index]: false }));
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&type=municipality&limit=10`
+      );
+      const data = await response.json();
+
+      if (data.features && data.features.length > 0) {
+        const cities = data.features.map((f: any) => ({
+          city: f.properties.city,
+          postcode: f.properties.postcode,
+        }));
+        // Dédupliquer par ville + code postal pour garder les villes homonymes dans différents départements
+        const uniqueCities = Array.from(
+          new Map(cities.map((c: { city: string; postcode: string }) => [c.city + c.postcode, c])).values()
+        ) as Array<{ city: string; postcode: string }>;
+        setCitySuggestions(prev => {
+          const newSuggestions = { ...prev, [index]: uniqueCities };
+          return newSuggestions as Record<number, Array<{ city: string; postcode: string }>>;
+        });
+        setShowCityDropdown(prev => ({ ...prev, [index]: true }));
+      } else {
+        setCitySuggestions(prev => ({ ...prev, [index]: [] }));
+      }
+    } catch (err) {
+      console.error('Erreur lors de la recherche de villes:', err);
+      setCitySuggestions(prev => ({ ...prev, [index]: [] }));
+    }
+  };
+
+  const handleCitySearch = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const query = e.target.value;
+    setCitySearchQuery(prev => ({ ...prev, [index]: query }));
+
+    // Annuler la recherche précédente
+    if (searchTimeoutRef.current[index]) {
+      clearTimeout(searchTimeoutRef.current[index]);
+    }
+
+    // Débounce de 300ms
+    searchTimeoutRef.current[index] = setTimeout(() => {
+      searchCities(query, index);
+    }, 300);
+  };
+
+  const selectCity = (index: number, city: string) => {
+    const updatedZones = [...(formData.profile?.mobilityZone || [])];
+    updatedZones[index] = { ...updatedZones[index], value: city };
+    setFormData(prev => ({
+      ...prev,
+      profile: {
+        ...prev.profile,
+        mobilityZone: updatedZones,
+      },
+    }));
+    setCitySearchQuery(prev => ({ ...prev, [index]: city }));
+    setShowCityDropdown(prev => ({ ...prev, [index]: false }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -80,15 +156,29 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     try {
       const config = {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       };
+
+      // Traitement silencieux des zones de mobilité pour Paris
+      const processedMobilityZone = formData.profile?.mobilityZone ? [...formData.profile.mobilityZone] : undefined;
+      
+      if (processedMobilityZone) {
+        const hasParisCity = processedMobilityZone.some(z => z.type === 'ville' && z.value === 'Paris');
+        const hasParisDept = processedMobilityZone.some(z => z.type === 'departement' && z.value === '75');
+
+        if (hasParisCity && !hasParisDept) {
+          processedMobilityZone.push({ type: 'departement', value: '75' });
+        } else if (hasParisDept && !hasParisCity) {
+          processedMobilityZone.push({ type: 'ville', value: 'Paris' });
+        }
+      }
+
       // Send only the fields that are specific to the comedian's profile update
-      const comedianProfileData = {
+      const comedianProfileData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -96,13 +186,13 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         phone: formData.phone,
         address: formData.address,
         gender: formData.gender,
-        avatarUrl: avatarRemoved ? null : formData.avatarUrl,
         profile: {
             bio: formData.profile?.bio,
             experience: formData.profile?.experience ? Number(formData.profile.experience) : undefined,
             numberOfScenes: formData.profile?.numberOfScenes || undefined,
             comedyStyle: formData.profile?.comedyStyle || undefined,
             performanceLanguages: formData.profile?.performanceLanguages || undefined,
+            mobilityZone: processedMobilityZone,
             socialLinks: {
               youtube: formData.profile?.socialLinks?.youtube || undefined,
               instagram: formData.profile?.socialLinks?.instagram || undefined,
@@ -111,11 +201,18 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
         }
       };
 
+      // Only include avatarUrl if it was actually changed (new upload or removed)
+      // This avoids sending ~1MB of base64 data on every profile save
+      if (avatarChanged) {
+        comedianProfileData.avatarUrl = avatarRemoved ? null : formData.avatarUrl;
+      }
+
       await api.put(`/profile/${currentUser._id}`, comedianProfileData, config);
+      showSuccess(SuccessMessages.PROFILE_UPDATED);
       onSaveSuccess();
     } catch (err: any) {
       console.error('Erreur lors de la mise à jour du profil:', err.response?.data || err.message);
-      setError(err.response?.data?.message || 'Échec de la mise à jour du profil.');
+      showError(getErrorMessage(err, ErrorMessages.PROFILE_UPDATE_FAILED));
     } finally {
       setLoading(false);
     }
@@ -403,6 +500,227 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           ))}
         </div>
         
+        <h3 style={{ color: '#ff4b2b', marginTop: '20px', marginBottom: '15px', fontSize: '1.1em' }}>Zone de mobilité</h3>
+        <p style={{ fontSize: '0.85em', color: '#aaa', marginBottom: '15px' }}>
+          Indiquez les villes, départements ou régions où vous êtes disponible pour des événements.
+        </p>
+        <div style={{ marginBottom: '20px' }}>
+          {(formData.profile?.mobilityZone || []).map((zone, index) => (
+            <div key={index} style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              marginBottom: '10px',
+              padding: '10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '5px'
+            }}>
+              <select
+                value={zone.type}
+                onChange={(e) => {
+                  const updatedZones = [...(formData.profile?.mobilityZone || [])];
+                  updatedZones[index] = { ...updatedZones[index], type: e.target.value as 'ville' | 'departement' | 'region', value: '' };
+                  setFormData(prev => ({
+                    ...prev,
+                    profile: {
+                      ...prev.profile,
+                      mobilityZone: updatedZones,
+                    },
+                  }));
+                  setCitySearchQuery(prev => ({ ...prev, [index]: '' }));
+                  setShowCityDropdown(prev => ({ ...prev, [index]: false }));
+                }}
+                style={{
+                  ...inputStyle,
+                  width: 'auto',
+                  minWidth: '150px',
+                  marginBottom: 0,
+                  flex: '0 0 auto',
+                }}
+              >
+                <option value="ville">Ville</option>
+                <option value="departement">Département</option>
+                <option value="region">Région</option>
+              </select>
+
+              <div style={{ flex: 1, position: 'relative' }}>
+                {zone.type === 'region' && (
+                  <select
+                    value={zone.value}
+                    onChange={(e) => {
+                      const updatedZones = [...(formData.profile?.mobilityZone || [])];
+                      updatedZones[index] = { ...updatedZones[index], value: e.target.value };
+                      setFormData(prev => ({
+                        ...prev,
+                        profile: {
+                          ...prev.profile,
+                          mobilityZone: updatedZones,
+                        },
+                      }));
+                    }}
+                    style={{
+                      ...inputStyle,
+                      marginBottom: 0,
+                      width: '100%',
+                    }}
+                  >
+                    <option value="">Sélectionnez une région</option>
+                    {Object.keys(FRENCH_REGIONS).map(region => (
+                      <option key={region} value={region}>{region}</option>
+                    ))}
+                  </select>
+                )}
+
+                {zone.type === 'departement' && (
+                  <select
+                    value={zone.value}
+                    onChange={(e) => {
+                      const updatedZones = [...(formData.profile?.mobilityZone || [])];
+                      updatedZones[index] = { ...updatedZones[index], value: e.target.value };
+                      setFormData(prev => ({
+                        ...prev,
+                        profile: {
+                          ...prev.profile,
+                          mobilityZone: updatedZones,
+                        },
+                      }));
+                    }}
+                    style={{
+                      ...inputStyle,
+                      marginBottom: 0,
+                      width: '100%',
+                    }}
+                  >
+                    <option value="">Sélectionnez un département</option>
+                    {DEPARTMENTS_ORDER.map(code => (
+                      <option key={code} value={code}>{code} - {FRENCH_DEPARTMENTS[code]}</option>
+                    ))}
+                  </select>
+                )}
+
+                {zone.type === 'ville' && (
+                  <>
+                    <input
+                      type="text"
+                      value={citySearchQuery[index] ?? zone.value}
+                      onChange={(e) => handleCitySearch(e, index)}
+                      onFocus={() => {
+                        if ((citySearchQuery[index] ?? zone.value).length >= 2) {
+                          setShowCityDropdown(prev => ({ ...prev, [index]: true }));
+                        }
+                      }}
+                      placeholder="Rechercher une ville..."
+                      style={{
+                        ...inputStyle,
+                        marginBottom: 0,
+                        width: '100%',
+                      }}
+                    />
+                    {showCityDropdown[index] && citySuggestions[index]?.length > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          backgroundColor: '#2a2a2a',
+                          border: '1px solid #444',
+                          borderRadius: '4px',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          zIndex: 1000,
+                          marginTop: '4px',
+                        }}
+                      >
+                        {citySuggestions[index].map((suggestion, i) => (
+                          <div
+                            key={i}
+                            onClick={() => selectCity(index, suggestion.city)}
+                            style={{
+                              padding: '10px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                              color: '#fff',
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.backgroundColor = 'rgba(255, 65, 108, 0.2)';
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <div>{suggestion.city}</div>
+                            <div style={{ fontSize: '0.8em', color: '#aaa' }}>{suggestion.postcode}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const updatedZones = (formData.profile?.mobilityZone || []).filter((_, i) => i !== index);
+                  setFormData(prev => ({
+                    ...prev,
+                    profile: {
+                      ...prev.profile,
+                      mobilityZone: updatedZones,
+                    },
+                  }));
+                  setCitySearchQuery(prev => {
+                    const newQuery = { ...prev };
+                    delete newQuery[index];
+                    return newQuery;
+                  });
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '5px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                  color: '#ffb3b3',
+                  cursor: 'pointer',
+                  fontSize: '0.9em',
+                  flex: '0 0 auto',
+                  marginTop: '2px',
+                }}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData(prev => ({
+                ...prev,
+                profile: {
+                  ...prev.profile,
+                  mobilityZone: [
+                    ...(prev.profile?.mobilityZone || []),
+                    { type: 'ville' as const, value: '' }
+                  ],
+                },
+              }));
+            }}
+            style={{
+              padding: '10px 15px',
+              borderRadius: '5px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              backgroundColor: 'rgba(255, 65, 108, 0.15)',
+              color: '#ff416c',
+              cursor: 'pointer',
+              fontSize: '0.9em',
+              fontWeight: 'bold',
+            }}
+          >
+            + Ajouter une zone
+          </button>
+        </div>
+        
         <h3 style={{ color: '#ff4b2b', marginTop: '20px', marginBottom: '15px', fontSize: '1.1em' }}>Réseaux sociaux</h3>
         
         <label style={labelStyle}>Lien YouTube</label>
@@ -467,7 +785,6 @@ function EditComedianProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }
           placeholder="https://www.facebook.com/votre-page"
           style={inputStyle}
         />
-        {error && <p style={{ color: '#dc3545', marginBottom: '15px' }}>{error}</p>}
         <button type="submit" style={buttonStyle} disabled={loading}>
           {loading ? 'Sauvegarde...' : 'Sauvegarder'}
         </button>

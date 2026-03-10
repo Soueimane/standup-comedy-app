@@ -1,16 +1,36 @@
 import React, { type CSSProperties, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import { X, ChevronDown, MapPin, Calendar, Users } from 'lucide-react';
 import api from '../services/api';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface CreateEventFormProps {
   onClose: () => void;
   onEventCreated: () => void;
+    initialData?: {
+      title?: string;
+      description?: string;
+      city?: string;
+      postalCode?: string;
+      address?: string;
+      country?: string;
+      date?: string;
+      venue?: string;
+      venueType?: string;
+      maxSpectators?: number;
+      startTime?: string;
+      endTime?: string;
+      minExperience?: number;
+      maxComedians?: number;
+      requiredExperienceLevel?: 'all' | '0-50' | '50-200' | '200+';
+    };
 }
 
-function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
+function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
   const { user, token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [isMobile, setIsMobile] = useState(false);
 
   // Fonction pour générer les créneaux de 30 minutes
@@ -27,6 +47,26 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   };
 
   const timeSlots = generateTimeSlots();
+
+  // Options de durée en minutes (affichées après sélection de l'heure de début)
+  const DURATION_OPTIONS = [
+    { value: 30, label: '30 min' },
+    { value: 60, label: '1 h' },
+    { value: 90, label: '1 h 30' },
+    { value: 120, label: '2 h' },
+    { value: 150, label: '2 h 30' },
+    { value: 180, label: '3 h' },
+    { value: 240, label: '4 h' },
+  ];
+
+  const computeEndTimeFromDuration = (startTime: string, durationMinutes: number): string => {
+    if (!startTime || !durationMinutes) return '';
+    const [h, m] = startTime.split(':').map(Number);
+    const totalMinutes = h * 60 + m + durationMinutes;
+    const endH = Math.floor(totalMinutes / 60) % 24;
+    const endM = totalMinutes % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  };
   
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -35,28 +75,148 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
+  const getInitialDuration = (): number => {
+    if (!initialData?.startTime || !initialData?.endTime) return 0;
+    const [h1, m1] = initialData.startTime.split(':').map(Number);
+    const [h2, m2] = initialData.endTime.split(':').map(Number);
+    const startMin = h1 * 60 + m1;
+    let endMin = h2 * 60 + m2;
+    if (endMin <= startMin) endMin += 24 * 60;
+    const dur = endMin - startMin;
+    return DURATION_OPTIONS.some(o => o.value === dur) ? dur : 0;
+  };
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    city: '',
-    postalCode: '',
-    address: '',
-    country: '',
-    date: new Date().toISOString().split('T')[0], // Format YYYY-MM-DD par défaut
-    venue: '',
-    startTime: '',
-    endTime: '',
-    minExperience: '',
-    maxComedians: '',
+    title: initialData?.title || '',
+    description: initialData?.description || '',
+    city: initialData?.city || '',
+    postalCode: initialData?.postalCode || '',
+    address: initialData?.address || '',
+    country: initialData?.country || '',
+    date: initialData?.date || new Date().toISOString().split('T')[0], // Format YYYY-MM-DD par défaut
+    venue: initialData?.venue || '',
+    venueType: initialData?.venueType || '',
+    maxSpectators: initialData?.maxSpectators != null ? String(initialData.maxSpectators) : '',
+    startTime: initialData?.startTime || '',
+    endTime: initialData?.endTime || '',
+    durationMinutes: getInitialDuration(),
+    minExperience: initialData?.minExperience?.toString() || '',
+    maxComedians: initialData?.maxComedians?.toString() || '',
+    requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
     status: 'PUBLISHED',
   });
+
+  // Type d'événement : unique ou récurrent
+  const [eventType, setEventType] = useState<'unique' | 'recurring'>('unique');
+  // Options de récurrence (quand événement récurrent)
+  const [recurrenceStartDate, setRecurrenceStartDate] = useState(formData.date);
+  const [recurrenceType, setRecurrenceType] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [recurrenceWeeklyDays, setRecurrenceWeeklyDays] = useState<number[]>([]); // 0=dim, 1=lun, ... 6=sam
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('');
+  const [recurringDates, setRecurringDates] = useState<string[]>([]);
+  // Heures personnalisées par date (clé = date YYYY-MM-DD, valeur = { startTime, endTime })
+  const [dateTimeOverrides, setDateTimeOverrides] = useState<Record<string, { startTime: string; endTime: string }>>({});
+
+  // Formater une date en YYYY-MM-DD en heure locale (évite le décalage UTC qui affichait le jour précédent)
+  const toLocalDateString = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Recalculer les dates récurrentes quand les options changent
+  useEffect(() => {
+    if (eventType !== 'recurring' || !recurrenceStartDate || !recurrenceEndDate) {
+      setRecurringDates([]);
+      return;
+    }
+    const start = new Date(recurrenceStartDate + 'T12:00:00');
+    const end = new Date(recurrenceEndDate + 'T12:00:00');
+    if (end < start) {
+      setRecurringDates([]);
+      return;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dates: string[] = [];
+    if (recurrenceType === 'daily') {
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      while (d <= end) {
+        if (d >= today) dates.push(toLocalDateString(d));
+        d.setDate(d.getDate() + 1);
+      }
+    } else if (recurrenceType === 'weekly') {
+      const days = recurrenceWeeklyDays.length > 0 ? recurrenceWeeklyDays : [start.getDay()];
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      while (d <= end) {
+        if (d >= today && days.includes(d.getDay())) dates.push(toLocalDateString(d));
+        d.setDate(d.getDate() + 1);
+      }
+    } else if (recurrenceType === 'monthly') {
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      const dayOfMonth = d.getDate();
+      while (d <= end) {
+        if (d >= today) dates.push(toLocalDateString(d));
+        d.setMonth(d.getMonth() + 1);
+        d.setDate(Math.min(dayOfMonth, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      }
+    }
+    setRecurringDates(dates);
+  }, [eventType, recurrenceStartDate, recurrenceEndDate, recurrenceType, recurrenceWeeklyDays]);
+
+  // Réinitialiser le formulaire quand initialData change
+  React.useEffect(() => {
+    if (initialData) {
+      const dur = getInitialDuration();
+      setFormData({
+        title: initialData.title || '',
+        description: initialData.description || '',
+        city: initialData.city || '',
+        postalCode: initialData.postalCode || '',
+        address: initialData.address || '',
+        country: initialData.country || '',
+        date: initialData.date || new Date().toISOString().split('T')[0],
+        venue: initialData.venue || '',
+        venueType: initialData.venueType || '',
+        maxSpectators: initialData.maxSpectators != null ? String(initialData.maxSpectators) : '',
+        startTime: initialData.startTime || '',
+        endTime: initialData.endTime || '',
+        durationMinutes: dur,
+        minExperience: initialData.minExperience?.toString() || '',
+        maxComedians: initialData.maxComedians?.toString() || '',
+        requiredExperienceLevel: initialData?.requiredExperienceLevel || 'all',
+        status: 'PUBLISHED',
+      });
+    } else {
+      // Réinitialiser à vide si pas de données initiales
+      setFormData({
+        title: '',
+        description: '',
+        city: '',
+        postalCode: '',
+        address: '',
+        country: '',
+        date: new Date().toISOString().split('T')[0],
+        venue: '',
+        venueType: '',
+        maxSpectators: '',
+        startTime: '',
+        endTime: '',
+        durationMinutes: 0,
+        minExperience: '',
+        maxComedians: '',
+        requiredExperienceLevel: 'all',
+        status: 'PUBLISHED',
+      });
+    }
+  }, [initialData]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [openStartTimeDropdown, setOpenStartTimeDropdown] = useState(false);
-  const [openEndTimeDropdown, setOpenEndTimeDropdown] = useState(false);
+  const [openDurationDropdown, setOpenDurationDropdown] = useState(false);
   const startTimeRef = useRef<HTMLDivElement>(null);
-  const endTimeRef = useRef<HTMLDivElement>(null);
+  const durationRef = useRef<HTMLDivElement>(null);
   const addressSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAutoFillingRef = useRef(false);
@@ -96,8 +256,8 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       if (startTimeRef.current && !startTimeRef.current.contains(event.target as Node)) {
         setOpenStartTimeDropdown(false);
       }
-      if (endTimeRef.current && !endTimeRef.current.contains(event.target as Node)) {
-        setOpenEndTimeDropdown(false);
+      if (durationRef.current && !durationRef.current.contains(event.target as Node)) {
+        setOpenDurationDropdown(false);
       }
     };
 
@@ -355,10 +515,13 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   };
 
   const handleTimeSelect = (timeValue: string, field: 'startTime' | 'endTime') => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: timeValue
-    }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: timeValue };
+      if (field === 'startTime' && prev.durationMinutes > 0) {
+        next.endTime = computeEndTimeFromDuration(timeValue, prev.durationMinutes);
+      }
+      return next;
+    });
     if (field === 'startTime') {
       setOpenStartTimeDropdown(false);
       
@@ -396,16 +559,17 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
           }));
         }
       }
-    } else {
-      setOpenEndTimeDropdown(false);
-      // Clear error pour l'heure de fin
-      if (errors[field]) {
-        setErrors(prev => ({
-          ...prev,
-          [field]: ''
-        }));
-      }
     }
+  };
+
+  const handleDurationSelect = (durationMinutes: number) => {
+    setFormData(prev => ({
+      ...prev,
+      durationMinutes,
+      endTime: computeEndTimeFromDuration(prev.startTime, durationMinutes),
+    }));
+    setOpenDurationDropdown(false);
+    setErrors(prev => ({ ...prev, durationMinutes: '' }));
   };
 
   // Fonction pour obtenir les créneaux horaires disponibles pour l'heure de début
@@ -468,9 +632,17 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     }
     
     // Validation du code postal avec API
+    // Si c'est une duplication (initialData existe) et que l'adresse/ville sont présentes, 
+    // le code postal peut être optionnel
     if (!formData.postalCode.trim()) {
-      newErrors.postalCode = 'Le code postal est requis';
+      // Si c'est une duplication avec adresse et ville complètes, on permet de continuer
+      if (initialData && formData.address.trim() && formData.city.trim()) {
+        // Code postal optionnel pour duplication, mais on essaie quand même de le valider si fourni
+      } else {
+        newErrors.postalCode = 'Le code postal est requis';
+      }
     } else {
+      // Si un code postal est fourni, on le valide
       const isValid = await validatePostalCode();
       if (!isValid && postalCodeError) {
         newErrors.postalCode = postalCodeError;
@@ -491,24 +663,34 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       newErrors.country = 'Le nom du pays doit contenir au moins 2 caractères';
     }
     
-    // Validation de la date
-    if (!formData.date) {
-      newErrors.date = 'La date est requise';
-    } else {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(formData.date)) {
-        newErrors.date = 'Format de date invalide. Utilisez le sélecteur de date.';
+    // Validation de la date (événement unique) ou des dates de récurrence
+    if (eventType === 'unique') {
+      if (!formData.date) {
+        newErrors.date = 'La date est requise';
       } else {
-        const selectedDate = new Date(formData.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (isNaN(selectedDate.getTime())) {
-          newErrors.date = 'Date invalide';
-        } else if (selectedDate < today) {
-          newErrors.date = 'La date ne peut pas être dans le passé';
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(formData.date)) {
+          newErrors.date = 'Format de date invalide. Utilisez le sélecteur de date.';
+        } else {
+          const selectedDate = new Date(formData.date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (isNaN(selectedDate.getTime())) {
+            newErrors.date = 'Date invalide';
+          } else if (selectedDate < today) {
+            newErrors.date = 'La date ne peut pas être dans le passé';
+          }
+        }
       }
-    }
+    } else {
+      if (!recurrenceStartDate) {
+        newErrors.recurrenceStartDate = 'La date de début est requise';
+      }
+      if (!recurrenceEndDate) {
+        newErrors.recurrenceEndDate = 'La date de fin de récurrence est requise';
+      } else if (recurrenceStartDate && recurrenceEndDate < recurrenceStartDate) {
+        newErrors.recurrenceEndDate = 'La date de fin doit être après la date de début';
+      }
     }
     
     // Validation de l'heure de début
@@ -519,45 +701,29 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
       if (!timeRegex.test(formData.startTime)) {
         newErrors.startTime = 'Format d\'heure invalide (HH:MM)';
       } else {
-        // Vérifier si l'heure de début n'est pas dans le passé si la date est aujourd'hui
-        if (formData.date) {
+        // Vérifier si l'heure de début n'est pas dans le passé (événement unique, date = aujourd'hui)
+        if (eventType === 'unique' && formData.date) {
           const selectedDate = new Date(formData.date + 'T00:00:00');
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           selectedDate.setHours(0, 0, 0, 0);
-          
-          // Si la date sélectionnée est aujourd'hui
           if (selectedDate.getTime() === today.getTime()) {
             const now = new Date();
             const [startHours, startMinutes] = formData.startTime.split(':').map(Number);
             const eventStartDateTime = new Date();
             eventStartDateTime.setHours(startHours, startMinutes, 0, 0);
-            
-            // Si l'heure de début est dans le passé (avec une marge de 1 minute pour éviter les problèmes de timing)
             if (eventStartDateTime.getTime() < (now.getTime() - 60000)) {
-              newErrors.startTime = 'L\'heure de début ne peut pas être dans le passé. Il est actuellement ' + 
-                now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + 
-                '. Veuillez sélectionner une heure future.';
+              newErrors.startTime = 'L\'heure de début ne peut pas être dans le passé. Il est actuellement ' +
+                now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '. Veuillez sélectionner une heure future.';
             }
           }
         }
       }
     }
     
-    // Validation de l'heure de fin
-    if (!formData.endTime) {
-      newErrors.endTime = 'L\'heure de fin est requise';
-    } else {
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(formData.endTime)) {
-        newErrors.endTime = 'Format d\'heure invalide (HH:MM)';
-      } else if (formData.startTime && formData.endTime) {
-        const startTime = new Date(`2000-01-01T${formData.startTime}`);
-        const endTime = new Date(`2000-01-01T${formData.endTime}`);
-        if (endTime <= startTime) {
-          newErrors.endTime = 'L\'heure de fin doit être après l\'heure de début';
-        }
-      }
+    // Validation de la durée (après heure de début)
+    if (formData.startTime && !formData.durationMinutes) {
+      newErrors.durationMinutes = 'La durée est requise';
     }
     
     // Validation de l'expérience minimale
@@ -581,57 +747,152 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     }
     
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    console.log('🔍 [CreateEventForm] validateForm terminé:', { isValid, errors: newErrors });
+    return isValid;
+  };
+
+  // Jours de la semaine (0=dim, 1=lun, ... 6=sam) pour affichage "Ces jours-là"
+  const WEEKDAY_LABELS: { value: number; label: string }[] = [
+    { value: 1, label: 'lu' },
+    { value: 2, label: 'ma' },
+    { value: 3, label: 'me' },
+    { value: 4, label: 'je' },
+    { value: 5, label: 've' },
+    { value: 6, label: 'sa' },
+    { value: 0, label: 'di' },
+  ];
+
+  const toggleRecurrenceWeeklyDay = (day: number) => {
+    setRecurrenceWeeklyDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => a - b)
+    );
+  };
+
+  const setDateTimeForDate = (dateStr: string, startTime: string, endTime: string) => {
+    if (!startTime || !endTime) {
+      setDateTimeOverrides((prev) => {
+        const next = { ...prev };
+        delete next[dateStr];
+        return next;
+      });
+    } else {
+      setDateTimeOverrides((prev) => ({ ...prev, [dateStr]: { startTime, endTime } }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData, eventType, recurringDates });
 
     if (!user || !token) {
-      alert('Vous devez être connecté pour créer un évènement');
+      showWarning(WarningMessages.AUTH_REQUIRED_CREATE_EVENT);
       return;
     }
 
-    if (!(await validateForm())) {
+    if (eventType === 'recurring') {
+      if (!recurrenceEndDate) {
+        alert('Veuillez indiquer une date de fin pour la récurrence.');
+        return;
+      }
+      if (recurringDates.length === 0) {
+        alert('Aucune date générée. Vérifiez la date de début, la date de fin et les options (ex. jours de la semaine pour Hebdomadaire).');
+        return;
+      }
+    }
+
+    const isValid = await validateForm();
+    console.log('🔍 [CreateEventForm] Validation résultat:', isValid, { errors });
+    if (!isValid) {
+      console.log('❌ [CreateEventForm] Validation échouée, erreurs:', errors);
+      // Afficher un message d'alerte avec les erreurs
+      const errorMessages = Object.values(errors).filter(msg => msg).join(', ');
+      if (errorMessages) {
+        showWarning(WarningMessages.FORM_VALIDATION_FAILED + errorMessages);
+      }
+      // Faire défiler vers la première erreur
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        const errorElement = document.getElementById(firstErrorField);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          errorElement.focus();
+        }
+      }
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Calculate duration in minutes
       const parseTime = (timeStr: string) => {
         if (!timeStr) return 0;
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
       };
+
+      // Recalculer l'heure de fin à partir de la durée (peut dépasser minuit → lendemain)
+      const endTimeToSend = formData.startTime && formData.durationMinutes > 0
+        ? computeEndTimeFromDuration(formData.startTime, formData.durationMinutes)
+        : formData.endTime;
       const startMinutes = parseTime(formData.startTime);
-      const endMinutes = parseTime(formData.endTime);
+      const endMinutes = parseTime(endTimeToSend);
       let durationInMinutes = 0;
       if (endMinutes >= startMinutes) {
         durationInMinutes = endMinutes - startMinutes;
-      } else {
+      } else if (startMinutes > 0 || endMinutes > 0) {
         durationInMinutes = (24 * 60 - startMinutes) + endMinutes;
       }
 
-      const eventData = {
+      // Extraire le code postal depuis l'adresse s'il n'est pas déjà présent
+      let postalCode = formData.postalCode;
+      if (!postalCode && formData.address) {
+        const postalCodeMatch = formData.address.match(/\b(\d{5})\b/);
+        if (postalCodeMatch) {
+          postalCode = postalCodeMatch[1];
+        }
+      }
+
+      // Calculer le département à partir du code postal
+      let department: string | undefined = undefined;
+      if (postalCode) {
+        // Corse
+        const numericCode = parseInt(postalCode, 10);
+        if (numericCode >= 20000 && numericCode <= 20199) {
+          department = '2A';
+        } else if (numericCode >= 20200 && numericCode <= 20999) {
+          department = '2B';
+        } else if (postalCode.startsWith('97')) {
+          // Outre-mer
+          department = postalCode.substring(0, 3);
+        } else {
+          // Métropole
+          department = postalCode.substring(0, 2);
+        }
+      }
+
+      const baseEventData = {
         title: formData.title,
         description: formData.description,
-        date: formData.date,
         location: {
           venue: formData.venue,
+          venueType: formData.venueType || undefined,
           address: formData.address,
           city: formData.city,
+          postalCode: postalCode || undefined,
+          department: department,
           country: formData.country,
         },
         requirements: {
           minExperience: Number(formData.minExperience),
           maxPerformers: Number(formData.maxComedians),
-          duration: durationInMinutes, // Durée calculée automatiquement
+          duration: durationInMinutes,
+          requiredExperienceLevel: formData.requiredExperienceLevel,
         },
         status: formData.status,
         startTime: formData.startTime,
-        endTime: formData.endTime,
+        endTime: endTimeToSend || formData.endTime,
+        maxSpectators: formData.maxSpectators && formData.maxSpectators.trim() ? parseInt(formData.maxSpectators, 10) : undefined,
       };
 
       const config = {
@@ -641,14 +902,40 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
         },
       };
 
-      const response = await api.post('/events', eventData, config);
-      console.log('✅ Réponse serveur:', response.data);
-      alert('Évènement créé avec succès !');
+      let response;
+      if (eventType === 'recurring' && recurringDates.length > 0) {
+        const dateTimes = recurringDates
+          .map((d) => {
+            const override = dateTimeOverrides[d];
+            const start = override?.startTime ?? formData.startTime;
+            const end = override?.endTime ?? (endTimeToSend || formData.endTime);
+            return { date: d, startTime: start, endTime: end };
+          })
+          .filter((x) => x.startTime && x.endTime);
+        const eventData = {
+          ...baseEventData,
+          isRecurring: true,
+          dates: recurringDates,
+          dateTimes: dateTimes.length > 0 ? dateTimes : undefined,
+        };
+        response = await api.post('/events', eventData, config);
+        console.log('✅ Réponse serveur (récurrent):', response.data);
+        showSuccess(`${response.data.count || recurringDates.length} événements récurrents créés avec succès !`);
+      } else {
+        const eventData = {
+          ...baseEventData,
+          date: eventType === 'unique' ? formData.date : formData.date,
+        };
+        response = await api.post('/events', eventData, config);
+        console.log('✅ Réponse serveur:', response.data);
+        showSuccess(SuccessMessages.EVENT_CREATED);
+      }
+
       onEventCreated();
-      onClose(); // Fermer la modale après création réussie
+      onClose();
     } catch (error: any) {
-      console.error('Erreur lors de la création de l\'évènement:', error.response?.data || error.message);
-      alert(`Erreur lors de la création de l'évènement: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors de la création de l\'évènement:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.EVENT_CREATE_FAILED));
     } finally {
       setIsSubmitting(false);
     }
@@ -660,7 +947,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
@@ -671,7 +958,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   };
 
   const formStyle: CSSProperties = {
-    backgroundColor: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: 'linear-gradient(to bottom, #1a1a2e 0%, #16213e 40%, #331f41 100%)',
     borderRadius: '16px',
     width: '100%',
     maxWidth: isMobile ? '100%' : '800px',
@@ -692,7 +979,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     alignItems: 'center',
     position: isMobile ? 'sticky' : 'static',
     top: 0,
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: 'linear-gradient(to bottom, #1a1a2e 0%, #16213e 40%, #331f41 100%)',
     zIndex: 1
   };
 
@@ -705,10 +992,10 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     width: '100%',
     padding: isMobile ? '14px 16px' : '12px 16px',
     fontSize: isMobile ? '16px' : '14px', // 16px prevents zoom on iOS
-    border: '1px solid #444',
+    border: '1px solid #ccc',
     borderRadius: '8px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#fff',
+    background: '#ffffff',
+    color: '#000000',
     marginBottom: '4px'
   };
 
@@ -718,7 +1005,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     appearance: 'none', // Supprime le style par défaut du navigateur
     WebkitAppearance: 'none', // Pour Safari/Chrome
     MozAppearance: 'none', // Pour Firefox
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23000000' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 12px center',
     backgroundSize: '12px',
@@ -730,12 +1017,12 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   
   const addressSuggestionListStyle: CSSProperties = {
     marginTop: '8px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid #ccc',
     borderRadius: '8px',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: '#ffffff',
     maxHeight: '180px',
     overflowY: 'auto',
-    boxShadow: '0 8px 20px rgba(0,0,0,0.4)'
+    boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
   };
 
   const addressSuggestionItemStyle: CSSProperties = {
@@ -744,7 +1031,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
     padding: '10px 12px',
     background: 'transparent',
     border: 'none',
-    color: '#fff',
+    color: '#000000',
     cursor: 'pointer',
     display: 'flex',
     flexDirection: 'column',
@@ -790,7 +1077,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
   };
 
   return (
-    <div style={modalStyle} onClick={(e: React.MouseEvent<HTMLDivElement>) => e.target === e.currentTarget && onClose()}>
+    <div style={modalStyle}>
       <div style={formStyle}>
         {/* Header */}
         <div style={headerStyle}>
@@ -837,7 +1124,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   onChange={handleChange}
                   style={{
                     ...inputStyle,
-                    borderColor: errors.title ? '#ef4444' : '#444'
+                    borderColor: errors.title ? '#ef4444' : '#ccc'
                   }}
                   placeholder="Ex: Soirée Stand-Up Comedy"
                 />
@@ -861,7 +1148,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     ...inputStyle,
                     minHeight: '100px',
                     resize: 'vertical',
-                    borderColor: errors.description ? '#ef4444' : '#444'
+                    borderColor: errors.description ? '#ef4444' : '#ccc'
                   }}
                   placeholder="Décrivez votre évènement en détail..."
                 />
@@ -892,7 +1179,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.venue ? '#ef4444' : '#444'
+                      borderColor: errors.venue ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: Le Comedy Club"
                   />
@@ -915,7 +1202,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.address ? '#ef4444' : '#444'
+                      borderColor: errors.address ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 123 rue de la Comédie"
                   />
@@ -958,7 +1245,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onBlur={validatePostalCode}
                     style={{
                       ...inputStyle,
-                      borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#444'
+                      borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 75001"
                     maxLength={5}
@@ -978,7 +1265,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                       left: 0,
                       right: 0,
                       backgroundColor: '#2a2a2a',
-                      border: '1px solid #444',
+                      border: '1px solid #ccc',
                       borderRadius: '4px',
                       marginTop: '4px',
                       maxHeight: '200px',
@@ -986,7 +1273,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                       zIndex: 1000,
                       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
                     }}>
-                      <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #444' }}>
+                      <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #ccc' }}>
                         Plusieurs villes possibles pour ce code postal :
                       </div>
                       {citySuggestions.map((option, index) => (
@@ -1022,7 +1309,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.city ? '#ef4444' : '#444'
+                      borderColor: errors.city ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: Paris"
                   />
@@ -1045,7 +1332,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.country ? '#ef4444' : '#444'
+                      borderColor: errors.country ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: France"
                   />
@@ -1064,28 +1351,238 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                 <Calendar size={20} style={{ color: '#ff416c' }} />
                 <span>Informations d'évènement</span>
               </div>
-              <div style={sectionGridStyle}>
-                {/* Date */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                    Date *
-                  </label>
+              {/* Choix : Événement unique ou récurrent — deux blocs séparés */}
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
+                Type d'événement
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '16px',
+                    backgroundColor: eventType === 'unique' ? 'rgba(255, 65, 108, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '8px',
+                    border: eventType === 'unique' ? '1px solid rgba(255, 65, 108, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    color: '#fff',
+                    transition: 'background-color 0.2s, border-color 0.2s',
+                  }}
+                >
                   <input
-                    type="date"
-                    id="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    style={{
-                      ...inputStyle,
-                      borderColor: errors.date ? '#ef4444' : '#444'
-                    }}
+                    type="radio"
+                    name="eventType"
+                    checked={eventType === 'unique'}
+                    onChange={() => setEventType('unique')}
+                    style={{ width: '18px', height: '18px', accentColor: '#ff416c', flexShrink: 0 }}
                   />
-                  {errors.date && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                      {errors.date}
-                    </p>
+                  <span style={{ fontWeight: '500' }}>Événement unique</span>
+                </label>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '16px',
+                    backgroundColor: eventType === 'recurring' ? 'rgba(255, 65, 108, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '8px',
+                    border: eventType === 'recurring' ? '1px solid rgba(255, 65, 108, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    color: '#fff',
+                    transition: 'background-color 0.2s, border-color 0.2s',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="eventType"
+                    checked={eventType === 'recurring'}
+                    onChange={() => {
+                      setEventType('recurring');
+                      setRecurrenceStartDate(formData.date);
+                      if (!recurrenceEndDate) setRecurrenceEndDate(formData.date);
+                    }}
+                    style={{ width: '18px', height: '18px', accentColor: '#ff416c', flexShrink: 0 }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Événement récurrent</span>
+                </label>
+              </div>
+
+              {eventType === 'unique' ? (
+                <div style={sectionGridStyle}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      id="date"
+                      value={formData.date}
+                      onChange={handleChange}
+                      style={{ ...inputStyle, borderColor: errors.date ? '#ef4444' : '#ccc' }}
+                    />
+                    {errors.date && <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.date}</p>}
+                  </div>
+                </div>
+              ) : (
+                /* Mode récurrent : Date de début et Fin côte à côte, puis A lieu, jours, dates générées */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Date de début et Fin sur la même ligne */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Date de début *
+                      </label>
+                      <input
+                        type="date"
+                        value={recurrenceStartDate}
+                        onChange={(e) => setRecurrenceStartDate(e.target.value)}
+                        style={{ ...inputStyle, borderColor: errors.recurrenceStartDate ? '#ef4444' : '#ccc' }}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      {errors.recurrenceStartDate && (
+                        <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceStartDate}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Fin
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#aaa', fontSize: '14px' }}>Le</span>
+                        <input
+                          type="date"
+                          value={recurrenceEndDate}
+                          onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                          style={{
+                            ...inputStyle,
+                            flex: 1,
+                            minWidth: 0,
+                            marginBottom: 0,
+                            borderColor: errors.recurrenceEndDate ? '#ef4444' : '#ccc',
+                          }}
+                          min={recurrenceStartDate || new Date().toISOString().split('T')[0]}
+                        />
+                        {errors.recurrenceEndDate && (
+                          <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>{errors.recurrenceEndDate}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                      A lieu
+                    </label>
+                    <select
+                      value={recurrenceType}
+                      onChange={(e) => setRecurrenceType(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                      style={{ ...selectStyle, maxWidth: '220px' }}
+                    >
+                      <option value="daily">Quotidien</option>
+                      <option value="weekly">Hebdomadaire</option>
+                      <option value="monthly">Mensuel</option>
+                    </select>
+                  </div>
+
+                  {recurrenceType === 'weekly' && (
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                        Ces jours-là
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {WEEKDAY_LABELS.map(({ value, label }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => toggleRecurrenceWeeklyDay(value)}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: recurrenceWeeklyDays.includes(value) ? '1px solid #ff416c' : '1px solid #ccc',
+                              background: recurrenceWeeklyDays.includes(value) ? 'rgba(255, 65, 108, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: '500',
+                              fontSize: '13px',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Récap des dates générées + personnalisation des heures par date */}
+                  {recurringDates.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <label style={{ display: 'block', marginBottom: '12px', fontWeight: '500', color: '#ccc' }}>
+                        Dates générées ({recurringDates.length}) — personnaliser les heures par date (optionnel)
+                      </label>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        maxHeight: '280px',
+                        overflowY: 'auto',
+                        padding: '12px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                      }}>
+                        {recurringDates.map((dateStr) => {
+                          const override = dateTimeOverrides[dateStr];
+                          const startVal = override?.startTime ?? formData.startTime;
+                          const endVal = override?.endTime ?? formData.endTime;
+                          return (
+                            <div
+                              key={dateStr}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '10px 12px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <span style={{ color: '#fff', fontSize: '13px', minWidth: '160px' }}>
+                                {new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 auto' }}>
+                                <select
+                                  value={startVal}
+                                  onChange={(e) => setDateTimeForDate(dateStr, e.target.value, endVal)}
+                                  style={{ ...inputStyle, padding: '8px 10px', marginBottom: 0, minWidth: '90px' }}
+                                >
+                                  {timeSlots.map((s) => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                  ))}
+                                </select>
+                                <span style={{ color: '#888' }}>→</span>
+                                <select
+                                  value={endVal}
+                                  onChange={(e) => setDateTimeForDate(dateStr, startVal, e.target.value)}
+                                  style={{ ...inputStyle, padding: '8px 10px', marginBottom: 0, minWidth: '90px' }}
+                                >
+                                  {timeSlots.map((s) => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
+              )}
+
+              <div style={sectionGridStyle}>
 
                 {/* Heure de début - Dropdown personnalisé */}
                 <div ref={startTimeRef} style={{ position: 'relative', zIndex: 100 }}>
@@ -1095,20 +1592,20 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   <div
                     onClick={() => {
                       setOpenStartTimeDropdown(!openStartTimeDropdown);
-                      setOpenEndTimeDropdown(false);
+                      setOpenDurationDropdown(false);
                     }}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.startTime ? '#ef4444' : '#444',
+                      borderColor: errors.startTime ? '#ef4444' : '#ccc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer'
                     }}
                   >
-                    <span style={{ color: formData.startTime ? '#fff' : '#999' }}>
-                      {formData.startTime 
-                        ? timeSlots.find(slot => slot.value === formData.startTime)?.label 
+<span style={{ color: formData.startTime ? '#000' : '#999' }}>
+                      {formData.startTime
+                        ? timeSlots.find(slot => slot.value === formData.startTime)?.label
                         : 'Sélectionnez une heure'}
                     </span>
                     <ChevronDown 
@@ -1128,7 +1625,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                       right: 0,
                       marginTop: '4px',
                       backgroundColor: '#1a1a2e',
-                      border: '1px solid #444',
+                      border: '1px solid #ccc',
                       borderRadius: '8px',
                       maxHeight: '200px',
                       overflowY: 'auto',
@@ -1170,85 +1667,147 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   )}
                 </div>
 
-                {/* Heure de fin - Dropdown personnalisé */}
-                <div ref={endTimeRef} style={{ position: 'relative', zIndex: 100 }}>
+                {/* Durée - Dropdown (affiché après sélection de l'heure de début) */}
+                <div ref={durationRef} style={{ position: 'relative', zIndex: 99 }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
-                    Heure de fin *
+                    Durée *
                   </label>
                   <div
                     onClick={() => {
-                      setOpenEndTimeDropdown(!openEndTimeDropdown);
+                      if (!formData.startTime) return;
+                      setOpenDurationDropdown(!openDurationDropdown);
                       setOpenStartTimeDropdown(false);
                     }}
                     style={{
                       ...selectStyle,
-                      borderColor: errors.endTime ? '#ef4444' : '#444',
+                      borderColor: errors.durationMinutes ? '#ef4444' : '#ccc',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: 'pointer'
+                      cursor: formData.startTime ? 'pointer' : 'not-allowed',
+                      opacity: formData.startTime ? 1 : 0.7,
                     }}
                   >
-                    <span style={{ color: formData.endTime ? '#fff' : '#999' }}>
-                      {formData.endTime 
-                        ? timeSlots.find(slot => slot.value === formData.endTime)?.label 
-                        : 'Sélectionnez une heure'}
+                    <span style={{ color: formData.durationMinutes ? '#000' : '#999' }}>
+                      {formData.durationMinutes
+                        ? DURATION_OPTIONS.find(o => o.value === formData.durationMinutes)?.label
+                        : formData.startTime
+                          ? 'Sélectionnez une durée'
+                          : 'Sélectionnez d\'abord l\'heure de début'}
                     </span>
-                    <ChevronDown 
-                      size={18} 
-                      style={{ 
-                        color: '#fff', 
-                        transform: openEndTimeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease'
-                      }} 
+                    <ChevronDown
+                      size={18}
+                      style={{
+                        color: '#666',
+                        transform: openDurationDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
                     />
                   </div>
-                  {openEndTimeDropdown && (
+                  {openDurationDropdown && formData.startTime && (
                     <div style={{
                       position: 'absolute',
                       top: '100%',
                       left: 0,
                       right: 0,
                       marginTop: '4px',
-                      backgroundColor: '#1a1a2e',
-                      border: '1px solid #444',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #ccc',
                       borderRadius: '8px',
                       maxHeight: '200px',
                       overflowY: 'auto',
                       zIndex: 1000,
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
                     }}>
-                      {timeSlots.map((slot) => (
+                      {DURATION_OPTIONS.map((opt) => (
                         <div
-                          key={slot.value}
-                          onClick={() => handleTimeSelect(slot.value, 'endTime')}
+                          key={opt.value}
+                          onClick={() => handleDurationSelect(opt.value)}
                           style={{
                             padding: '12px 16px',
                             cursor: 'pointer',
-                            color: '#fff',
-                            backgroundColor: formData.endTime === slot.value ? 'rgba(255, 65, 108, 0.3)' : 'transparent',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                            transition: 'background-color 0.2s ease'
+                            color: formData.durationMinutes === opt.value ? '#000' : '#333',
+                            backgroundColor: formData.durationMinutes === opt.value ? 'rgba(255, 65, 108, 0.15)' : 'transparent',
+                            borderBottom: '1px solid rgba(0,0,0,0.06)',
+                            transition: 'background-color 0.2s ease',
                           }}
                           onMouseEnter={(e) => {
-                            if (formData.endTime !== slot.value) {
-                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            if (formData.durationMinutes !== opt.value) {
+                              e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (formData.endTime !== slot.value) {
+                            if (formData.durationMinutes !== opt.value) {
                               e.currentTarget.style.backgroundColor = 'transparent';
                             }
                           }}
                         >
-                          {slot.label}
+                          {opt.label}
                         </div>
                       ))}
                     </div>
                   )}
-                  {errors.endTime && (
+                  {formData.startTime && formData.durationMinutes > 0 && (
+                    <p style={{ color: '#64748B', fontSize: '13px', margin: '8px 0 0' }}>
+                      Heure de fin : {(() => {
+                        const end = computeEndTimeFromDuration(formData.startTime, formData.durationMinutes);
+                        const [h, m] = end.split(':').map(Number);
+                        const [startH, startM] = formData.startTime.split(':').map(Number);
+                        const endMin = h * 60 + m;
+                        const startMin = startH * 60 + startM;
+                        const isNextDay = endMin <= startMin;
+                        return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}${isNextDay ? ' (lendemain)' : ''}`;
+                      })()}
+                    </p>
+                  )}
+                  {errors.durationMinutes && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-                      {errors.endTime}
+                      {errors.durationMinutes}
+                    </p>
+                  )}
+                </div>
+
+                {/* Type de lieu */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Type de lieu
+                  </label>
+                  <select
+                    id="venueType"
+                    value={formData.venueType}
+                    onChange={handleChange}
+                    style={selectStyle}
+                  >
+                    <option value="">-- Sélectionnez --</option>
+                    <option value="theatre">Théâtre</option>
+                    <option value="salle_polyvalente">Salle polyvalente</option>
+                    <option value="cafe">Café</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+
+                {/* Nombre de places pour spectateur */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Nombre de places pour spectateur
+                  </label>
+                  <input
+                    type="number"
+                    id="maxSpectators"
+                    value={formData.maxSpectators}
+                    onChange={handleChange}
+                    min={1}
+                    max={10000}
+                    placeholder="Nombre de places pour spectateur"
+                    style={{
+                      ...inputStyle,
+                      borderColor: errors.maxSpectators ? '#ef4444' : '#ccc'
+                    }}
+                  />
+                  {errors.maxSpectators && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.maxSpectators}
                     </p>
                   )}
                 </div>
@@ -1274,7 +1833,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.minExperience ? '#ef4444' : '#444'
+                      borderColor: errors.minExperience ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 2"
                     min="0"
@@ -1298,7 +1857,7 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                     onChange={handleChange}
                     style={{
                       ...inputStyle,
-                      borderColor: errors.maxComedians ? '#ef4444' : '#444'
+                      borderColor: errors.maxComedians ? '#ef4444' : '#ccc'
                     }}
                     placeholder="Ex: 5"
                     min="1"
@@ -1306,6 +1865,32 @@ function CreateEventForm({ onClose, onEventCreated }: CreateEventFormProps) {
                   {errors.maxComedians && (
                     <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                       {errors.maxComedians}
+                    </p>
+                  )}
+                </div>
+
+                {/* Niveau d'expérience requis */}
+                <div style={{ gridColumn: isMobile ? '1' : '1 / -1' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#ccc' }}>
+                    Niveau d'expérience requis
+                  </label>
+                  <select
+                    id="requiredExperienceLevel"
+                    value={formData.requiredExperienceLevel}
+                    onChange={handleChange}
+                    style={{
+                      ...selectStyle,
+                      borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#ccc'
+                    }}
+                  >
+                    <option value="all">Tous les niveaux</option>
+                    <option value="0-50">Débutant (0-50 scènes)</option>
+                    <option value="50-200">Expérimenté (50-200 scènes)</option>
+                    <option value="200+">Pro (200+ scènes)</option>
+                  </select>
+                  {errors.requiredExperienceLevel && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                      {errors.requiredExperienceLevel}
                     </p>
                   )}
                 </div>

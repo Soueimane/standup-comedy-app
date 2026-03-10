@@ -27,12 +27,13 @@ export interface IUserData {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR';
   // Fields from User model that might be directly on the user object
   companyName?: string; // If companyName is directly on User for Organizers
   city?: string; // If city is directly on User for Organizers
   phone?: string;
   address?: string;
+  birthDate?: string | Date;
   gender?: 'femme' | 'homme';
   // Nested profiles
   profile?: {
@@ -42,6 +43,10 @@ export interface IUserData {
     numberOfScenes?: '0-50' | '50-200' | '200+';
     comedyStyle?: ('stand-up' | 'improvisation' | 'plateau' | 'sketch')[];
     performanceLanguages?: ('francais' | 'arabe' | 'anglais' | 'italien' | 'espagnol')[];
+    mobilityZone?: Array<{
+      type: 'ville' | 'departement' | 'region';
+      value: string;
+    }>;
     socialLinks?: {
       youtube?: string;
       instagram?: string;
@@ -63,10 +68,16 @@ export interface IUserData {
     applicationsAccepted?: number;
     netPromoterScore?: number;
     absences?: number;
+    lateCancellations?: number;
   };
   onboardingCompleted?: boolean;
   emailVerified?: boolean;
   avatarUrl?: string | null;
   createdAt?: string;
   lastLoginAt?: string;
+  spectatorPreferences?: {
+    radiusKm?: number;
+    dailyRecapEmail?: boolean;
+    lastDailyRecapAt?: string;
+  };
 } 

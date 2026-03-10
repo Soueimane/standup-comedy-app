@@ -24,6 +24,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+
 // Intercepteur pour gérer les erreurs
 api.interceptors.response.use(
   (response) => response,
@@ -48,6 +49,7 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -94,6 +96,17 @@ export const checkIsEventFavorite = async (eventId: string) => {
   return response.data;
 };
 
+// Inscription / désinscription spectateur à un événement
+export const registerSpectatorToEvent = async (eventId: string) => {
+  const response = await api.post(`/events/${eventId}/spectator-register`);
+  return response.data;
+};
+
+export const unregisterSpectatorFromEvent = async (eventId: string) => {
+  const response = await api.delete(`/events/${eventId}/spectator-register`);
+  return response.data;
+};
+
 // Fonctions pour gérer les favoris de comédiens (organisateurs)
 export const addFavorite = async (comedianId: string) => {
   const response = await api.post('/favorites', { comedianId });
@@ -112,6 +125,221 @@ export const getFavorites = async () => {
 
 export const checkIsFavorite = async (comedianId: string) => {
   const response = await api.get(`/favorites/check/${comedianId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les favoris de candidatures (organisateurs)
+export const addApplicationFavorite = async (applicationId: string) => {
+  const response = await api.post('/application-favorites', { applicationId });
+  return response.data;
+};
+
+export const removeApplicationFavorite = async (applicationId: string) => {
+  const response = await api.delete(`/application-favorites/${applicationId}`);
+  return response.data;
+};
+
+export const getApplicationFavorites = async () => {
+  const response = await api.get('/application-favorites');
+  return response.data;
+};
+
+export const checkIsApplicationFavorite = async (applicationId: string) => {
+  const response = await api.get(`/application-favorites/check/${applicationId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les alertes de présence (Super Admin)
+export const getPresenceAlerts = async () => {
+  const response = await api.get('/presence-alerts');
+  return response.data;
+};
+
+export const getComedianPresenceScore = async (comedianId: string) => {
+  const response = await api.get(`/presence-alerts/${comedianId}`);
+  return response.data;
+};
+
+export const acknowledgePresenceAlert = async (alertId: string) => {
+  const response = await api.post(`/presence-alerts/${alertId}/acknowledge`);
+  return response.data;
+};
+
+export const triggerPresenceCheck = async () => {
+  const response = await api.post('/presence-alerts/check');
+  return response.data;
+};
+
+// Fonctions pour gérer les alertes d'annulations tardives (Super Admin)
+export const getLateCancellationAlerts = async (isActive?: boolean) => {
+  const params = isActive !== undefined ? `?isActive=${isActive}` : '';
+  const response = await api.get(`/late-cancellation-alerts${params}`);
+  return response.data;
+};
+
+export const acknowledgeLateCancellationAlert = async (alertId: string) => {
+  const response = await api.post(`/late-cancellation-alerts/${alertId}/acknowledge`);
+  return response.data;
+};
+
+export const getComedianLateCancellationHistory = async (comedianId: string) => {
+  const response = await api.get(`/late-cancellation-alerts/comedian/${comedianId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les signalements d'humoristes (Organisateurs)
+export const createComedianReport = async (comedianId: string, reason: string, description?: string) => {
+  const response = await api.post('/comedian-reports', { comedianId, reason, description });
+  return response.data;
+};
+
+export const checkComedianReport = async (comedianId: string) => {
+  const response = await api.get(`/comedian-reports/comedian/${comedianId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les signalements (Super Admin)
+export const getComedianReports = async (status?: string) => {
+  const query = status ? `?status=${status}` : '';
+  const response = await api.get(`/comedian-reports${query}`);
+  return response.data;
+};
+
+export const getComedianReport = async (reportId: string) => {
+  const response = await api.get(`/comedian-reports/${reportId}`);
+  return response.data;
+};
+
+export const updateComedianReport = async (reportId: string, status: string) => {
+  const response = await api.patch(`/comedian-reports/${reportId}`, { status });
+  return response.data;
+};
+
+// Fonctions pour gérer les notifications in-app (Organisateurs)
+export const getNotifications = async (read?: boolean, limit?: number) => {
+  const params = new URLSearchParams();
+  if (read !== undefined) params.append('read', read.toString());
+  if (limit !== undefined) params.append('limit', limit.toString());
+  const query = params.toString();
+  const response = await api.get(`/notifications${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
+export const markNotificationAsRead = async (notificationId: string) => {
+  const response = await api.patch(`/notifications/${notificationId}/read`);
+  return response.data;
+};
+
+export const markAllNotificationsAsRead = async () => {
+  const response = await api.patch('/notifications/read-all');
+  return response.data;
+};
+
+export const deleteNotification = async (notificationId: string) => {
+  const response = await api.delete(`/notifications/${notificationId}`);
+  return response.data;
+};
+
+// Fonctions pour gérer les recommandations (Humoristes)
+export const getRecommendations = async (options?: { page?: number; limit?: number; minScore?: number }) => {
+  const params = new URLSearchParams();
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.minScore !== undefined) params.append('minScore', options.minScore.toString());
+  const query = params.toString();
+  const response = await api.get(`/recommendations${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
+// Recommandations intelligentes basées sur l'historique (même nom/même organisateur)
+export const getSmartRecommendations = async (options?: { page?: number; limit?: number }) => {
+  const params = new URLSearchParams();
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.limit) params.append('limit', options.limit.toString());
+  const query = params.toString();
+  const response = await api.get(`/recommendations/smart${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
+// Fonctions pour rechercher des humoristes par zone géographique (Organisateurs)
+export interface SearchComediansByZoneOptions {
+  zone: string;
+  experienceLevel?: 'all' | '0-50' | '50-200' | '200+';
+  page?: number;
+  limit?: number;
+}
+
+export interface ComedianSearchResult {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  city?: string;
+  phone?: string;
+  stageName?: string;
+  bio?: string;
+  numberOfScenes?: string;
+  comedyStyle?: string[];
+  performanceLanguages?: string[];
+  mobilityZone?: Array<{ type: 'ville' | 'departement' | 'region'; value: string }>;
+  socialLinks?: {
+    youtube?: string;
+    instagram?: string;
+    facebook?: string;
+    twitter?: string;
+  };
+  stats?: {
+    totalEvents?: number;
+    averageRating?: number;
+    absences?: number;
+  };
+}
+
+export interface SearchComediansByZoneResponse {
+  comedians: ComedianSearchResult[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  searchZone: {
+    type: 'ville' | 'departement' | 'region';
+    value: string;
+    department?: string;
+    region?: string;
+  };
+}
+
+export const searchComediansByZone = async (options: SearchComediansByZoneOptions): Promise<SearchComediansByZoneResponse> => {
+  const params = new URLSearchParams();
+  params.append('zone', options.zone);
+  if (options.experienceLevel && options.experienceLevel !== 'all') {
+    params.append('experienceLevel', options.experienceLevel);
+  }
+  if (options.page) params.append('page', options.page.toString());
+  if (options.limit) params.append('limit', options.limit.toString());
+  const query = params.toString();
+  const response = await api.get(`/comedians/search-by-zone?${query}`);
+  return response.data;
+};
+
+// Inviter un humoriste à postuler pour un événement
+export const inviteComedianToEvent = async (eventId: string, comedianId: string): Promise<void> => {
+  await api.post(`/events/${eventId}/invite-comedian/${comedianId}`);
+};
+
+// Gestion des comptes (Super Admin uniquement)
+export const deactivateUser = async (userId: string, reason?: string) => {
+  const response = await api.patch(`/auth/users/${userId}/deactivate`, { reason });
+  return response.data;
+};
+
+export const reactivateUser = async (userId: string) => {
+  const response = await api.patch(`/auth/users/${userId}/reactivate`);
+  return response.data;
+};
+
+export const deleteUser = async (userId: string) => {
+  const response = await api.delete(`/auth/users/${userId}`);
   return response.data;
 };
 

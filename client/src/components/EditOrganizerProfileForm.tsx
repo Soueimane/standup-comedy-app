@@ -2,7 +2,9 @@ import React, { useState, type CSSProperties, useEffect } from 'react';
 import type { IUserData } from '../types/user';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditOrganizerProfileFormProps {
   isOpen: boolean;
@@ -33,6 +35,7 @@ type OrganizerFormData = {
 
 function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditOrganizerProfileFormProps) {
   const { token, isLoading } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<OrganizerFormData>({
     firstName: currentUser.firstName || '',
     lastName: currentUser.lastName || '',
@@ -54,6 +57,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
   });
   const [previewImage, setPreviewImage] = useState<string | null>(currentUser?.avatarUrl || null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [avatarChanged, setAvatarChanged] = useState(false); // Track if avatar was actually changed
   const [postalCodeError, setPostalCodeError] = useState<string>('');
   const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
@@ -117,6 +121,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       });
       setPreviewImage(currentUser.avatarUrl || null);
       setAvatarRemoved(false);
+      setAvatarChanged(false);
       setIsInitialLoad(true);
     }
   }, [currentUser]);
@@ -125,11 +130,11 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert("L'image est trop grande (max 5MB).");
+      showWarning(WarningMessages.IMAGE_TOO_LARGE);
       return;
     }
     if (!file.type.startsWith('image/')) {
-      alert('Merci de sélectionner un fichier image.');
+      showWarning(WarningMessages.IMAGE_REQUIRED);
       return;
     }
     const reader = new FileReader();
@@ -138,6 +143,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       setPreviewImage(base64String);
       setFormData(prev => ({ ...prev, avatarUrl: base64String }));
       setAvatarRemoved(false);
+      setAvatarChanged(true); // Mark avatar as changed
     };
     reader.readAsDataURL(file);
   };
@@ -146,6 +152,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     setPreviewImage(null);
     setFormData(prev => ({ ...prev, avatarUrl: null }));
     setAvatarRemoved(true);
+    setAvatarChanged(true); // Mark avatar as changed (removed)
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -206,16 +213,15 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
     console.log('token:', token, 'currentUser.id:', currentUser?.id, 'currentUser._id:', currentUser?._id, 'currentUser:', currentUser);
     if (isLoading) return;
     if (!token || !(currentUser?.id || currentUser?._id)) {
-      alert("Vous devez être connecté pour modifier votre profil.");
+      showWarning(WarningMessages.AUTH_REQUIRED_PROFILE_EDIT);
       return;
     }
 
     try {
-      const updatedData = {
+      const updatedData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        avatarUrl: avatarRemoved ? null : formData.avatarUrl,
         organizerProfile: {
           companyName: formData.organizerProfile.companyName,
           description: formData.organizerProfile.description,
@@ -231,6 +237,12 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         },
       };
 
+      // Only include avatarUrl if it was actually changed (new upload or removed)
+      // This avoids sending ~1MB of base64 data on every profile save
+      if (avatarChanged) {
+        updatedData.avatarUrl = avatarRemoved ? null : formData.avatarUrl;
+      }
+
       const config = {
         headers: {
           'Content-Type': 'application/json',
@@ -239,14 +251,14 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       };
 
       const userId = currentUser.id || currentUser._id;
-      const res = await api.put(`/profile/${userId}`, updatedData, config); // Use PUT for update via baseURL
+      const res = await api.put(`/profile/${userId}`, updatedData, config);
       console.log('Profil mis à jour:', res.data);
-      alert('Profil mis à jour avec succès !');
-      onSaveSuccess(); // Trigger a refetch or state update in parent
+      showSuccess(SuccessMessages.PROFILE_UPDATED);
+      onSaveSuccess();
       onClose();
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour du profil:', error.response?.data || error.message);
-      alert(`Erreur lors de la mise à jour du profil: ${error.response?.data?.message || error.message}`);
+      console.error('Erreur lors de la mise à jour du profil:', error.response?.status);
+      showError(getErrorMessage(error, ErrorMessages.PROFILE_UPDATE_FAILED));
     }
   };
 

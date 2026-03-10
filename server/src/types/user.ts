@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { RecommendationPreferences } from './recommendation';
 
 export interface ILocation {
   city: string;
@@ -16,6 +17,11 @@ export interface Performance {
   feedback?: string;
 }
 
+export interface MobilityZone {
+  type: 'ville' | 'departement' | 'region';
+  value: string; // Nom de la ville, département ou région
+}
+
 export interface UserProfile {
   bio?: string;
   experience?: number;
@@ -23,6 +29,7 @@ export interface UserProfile {
   numberOfScenes?: '0-50' | '50-200' | '200+';
   comedyStyle?: ('stand-up' | 'improvisation' | 'plateau' | 'sketch')[];
   performanceLanguages?: ('francais' | 'arabe' | 'anglais' | 'italien' | 'espagnol')[];
+  mobilityZone?: MobilityZone[]; // Zone de mobilité : villes, départements ou régions
   socialLinks?: {
     youtube?: string;
     instagram?: string;
@@ -30,6 +37,7 @@ export interface UserProfile {
     twitter?: string;
   };
   performances?: Performance[];
+  recommendationPreferences?: RecommendationPreferences;
 }
 
 export interface IOrganisateurProfile {
@@ -52,7 +60,15 @@ export interface User {
   firstName: string;
   lastName: string;
   city?: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  birthDate?: Date;
+  latitude?: number;
+  longitude?: number;
+  spectatorPreferences?: {
+    radiusKm?: number;
+    dailyRecapEmail?: boolean;
+    lastDailyRecapAt?: Date;
+  };
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR';
   profile?: UserProfile;
   organizerProfile?: IOrganisateurProfile;
   stats?: any;
@@ -66,6 +82,7 @@ export interface User {
   };
   favoriteComedians?: Types.ObjectId[];
   favoriteEvents?: Types.ObjectId[];
+  favoriteApplications?: Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
   lastLoginAt?: Date;
@@ -77,6 +94,22 @@ export interface User {
     unsubscribedAt?: Date;
     unsubscribeToken?: string;
   };
+  keycloakId?: string;
+  // Champs de gestion de desactivation de compte
+  isActive?: boolean;
+  deactivatedAt?: Date;
+  deactivatedBy?: Types.ObjectId;
+  deactivationReason?: string;
+  // Consentement RGPD
+  consent?: {
+    termsAccepted?: boolean;
+    termsAcceptedAt?: Date;
+    termsVersion?: string;
+    privacyAccepted?: boolean;
+    privacyAcceptedAt?: Date;
+    privacyVersion?: string;
+    isAdult?: boolean;
+  };
 }
 
 // Interface for a user document after being populated
@@ -85,7 +118,7 @@ export interface IPopulatedUser {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR';
   // Add other fields that might be populated and needed, e.g., companyName, city
   companyName?: string;
   city?: string;

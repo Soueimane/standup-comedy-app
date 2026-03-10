@@ -25,6 +25,7 @@ interface IUserStats {
   applicationsPending?: number;
   netPromoterScore?: number;
   absences?: number;
+  lateCancellations?: number;
   processedEvents?: string[]; // Array d'IDs des évènements déjà traités
 }
 
@@ -91,6 +92,7 @@ const UserStatsSchema = new Schema<IUserStats>({
   applicationsPending: { type: Number, default: 0 },
   netPromoterScore: { type: Number, default: 0 },
   absences: { type: Number, default: 0 },
+  lateCancellations: { type: Number, default: 0 },
   processedEvents: [{ type: Schema.Types.ObjectId, ref: 'Event' }]
 });
 
@@ -138,11 +140,41 @@ const performanceSchema = new Schema<Performance>({
   feedback: { type: String }
 });
 
+const MobilityZoneSchema = new Schema({
+  type: { type: String, enum: ['ville', 'departement', 'region'], required: true },
+  value: { type: String, required: true, trim: true }
+}, { _id: false });
+
+// Schéma pour les priorités de recommandation
+const RecommendationPrioritySchema = new Schema({
+  criterion: {
+    type: String,
+    enum: ['geographic', 'experienceLevel', 'experienceYears'],
+    required: true
+  },
+  weight: { type: Number, min: 0, max: 100, default: 33 },
+  enabled: { type: Boolean, default: true }
+}, { _id: false });
+
+// Schéma pour les préférences de recommandation
+const RecommendationPreferencesSchema = new Schema({
+  enabled: { type: Boolean, default: true },
+  priorities: {
+    type: [RecommendationPrioritySchema],
+    default: [
+      { criterion: 'geographic', weight: 50, enabled: true },
+      { criterion: 'experienceLevel', weight: 30, enabled: true },
+      { criterion: 'experienceYears', weight: 20, enabled: true }
+    ]
+  },
+  lastUpdated: { type: Date, default: Date.now }
+}, { _id: false });
+
 const userProfileSchema = new Schema<UserProfile>({
   bio: { type: String },
   experience: { type: Number },
   speciality: { type: String },
-  numberOfScenes: { type: String, enum: ['0-50', '50-200', '200+'] }, // Nombre de scènes jouées
+  numberOfScenes: { type: String, enum: ['0-50', '50-200', '200+'], default: '0-50' }, // Nombre de scènes jouées
   comedyStyle: [{ 
     type: String, 
     enum: ['stand-up', 'improvisation', 'plateau', 'sketch'] 
@@ -151,13 +183,25 @@ const userProfileSchema = new Schema<UserProfile>({
     type: String, 
     enum: ['francais', 'arabe', 'anglais', 'italien', 'espagnol'] 
   }], // Langues du spectacle
+  mobilityZone: [MobilityZoneSchema], // Zone de mobilité : villes, départements ou régions
   socialLinks: {
     youtube: { type: String },
     instagram: { type: String },
     facebook: { type: String },
     twitter: { type: String }
   },
-  performances: [performanceSchema]
+  performances: [performanceSchema],
+  recommendationPreferences: {
+    type: RecommendationPreferencesSchema,
+    default: () => ({
+      enabled: true,
+      priorities: [
+        { criterion: 'geographic', weight: 50, enabled: true },
+        { criterion: 'experienceLevel', weight: 30, enabled: true },
+        { criterion: 'experienceYears', weight: 20, enabled: true }
+      ]
+    })
+  }
 });
 
 const AvatarSchema = new Schema({
@@ -200,6 +244,17 @@ const userSchema = new Schema<UserDocument>({
     required: false,
     trim: true,
   },
+  birthDate: {
+    type: Date,
+    required: false,
+  },
+  latitude: { type: Number, required: false },
+  longitude: { type: Number, required: false },
+  spectatorPreferences: {
+    radiusKm: { type: Number, enum: [5, 10, 20, 50], default: 20 },
+    dailyRecapEmail: { type: Boolean, default: true },
+    lastDailyRecapAt: { type: Date, required: false },
+  },
   phone: {
     type: String,
     required: false,
@@ -218,7 +273,7 @@ const userSchema = new Schema<UserDocument>({
   },
   role: {
     type: String,
-    enum: ['COMEDIAN', 'ORGANIZER', 'ADMIN', 'SUPER_ADMIN'],
+    enum: ['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR'],
     required: true
   },
   profile: {
@@ -242,9 +297,64 @@ const userSchema = new Schema<UserDocument>({
     type: Schema.Types.ObjectId,
     ref: 'Event'
   }],
+  favoriteApplications: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Application'
+  }],
   emailSubscriptions: {
     type: EmailSubscriptionsSchema,
     default: () => ({ globalSubscribed: true })
+  },
+  keycloakId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allow null values while maintaining uniqueness
+  },
+  // Champs de gestion de desactivation de compte
+  isActive: {
+    type: Boolean,
+    default: true,
+    index: true
+  },
+  deactivatedAt: {
+    type: Date
+  },
+  deactivatedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  deactivationReason: {
+    type: String,
+    trim: true
+  },
+  // Consentement RGPD
+  consent: {
+    termsAccepted: {
+      type: Boolean,
+      default: false
+    },
+    termsAcceptedAt: {
+      type: Date
+    },
+    termsVersion: {
+      type: String,
+      default: '1.0'
+    },
+    privacyAccepted: {
+      type: Boolean,
+      default: false
+    },
+    privacyAcceptedAt: {
+      type: Date
+    },
+    privacyVersion: {
+      type: String,
+      default: '1.0'
+    },
+    isAdult: {
+      type: Boolean,
+      default: false
+    }
   },
   createdAt: { type: Schema.Types.Date, default: Date.now },
   lastLoginAt: { type: Schema.Types.Date, default: Date.now },
@@ -254,10 +364,10 @@ const userSchema = new Schema<UserDocument>({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
+  const doc = this as UserDocument;
+  if (!doc.isModified('password')) return next();
   try {
-    this.password = await bcrypt.hash(this.password!, 10);
+    doc.password = await bcrypt.hash(doc.password!, 10);
     next();
   } catch (error) {
     next(error as Error);
@@ -272,12 +382,30 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 
 // Middleware pour gérer les profils en fonction du userType avant la sauvegarde
 userSchema.pre('save', function(next) {
-  if (this.isModified('role') || this.isNew) {
-    if (this.role === 'COMEDIAN' && !this.profile) {
-      this.profile = { bio: '', experience: 0, speciality: '' };
+  const doc = this as UserDocument;
+  if (doc.isModified('role') || doc.isNew) {
+    if (doc.role === 'COMEDIAN' && !doc.profile) {
+      doc.profile = {
+        bio: '',
+        experience: 0,
+        speciality: '',
+        numberOfScenes: '0-50',
+        comedyStyle: [],
+        performanceLanguages: [],
+        socialLinks: {},
+        performances: [],
+        recommendationPreferences: {
+          enabled: true,
+          priorities: [
+            { criterion: 'geographic', weight: 50, enabled: true },
+            { criterion: 'experienceLevel', weight: 30, enabled: true },
+            { criterion: 'experienceYears', weight: 20, enabled: true }
+          ]
+        }
+      };
     }
-    if (this.role === 'ORGANIZER' && !this.organizerProfile) {
-        this.organizerProfile = { companyName: '', location: { city: '', postalCode: '' }, venueTypes: [] };
+    if (doc.role === 'ORGANIZER' && !doc.organizerProfile) {
+      doc.organizerProfile = { companyName: '', location: { city: '', postalCode: '' }, venueTypes: [] };
     }
   }
   next();

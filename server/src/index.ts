@@ -15,7 +15,16 @@ import emailRoutes from './routes/email';
 import absencesRoutes from './routes/absences';
 import favoritesRoutes from './routes/favorites';
 import eventFavoritesRoutes from './routes/eventFavorites';
+import applicationFavoritesRoutes from './routes/applicationFavorites';
+import presenceAlertsRoutes from './routes/presenceAlerts';
+import lateCancellationAlertsRoutes from './routes/lateCancellationAlerts';
+import comedianReportRoutes from './routes/comedianReport';
+import notificationRoutes from './routes/notification';
 import sseRoutes from './routes/sse';
+import oauthRoutes from './routes/oauth';
+import recommendationsRoutes from './routes/recommendations';
+import comediansRoutes from './routes/comedians';
+import usersRoutes from './routes/users';
 import { sseManager } from './services/sseManager';
 
 const app = express();
@@ -96,7 +105,16 @@ app.use('/api/email', emailRoutes);
 app.use('/api/absences', absencesRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/event-favorites', eventFavoritesRoutes);
+app.use('/api/application-favorites', applicationFavoritesRoutes);
+app.use('/api/presence-alerts', presenceAlertsRoutes);
+app.use('/api/late-cancellation-alerts', lateCancellationAlertsRoutes);
+app.use('/api/comedian-reports', comedianReportRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/sse', sseRoutes);
+app.use('/api/auth/oauth', oauthRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/comedians', comediansRoutes);
+app.use('/api/users', usersRoutes);
 
 // Gestion des erreurs
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,4 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+
 
 const LANDING_CSS = `
   .landing-dark { --primary: #FF5A7E; --primary-hover: #E04969; --primary-light: #FFF1F3; --secondary: #00B8D9; --accent: #FFB800; --dark: #1A1D29; --text-primary: #F1F5F9; --text-secondary: rgba(255,255,255,0.75); --bg-light: rgba(255,255,255,0.04); --bg-white: #FFFFFF; --border: rgba(255,255,255,0.12); --shadow-sm: 0 1px 2px rgba(0,0,0,0.2); --shadow-md: 0 4px 6px rgba(0,0,0,0.2); --shadow-lg: 0 10px 15px rgba(0,0,0,0.2); --shadow-xl: 0 20px 25px rgba(0,0,0,0.2); --shadow-2xl: 0 25px 50px rgba(0,0,0,0.3); }
@@ -155,7 +157,10 @@ function LandingPage() {
   const goRegister = () => navigate('/register');
   const goLogin = () => navigate('/login');
   const goOrganisateur = () => navigate('/organisateur');
+  const goRegisterOrganisateur = () => navigate('/register/organisateur');
+  const goRegisterHumoriste = () => navigate('/register');
   const goCalendar = () => navigate('/calendar');
+  const goRegisterSpectateur = () => navigate('/register/spectateur');
 
   return (
     <div
@@ -181,6 +186,7 @@ function LandingPage() {
               <a href="#fonctionnement" className="nav-link">Comment ça marche</a>
               <a href="#roles" className="nav-link">Pour qui</a>
               <a href="#avantages" className="nav-link">Avantages</a>
+              <Link to="/a-propos" className="nav-link">À propos</Link>
             </nav>
             <div className="header-buttons">
               <button type="button" className="btn btn-secondary" onClick={goLogin}>Se connecter</button>
@@ -286,7 +292,7 @@ function LandingPage() {
                 <li>Notifier automatiquement</li>
                 <li>Gérer plusieurs événements</li>
               </ul>
-              <button type="button" className="role-cta" onClick={goOrganisateur}>Commencer →</button>
+              <button type="button" className="role-cta" onClick={goRegisterOrganisateur}>Commencer →</button>
             </div>
             <div className="role-card">
               <div className="role-icon">🎭</div>
@@ -297,7 +303,7 @@ function LandingPage() {
                 <li>Suivre vos candidatures</li>
                 <li>Créer votre profil scène</li>
               </ul>
-              <button type="button" className="role-cta" onClick={goLogin}>S'inscrire →</button>
+              <button type="button" className="role-cta" onClick={goRegisterHumoriste}>S'inscrire →</button>
             </div>
             <div className="role-card">
               <div className="role-icon">👥</div>
@@ -308,6 +314,7 @@ function LandingPage() {
                 <li>Réserver vos places</li>
                 <li>Ne rien manquer</li>
               </ul>
+              <button type="button" className="role-cta" onClick={goRegisterSpectateur}>S'inscrire →</button>
             </div>
           </div>
         </div>
@@ -526,6 +533,14 @@ function LandingPage() {
                 <li><button type="button" className="footer-link-btn" onClick={goOrganisateur}>Organisateur</button></li>
                 <li><button type="button" className="footer-link-btn" onClick={goLogin}>Humoriste</button></li>
                 <li><button type="button" className="footer-link-btn" onClick={goCalendar}>Spectateur</button></li>
+              </ul>
+            </div>
+            <div className="footer-links">
+              <h4>Légal</h4>
+              <ul>
+                <li><Link to="/mentions-legales" className="footer-link-btn">Mentions légales</Link></li>
+                <li><Link to="/politique-confidentialite" className="footer-link-btn">Confidentialité</Link></li>
+                <li><Link to="/cgu" className="footer-link-btn">CGU</Link></li>
               </ul>
             </div>
           </div>

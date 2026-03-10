@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { TokenExpiredError } from 'jsonwebtoken';
 import { config } from '../config/env';
+import { UserModel } from '../models/User';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -53,6 +54,14 @@ export const authMiddleware = async (
         email: string;
         role: string;
       };
+
+      // Verifier si le compte est actif
+      const user = await UserModel.findById(decoded.id).select('isActive');
+      if (user && user.isActive === false) {
+        return res.status(403).json({
+          message: 'Votre compte a ete desactive. Veuillez contacter le support.'
+        });
+      }
 
       req.user = decoded;
       next();

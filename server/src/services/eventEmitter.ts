@@ -17,6 +17,9 @@ export enum SSEEventType {
   ABSENCE_MARKED = 'ABSENCE_MARKED',
   ABSENCE_CANCELLED = 'ABSENCE_CANCELLED',
 
+  // Annulations tardives
+  LATE_CANCELLATION = 'LATE_CANCELLATION',
+
   // Favoris comédiens
   FAVORITE_COMEDIAN_ADDED = 'FAVORITE_COMEDIAN_ADDED',
   FAVORITE_COMEDIAN_REMOVED = 'FAVORITE_COMEDIAN_REMOVED',
@@ -24,6 +27,10 @@ export enum SSEEventType {
   // Favoris évènements
   EVENT_FAVORITE_ADDED = 'EVENT_FAVORITE_ADDED',
   EVENT_FAVORITE_REMOVED = 'EVENT_FAVORITE_REMOVED',
+
+  // Favoris candidatures
+  APPLICATION_FAVORITE_ADDED = 'APPLICATION_FAVORITE_ADDED',
+  APPLICATION_FAVORITE_REMOVED = 'APPLICATION_FAVORITE_REMOVED',
 
   // Profils & Utilisateurs
   PROFILE_UPDATED = 'PROFILE_UPDATED',
@@ -125,6 +132,10 @@ export const emitAbsenceCancelled = (eventId: string, comedianId: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.ABSENCE_CANCELLED, { eventId, comedianId });
 };
 
+export const emitLateCancellation = (eventId: string, comedianId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.LATE_CANCELLATION, { eventId, comedianId, applicationId });
+};
+
 export const emitFavoriteComedianAdded = (organizerId: string, comedianId: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.FAVORITE_COMEDIAN_ADDED, { organizerId, comedianId });
 };
@@ -139,6 +150,14 @@ export const emitEventFavoriteAdded = (comedianId: string, eventId: string) => {
 
 export const emitEventFavoriteRemoved = (comedianId: string, eventId: string) => {
   appEventEmitter.emitSSEEvent(SSEEventType.EVENT_FAVORITE_REMOVED, { comedianId, eventId });
+};
+
+export const emitApplicationFavoriteAdded = (organizerId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.APPLICATION_FAVORITE_ADDED, { organizerId, applicationId });
+};
+
+export const emitApplicationFavoriteRemoved = (organizerId: string, applicationId: string) => {
+  appEventEmitter.emitSSEEvent(SSEEventType.APPLICATION_FAVORITE_REMOVED, { organizerId, applicationId });
 };
 
 export const emitProfileUpdated = (userId: string) => {

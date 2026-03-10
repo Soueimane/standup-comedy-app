@@ -1,0 +1,44 @@
+name: Deploy DEV
+
+on:
+  push:
+    branches:
+      - dev_brach_env2
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to DEV VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "✅ Connecté au VPS"
+            cd ${{ secrets.VPS_PATH_DEV }}
+            echo "📂 Dossier DEV: $(pwd)"
+
+            # Git update
+            git fetch origin dev_brach_env2
+            git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+            git reset --hard origin/dev_brach_env2
+            git clean -fd
+            echo "📦 Code à jour avec git"
+
+            # Docker cleanup + rebuild
+            docker compose down --remove-orphans
+            docker system prune -af
+            docker volume prune -f
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Check containers
+            docker ps -a
+            echo "✅ Déploiement terminé"

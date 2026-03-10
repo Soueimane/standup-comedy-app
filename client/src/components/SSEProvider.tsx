@@ -31,7 +31,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
 
   // Désactiver SSE sur les pages publiques (login, register, forgot-password, etc.)
   const currentPath = window.location.pathname;
-  const isPublicPage = ['/login', '/register', '/organisateur', '/forgot-password', '/reset-password', '/'].includes(currentPath);
+  const isPublicPage = ['/login', '/register', '/register/spectateur', '/organisateur', '/forgot-password', '/reset-password', '/'].includes(currentPath);
   const shouldEnableSSE = !!token && !isPublicPage;
 
   // Établir la connexion SSE uniquement si nécessaire

@@ -1703,3 +1703,1741 @@ Système de relance automatique - Ne pas répondre à cet email
     // Ne pas bloquer le traitement des autres relances en cas d'erreur
   }
 };
+
+/**
+ * Envoie une notification email à un humoriste pour un événement
+ * dans sa zone de mobilité
+ *
+ * @param comedian - L'humoriste à notifier
+ * @param event - L'événement publié (doit être populé avec organizer)
+ * @param organizer - Les infos de l'organisateur (optionnel si event est populé)
+ */
+export const sendEventNotificationByMobility = async (
+  comedian: any,
+  event: any,
+  organizer?: any
+): Promise<void> => {
+  try {
+    // Vérifier abonnement email
+    if (comedian.emailSubscriptions?.globalSubscribed === false) {
+      console.log(`⏭️ Humoriste ${comedian.email} est désabonné - email mobilité non envoyé`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante pour notification mobilité');
+      return;
+    }
+
+    const comedianId = comedian._id?.toString() || comedian.id;
+    const unsubscribeUrl = generateUnsubscribeUrl(comedianId, comedian.email);
+
+    // Récupérer les infos de l'organisateur
+    const organizerData = organizer || event.organizer;
+
+    // Sujet optimisé pour éviter les filtres spam
+    const subject = `Nouvel évènement dans votre zone - ${event.title} 🎤`;
+
+    // Préparer les sections d'exigences
+    const requirementItems: string[] = [];
+    if (event.requirements?.duration) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Durée : <strong style="color:#000000;font-weight:bold;">${event.requirements.duration} minutes</strong></li>`
+      );
+    }
+    if (event.requirements?.maxPerformers) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Performeurs max : <strong style="color:#000000;font-weight:bold;">${event.requirements.maxPerformers}</strong></li>`
+      );
+    }
+    if (event.requirements?.minExperience) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Expérience min : <strong style="color:#000000;font-weight:bold;">${event.requirements.minExperience} ans</strong></li>`
+      );
+    }
+
+    const requirementsSection = requirementItems.length
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'évènement</strong>
+                <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
+                  ${requirementItems.join('')}
+                </ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const descriptionSection = event.description
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#eef5ff;background:#eef5ff;border-left:4px solid #0066cc;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:8px;color:#000000;font-size:16px;font-weight:bold;">📝 Description</strong>
+                <span style="color:#000000;display:block;margin-top:6px;">${event.description}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nouvel évènement dans votre zone</title>
+    <style>
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: #f2f2f2;
+      }
+      table {
+        border-spacing: 0;
+        border-collapse: collapse;
+      }
+      img {
+        border: 0;
+        line-height: 100%;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f2f2f2;">
+    <center style="width:100%;background:#f2f2f2;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
+        <tr>
+          <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">📍 Évènement dans votre zone</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">Cet évènement correspond à votre zone de mobilité.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <table role="presentation" width="100%">
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
+                  Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},<br/><br/>
+                  Un nouvel évènement vient d'être publié dans votre zone de mobilité. Ne manquez pas cette opportunité !
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Évènement</span>
+                        <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${event.title}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#ffffff;">
+                        <table role="presentation" width="100%">
+                          <tr>
+                            <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;font-weight:normal;">
+                              <strong style="color:#000000;font-weight:bold;">📍 Adresse :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.location?.address || ''}, ${event.location?.city || ''}</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📅 Date :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${new Date(event.date).toLocaleDateString('fr-FR')}</span>
+                            </td>
+                          </tr>
+                          ${event.startTime ? `
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">⏰ Heure :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.startTime}</span>
+                            </td>
+                          </tr>
+                          ` : ''}
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ${organizerData ? `
+              <tr>
+                <td>
+                  <table role="presentation" width="100%" style="border:2px solid #dbe8ff;border-radius:8px;background-color:#f0f5ff;">
+                    <tr>
+                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;background-color:#f0f5ff;">
+                        <strong style="display:block;font-size:16px;color:#000000;font-weight:bold;margin-bottom:8px;">👤 Organisateur</strong>
+                        <span style="display:block;margin-top:6px;color:#000000;font-size:15px;">${organizerData.firstName || ''} ${organizerData.lastName || ''}</span>
+                        ${organizerData.email ? `<a href="mailto:${organizerData.email}" style="display:inline-block;margin-top:10px;color:#0066cc;text-decoration:underline;font-weight:bold;font-size:14px;">📧 Contacter l'organisateur</a>` : ''}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ` : ''}
+              ${descriptionSection}
+              ${requirementsSection}
+              <tr>
+                <td align="center" style="padding:20px 0;">
+                  <a href="${config.frontend.url}/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Je postule maintenant</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:20px;font-size:20px;line-height:20px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
+                  Connectez-vous à votre espace Connect Comedy Club pour candidater rapidement.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
+              Connect Comedy Club · Restez inspiré et à l'écoute des nouvelles scènes.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer de désabonnement -->
+        <tr>
+          <td style="padding:40px 24px 20px 24px;border-top:1px solid #e0e0e0;text-align:center;">
+            <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#666;">
+              Vous recevez cet email car cet évènement est dans votre zone de mobilité.
+            </p>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;">
+              <a href="${unsubscribeUrl}" style="color:#666;text-decoration:underline;">
+                Se désabonner de tous les emails
+              </a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
+</html>
+    `;
+
+    // Version texte simple pour améliorer la délivrabilité
+    const textContent = `
+Évènement dans votre zone de mobilité !
+
+Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},
+
+Un nouvel évènement vient d'être publié dans votre zone de mobilité !
+
+${organizerData ? `Organisateur: ${organizerData.firstName || ''} ${organizerData.lastName || ''}
+Email: ${organizerData.email || ''}` : ''}
+
+Évènement: ${event.title}
+Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
+Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
+${event.startTime ? `Heure: ${event.startTime}` : ''}
+
+${event.description ? `Description: ${event.description}` : ''}
+
+${event.requirements ? `
+Exigences:
+- Durée: ${event.requirements.duration || 'Non précisé'} minutes
+- Nombre maximum de performeurs: ${event.requirements.maxPerformers || 'Non précisé'}
+- Expérience minimale: ${event.requirements.minExperience || 'Non précisé'} ans
+` : ''}
+
+Postulez maintenant: ${config.frontend.url}/events
+
+---
+Se désabonner: ${unsubscribeUrl}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      replyTo: organizerData?.email,
+      to: comedian.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      mailSettings: {
+        sandboxMode: {
+          enable: false
+        }
+      },
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'X-Entity-Ref-ID': `mobility-notification-${event._id}-${comedianId}-${Date.now()}`,
+        'Precedence': 'bulk'
+      },
+      categories: ['mobility-notification', 'evenement', 'zone-mobilite'],
+      customArgs: {
+        eventId: event._id?.toString() || 'unknown',
+        comedianId: comedianId,
+        type: 'mobility_event_notification'
+      }
+    });
+
+    console.log(`✅ Email mobilité envoyé à ${comedian.email} pour l'événement "${event.title}" à ${event.location?.city}`);
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorResponse = (error as any)?.response?.body;
+    const errorCode = (error as any)?.code;
+    console.error(`❌ Erreur envoi email mobilité à ${comedian.email}:`, {
+      message: errorMessage,
+      response: errorResponse,
+      code: errorCode
+    });
+    throw error; // Re-throw pour que Promise.allSettled puisse le capturer
+  }
+};
+
+/**
+ * Envoie un seul email à un humoriste pour une série d'événements récurrents (même titre/lieu, dates différentes).
+ * Regroupe toutes les dates dans un seul mail pour éviter d'envoyer un email par date.
+ *
+ * @param comedian - L'humoriste à notifier
+ * @param events - Les événements du groupe récurrent (même recurrenceGroupId)
+ * @param organizer - Les infos de l'organisateur
+ */
+export const sendRecurringEventNotificationByMobility = async (
+  comedian: any,
+  events: any[],
+  organizer: { firstName: string; lastName: string; email: string }
+): Promise<void> => {
+  if (!events || events.length === 0) return;
+  const event = events[0];
+  try {
+    if (comedian.emailSubscriptions?.globalSubscribed === false) {
+      console.log(`⏭️ Humoriste ${comedian.email} est désabonné - email récurrent non envoyé`);
+      return;
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ Emails désactivés pour économiser la mémoire');
+      return;
+    }
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante pour notification mobilité récurrente');
+      return;
+    }
+
+    const comedianId = comedian._id?.toString() || comedian.id;
+    const unsubscribeUrl = generateUnsubscribeUrl(comedianId, comedian.email);
+
+    const subject = `Nouvel événement récurrent dans votre zone - ${event.title} · ${events.length} date(s) 🎤`;
+
+    const requirementItems: string[] = [];
+    if (event.requirements?.duration) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Durée : <strong style="color:#000000;font-weight:bold;">${event.requirements.duration} minutes</strong></li>`
+      );
+    }
+    if (event.requirements?.maxPerformers) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Performeurs max : <strong style="color:#000000;font-weight:bold;">${event.requirements.maxPerformers}</strong></li>`
+      );
+    }
+    if (event.requirements?.minExperience) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Expérience min : <strong style="color:#000000;font-weight:bold;">${event.requirements.minExperience} ans</strong></li>`
+      );
+    }
+    const requirementsSection = requirementItems.length
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'évènement</strong>
+                <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
+                  ${requirementItems.join('')}
+                </ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const descriptionSection = event.description
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#eef5ff;background:#eef5ff;border-left:4px solid #0066cc;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:8px;color:#000000;font-size:16px;font-weight:bold;">📝 Description</strong>
+                <span style="color:#000000;display:block;margin-top:6px;">${event.description}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const datesRows = events
+      .map(
+        (e) => `
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e3e6f0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+              ${new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+              ${e.startTime ? ` · ${e.startTime}${e.endTime ? ` – ${e.endTime}` : ''}` : ''}
+            </td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Événement récurrent dans votre zone</title>
+    <style>
+      body { margin: 0 !important; padding: 0 !important; background-color: #f2f2f2; }
+      table { border-spacing: 0; border-collapse: collapse; }
+      img { border: 0; line-height: 100%; text-decoration: none; }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f2f2f2;">
+    <center style="width:100%;background:#f2f2f2;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
+        <tr>
+          <td style="padding:28px 24px;background:#1f1b2c;color:#ffffff;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">📍 Événement récurrent dans votre zone</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#d9d6ff;">${events.length} date(s) correspondent à votre zone de mobilité.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <table role="presentation" width="100%">
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
+                  Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},<br/><br/>
+                  Un nouvel événement récurrent vient d'être publié dans votre zone. Plusieurs dates sont proposées.
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Événement récurrent</span>
+                        <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${event.title}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#ffffff;">
+                        <table role="presentation" width="100%">
+                          <tr>
+                            <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📍 Lieu :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.location?.address || ''}, ${event.location?.city || ''}</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-top:14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📅 Dates (${events.length}) :</strong>
+                            </td>
+                          </tr>
+                          ${datesRows}
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td>
+                  <table role="presentation" width="100%" style="border:2px solid #dbe8ff;border-radius:8px;background-color:#f0f5ff;">
+                    <tr>
+                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;background-color:#f0f5ff;">
+                        <strong style="display:block;font-size:16px;color:#000000;font-weight:bold;margin-bottom:8px;">👤 Organisateur</strong>
+                        <span style="display:block;margin-top:6px;color:#000000;font-size:15px;">${organizer.firstName || ''} ${organizer.lastName || ''}</span>
+                        ${organizer.email ? `<a href="mailto:${organizer.email}" style="display:inline-block;margin-top:10px;color:#0066cc;text-decoration:underline;font-weight:bold;font-size:14px;">📧 Contacter l'organisateur</a>` : ''}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ${descriptionSection}
+              ${requirementsSection}
+              <tr>
+                <td align="center" style="padding:20px 0;">
+                  <a href="${config.frontend.url}/events" style="display:inline-block;padding:16px 40px;background-color:#ff5a5f;background:#ff5a5f;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;border:2px solid #ff5a5f;text-align:center;min-width:200px;">🚀 Voir les dates et postuler</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:20px;font-size:20px;line-height:20px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
+                  Connectez-vous à votre espace Connect Comedy Club pour candidater aux dates de votre choix.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
+              Connect Comedy Club · Restez inspiré et à l'écoute des nouvelles scènes.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 24px 20px 24px;border-top:1px solid #e0e0e0;text-align:center;">
+            <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#666;">
+              Vous recevez cet email car cet événement récurrent est dans votre zone de mobilité.
+            </p>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;">
+              <a href="${unsubscribeUrl}" style="color:#666;text-decoration:underline;">Se désabonner de tous les emails</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
+</html>
+    `;
+
+    const datesText = events
+      .map(
+        (e) =>
+          `  • ${new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}${e.startTime ? ` – ${e.startTime}${e.endTime ? ` à ${e.endTime}` : ''}` : ''}`
+      )
+      .join('\n');
+
+    const textContent = `
+Événement récurrent dans votre zone de mobilité !
+
+Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},
+
+Un nouvel événement récurrent vient d'être publié dans votre zone (${events.length} date(s)).
+
+Organisateur: ${organizer.firstName || ''} ${organizer.lastName || ''}
+Email: ${organizer.email || ''}
+
+Évènement: ${event.title}
+Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
+
+Dates:
+${datesText}
+
+${event.description ? `Description: ${event.description}` : ''}
+
+${event.requirements ? `Exigences: Durée ${event.requirements.duration || '?'} min, max ${event.requirements.maxPerformers || '?'} performeurs, exp. min ${event.requirements.minExperience || '?'} ans` : ''}
+
+Voir les dates et postuler: ${config.frontend.url}/events
+
+---
+Se désabonner: ${unsubscribeUrl}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+      replyTo: organizer?.email,
+      to: comedian.email,
+      subject,
+      html: htmlContent,
+      text: textContent,
+      mailSettings: { sandboxMode: { enable: false } },
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'X-Entity-Ref-ID': `mobility-recurring-${event._id}-${comedianId}-${Date.now()}`,
+        Precedence: 'bulk'
+      },
+      categories: ['mobility-notification', 'evenement', 'zone-mobilite', 'recurring'],
+      customArgs: {
+        eventId: event._id?.toString() || 'unknown',
+        comedianId: comedianId,
+        type: 'mobility_recurring_notification'
+      }
+    });
+
+    console.log(`✅ Email récurrent (${events.length} dates) envoyé à ${comedian.email} pour "${event.title}" à ${event.location?.city}`);
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Erreur envoi email récurrent à ${comedian.email}:`, errMsg);
+    throw error;
+  }
+};
+
+/**
+ * Envoie une invitation personnelle à un humoriste pour un événement spécifique
+ * Utilisé quand un organisateur invite directement un humoriste trouvé via la recherche par zone
+ *
+ * @param comedian - L'humoriste à inviter
+ * @param event - L'événement pour lequel l'inviter
+ * @param organizer - L'organisateur qui envoie l'invitation
+ */
+export const sendEventInvitationToComedian = async (
+  comedian: { _id: string; email: string; firstName: string; lastName: string; emailSubscriptions?: { globalSubscribed?: boolean } },
+  event: any,
+  organizer: { firstName: string; lastName: string; email: string }
+): Promise<void> => {
+  try {
+    // Vérifier abonnement email
+    if (comedian.emailSubscriptions?.globalSubscribed === false) {
+      console.log(`⏭️ Humoriste ${comedian.email} est désabonné - invitation non envoyée`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante pour invitation');
+      return;
+    }
+
+    const comedianId = comedian._id?.toString();
+    const unsubscribeUrl = generateUnsubscribeUrl(comedianId, comedian.email);
+    const organizerFullName = `${organizer.firstName || ''} ${organizer.lastName || ''}`.trim();
+
+    // Sujet de l'email
+    const subject = `Invitation personnelle - ${event.title} 🎤`;
+
+    // Préparer les sections d'exigences
+    const requirementItems: string[] = [];
+    if (event.requirements?.duration) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Durée : <strong style="color:#000000;font-weight:bold;">${event.requirements.duration} minutes</strong></li>`
+      );
+    }
+    if (event.requirements?.maxPerformers) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Performeurs max : <strong style="color:#000000;font-weight:bold;">${event.requirements.maxPerformers}</strong></li>`
+      );
+    }
+    if (event.requirements?.minExperience) {
+      requirementItems.push(
+        `<li style="margin-bottom:6px;color:#000000;font-size:15px;">Expérience min : <strong style="color:#000000;font-weight:bold;">${event.requirements.minExperience} ans</strong></li>`
+      );
+    }
+
+    const requirementsSection = requirementItems.length
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#fff8e5;background:#fff8e5;border:2px solid #f0c674;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:10px;color:#000000;font-size:16px;font-weight:bold;">📋 Exigences de l'évènement</strong>
+                <ul style="padding-left:20px;margin:0;list-style:disc;color:#000000;">
+                  ${requirementItems.join('')}
+                </ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const descriptionSection = event.description
+      ? `
+            <tr>
+              <td style="padding:18px 20px;background-color:#eef5ff;background:#eef5ff;border-left:4px solid #0066cc;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;">
+                <strong style="display:block;margin-bottom:8px;color:#000000;font-size:16px;font-weight:bold;">📝 Description</strong>
+                <span style="color:#000000;display:block;margin-top:6px;">${event.description}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+            </tr>
+          `
+      : '';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invitation personnelle</title>
+    <style>
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: #f2f2f2;
+      }
+      table {
+        border-spacing: 0;
+        border-collapse: collapse;
+      }
+      img {
+        border: 0;
+        line-height: 100%;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f2f2f2;">
+    <center style="width:100%;background:#f2f2f2;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 3px 12px rgba(24,36,56,0.08);">
+        <tr>
+          <td style="padding:28px 24px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#ffffff;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;line-height:30px;">✨ Invitation Personnelle</p>
+            <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;color:#e8e4ff;">${organizerFullName} vous invite à postuler !</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <table role="presentation" width="100%">
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#1f2a41;">
+                  Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},<br/><br/>
+                  <strong>${organizerFullName}</strong> a spécifiquement pensé à vous pour son évènement et vous invite personnellement à postuler. Ne manquez pas cette opportunité !
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" width="100%" style="border:1px solid #e3e6f0;border-radius:8px;">
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#f7f8fc;background:#f7f8fc;border-bottom:2px solid #d0d5e0;font-family:Arial,Helvetica,sans-serif;">
+                        <span style="display:block;font-size:12px;letter-spacing:1.2px;color:#333333;text-transform:uppercase;font-weight:bold;">Évènement</span>
+                        <strong style="display:block;margin-top:8px;font-size:22px;color:#000000;font-weight:bold;">${event.title}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:18px 20px;background-color:#ffffff;">
+                        <table role="presentation" width="100%">
+                          <tr>
+                            <td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;font-weight:normal;">
+                              <strong style="color:#000000;font-weight:bold;">📍 Adresse :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.location?.address || ''}, ${event.location?.city || ''}</span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">📅 Date :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${new Date(event.date).toLocaleDateString('fr-FR')}</span>
+                            </td>
+                          </tr>
+                          ${event.startTime ? `
+                          <tr>
+                            <td style="padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;">
+                              <strong style="color:#000000;font-weight:bold;">⏰ Heure :</strong><br/>
+                              <span style="color:#000000;display:block;margin-top:4px;">${event.startTime}</span>
+                            </td>
+                          </tr>
+                          ` : ''}
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td>
+                  <table role="presentation" width="100%" style="border:2px solid #dbe8ff;border-radius:8px;background-color:#f0f5ff;">
+                    <tr>
+                      <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#000000;background-color:#f0f5ff;">
+                        <strong style="display:block;font-size:16px;color:#000000;font-weight:bold;margin-bottom:8px;">👤 Organisateur</strong>
+                        <span style="display:block;margin-top:6px;color:#000000;font-size:15px;">${organizerFullName}</span>
+                        ${organizer.email ? `<a href="mailto:${organizer.email}" style="display:inline-block;margin-top:10px;color:#0066cc;text-decoration:underline;font-weight:bold;font-size:14px;">📧 Contacter l'organisateur</a>` : ''}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:16px;font-size:16px;line-height:16px;">&nbsp;</td>
+              </tr>
+              ${descriptionSection}
+              ${requirementsSection}
+              <tr>
+                <td align="center" style="padding:20px 0;">
+                  <a href="${config.frontend.url}/events" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;border-radius:6px;text-align:center;min-width:200px;">🚀 Je postule maintenant</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:20px;font-size:20px;line-height:20px;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#6c6f85;text-align:center;">
+                  Connectez-vous à votre espace Connect Comedy Club pour candidater rapidement.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px;background:#f7f8fc;text-align:center;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#7b7f95;">
+              Connect Comedy Club · Restez inspiré et à l'écoute des nouvelles scènes.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer de désabonnement -->
+        <tr>
+          <td style="padding:40px 24px 20px 24px;border-top:1px solid #e0e0e0;text-align:center;">
+            <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#666;">
+              Vous recevez cet email car un organisateur vous a invité personnellement.
+            </p>
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;">
+              <a href="${unsubscribeUrl}" style="color:#666;text-decoration:underline;">
+                Se désabonner de tous les emails
+              </a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
+</html>
+    `;
+
+    // Version texte simple pour améliorer la délivrabilité
+    const textContent = `
+Invitation personnelle !
+
+Bonjour${comedian.firstName ? ` ${comedian.firstName}` : ''},
+
+${organizerFullName} a spécifiquement pensé à vous pour son évènement et vous invite personnellement à postuler !
+
+Organisateur: ${organizerFullName}
+Email: ${organizer.email || ''}
+
+Évènement: ${event.title}
+Date: ${new Date(event.date).toLocaleDateString('fr-FR')}
+Lieu: ${event.location?.address || ''}, ${event.location?.city || ''}
+${event.startTime ? `Heure: ${event.startTime}` : ''}
+
+${event.description ? `Description: ${event.description}` : ''}
+
+${event.requirements ? `
+Exigences:
+- Durée: ${event.requirements.duration || 'Non précisé'} minutes
+- Nombre maximum de performeurs: ${event.requirements.maxPerformers || 'Non précisé'}
+- Expérience minimale: ${event.requirements.minExperience || 'Non précisé'} ans
+` : ''}
+
+Postulez maintenant: ${config.frontend.url}/events
+
+---
+Se désabonner: ${unsubscribeUrl}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      replyTo: organizer.email,
+      to: comedian.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      mailSettings: {
+        sandboxMode: {
+          enable: false
+        }
+      },
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'X-Entity-Ref-ID': `personal-invitation-${event._id}-${comedianId}-${Date.now()}`,
+        'Precedence': 'bulk'
+      },
+      categories: ['personal-invitation', 'evenement', 'invitation-directe'],
+      customArgs: {
+        eventId: event._id?.toString() || 'unknown',
+        comedianId: comedianId,
+        organizerId: organizer.email,
+        type: 'personal_event_invitation'
+      }
+    });
+
+    console.log(`✅ Invitation personnelle envoyée à ${comedian.email} pour l'événement "${event.title}" par ${organizerFullName}`);
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorResponse = (error as any)?.response?.body;
+    const errorCode = (error as any)?.code;
+    console.error(`❌ Erreur envoi invitation à ${comedian.email}:`, {
+      message: errorMessage,
+      response: errorResponse,
+      code: errorCode
+    });
+    throw error;
+  }
+};
+
+/**
+ * Envoie un email à l'organisateur pour l'informer d'un désistement tardif
+ * et lui indiquer que l'événement est mis en avant
+ */
+export const sendLateCancellationToOrganizer = async (
+  eventData: any,
+  comedianData: any,
+  organizerData: any,
+  hoursBeforeEvent: number
+): Promise<void> => {
+  try {
+    console.log('📬 Service Email: Notification désistement tardif à l\'organisateur...');
+
+    // Vérifier l'abonnement email
+    const organizerId = organizerData._id || organizerData.id;
+    if (organizerId && !(await checkUserEmailSubscription(organizerId))) {
+      console.log(`⏭️ Organisateur ${organizerData.email} est désabonné - email non envoyé`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    const subject = `⚠️ Désistement tardif pour "${eventData.title}" - L'événement est mis en avant`;
+    const unsubscribeUrl = organizerId
+      ? generateUnsubscribeUrl(organizerId.toString(), organizerData.email)
+      : `${config.frontend.url}/unsubscribe`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Désistement Tardif</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .boost-box {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .boost-box h3 {
+            margin: 0 0 10px 0;
+            color: #155724;
+        }
+        .comedian-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .event-summary {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Désistement Tardif</h1>
+        </div>
+        
+        <div class="content">
+            <div class="alert-box">
+                <h2>Un humoriste s'est désisté moins de 72h avant votre événement</h2>
+                <p style="margin: 10px 0 0 0; color: #856404;">
+                    <strong>${hoursBeforeEvent.toFixed(1)} heures</strong> avant le début de l'événement
+                </p>
+            </div>
+
+            <div class="comedian-card">
+                <h3 style="margin: 0 0 10px 0;">🎭 ${comedianData.firstName} ${comedianData.lastName}</h3>
+                <p style="margin: 0; opacity: 0.9;">${comedianData.email}</p>
+            </div>
+
+            <div class="event-summary">
+                <h3 style="margin: 0 0 15px 0; color: #333;">📅 ${eventData.title}</h3>
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${eventDate}</p>
+                <p style="margin: 5px 0;"><strong>Lieu:</strong> ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}</p>
+            </div>
+
+            <div class="boost-box">
+                <h3>✨ Bonne nouvelle !</h3>
+                <p style="margin: 0; color: #155724;">
+                    Votre événement a été automatiquement <strong>mis en avant</strong> dans les recommandations des humoristes.
+                    Il apparaîtra en priorité pour trouver rapidement un remplaçant.
+                </p>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px;">
+                <a href="${config.frontend.url}/events/${eventData._id}" class="cta-button">
+                    📋 Voir mon événement
+                </a>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textContent = `
+Désistement Tardif - ${eventData.title}
+
+Bonjour ${organizerData.firstName},
+
+Un humoriste s'est désisté moins de 72h avant votre événement:
+
+Humoriste: ${comedianData.firstName} ${comedianData.lastName} (${comedianData.email})
+Désistement: ${hoursBeforeEvent.toFixed(1)} heures avant l'événement
+
+Événement: ${eventData.title}
+Date: ${eventDate}
+Lieu: ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}
+
+Bonne nouvelle ! Votre événement a été automatiquement mis en avant dans les recommandations des humoristes pour trouver rapidement un remplaçant.
+
+Voir mon événement: ${config.frontend.url}/events/${eventData._id}
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: organizerData.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      },
+      categories: ['late-cancellation', 'organizer']
+    });
+
+    console.log(`✅ Email de désistement tardif envoyé à l'organisateur ${organizerData.email}`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email de désistement à l\'organisateur:', error);
+  }
+};
+
+/**
+ * Envoie un email à l'humoriste pour confirmer son désistement tardif
+ * et l'informer de son total d'annulations tardives
+ */
+export const sendLateCancellationToComedian = async (
+  eventData: any,
+  comedianData: any,
+  hoursBeforeEvent: number,
+  totalLateCancellations: number
+): Promise<void> => {
+  try {
+    console.log('📬 Service Email: Confirmation désistement tardif à l\'humoriste...');
+
+    // Vérifier l'abonnement email
+    const comedianId = comedianData._id || comedianData.id;
+    if (comedianId && !(await checkUserEmailSubscription(comedianId))) {
+      console.log(`⏭️ Humoriste ${comedianData.email} est désabonné - email non envoyé`);
+      return;
+    }
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    const subject = `⚠️ Confirmation de votre désistement - ${eventData.title}`;
+    const unsubscribeUrl = comedianId
+      ? generateUnsubscribeUrl(comedianId.toString(), comedianData.email)
+      : `${config.frontend.url}/unsubscribe`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmation de Désistement</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .content {
+            padding: 30px;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        .event-summary {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .stats-box {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .stats-box h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+        }
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: ${totalLateCancellations >= 3 ? '#dc3545' : totalLateCancellations >= 2 ? '#ffc107' : '#28a745'};
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Confirmation de Désistement</h1>
+        </div>
+        
+        <div class="content">
+            <p>Bonjour ${comedianData.firstName},</p>
+            
+            <p>Nous avons bien enregistré votre désistement pour l'événement suivant :</p>
+
+            <div class="event-summary">
+                <h3 style="margin: 0 0 15px 0; color: #333;">📅 ${eventData.title}</h3>
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${eventDate}</p>
+                <p style="margin: 5px 0;"><strong>Lieu:</strong> ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}</p>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ Attention - Désistement tardif</h3>
+                <p style="margin: 0; color: #856404;">
+                    Votre désistement a été effectué <strong>${hoursBeforeEvent.toFixed(1)} heures</strong> avant le début de l'événement.
+                    Un désistement à moins de 72h est considéré comme tardif.
+                </p>
+            </div>
+
+            <div class="stats-box">
+                <h3>Vos annulations tardives</h3>
+                <div class="stat-value">${totalLateCancellations}</div>
+                <div class="stat-label">au total</div>
+                <p style="margin-top: 15px; color: #6c757d; font-size: 14px;">
+                    ${totalLateCancellations >= 3 
+                      ? '⚠️ Votre nombre d\'annulations tardives est élevé. Pour maintenir votre réputation, nous vous recommandons d\'être plus vigilant sur vos engagements.' 
+                      : totalLateCancellations >= 2 
+                        ? '💡 Attention, vous avez déjà plusieurs annulations tardives. Pensez à bien vérifier vos disponibilités avant d\'accepter une candidature.' 
+                        : '✅ Continuez à respecter vos engagements pour maintenir une bonne réputation sur la plateforme.'}
+                </p>
+            </div>
+
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                L'organisateur a été notifié et l'événement a été mis en avant pour trouver rapidement un remplaçant.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+            <p>
+                <a href="${unsubscribeUrl}" style="color: #666; text-decoration: underline;">
+                    Se désabonner de tous les emails
+                </a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textContent = `
+Confirmation de Désistement - ${eventData.title}
+
+Bonjour ${comedianData.firstName},
+
+Nous avons bien enregistré votre désistement pour l'événement suivant :
+
+Événement: ${eventData.title}
+Date: ${eventDate}
+Lieu: ${eventData.location?.address || 'Non spécifié'}, ${eventData.location?.city || 'Non spécifié'}
+
+⚠️ Attention - Désistement tardif
+Votre désistement a été effectué ${hoursBeforeEvent.toFixed(1)} heures avant le début de l'événement.
+Un désistement à moins de 72h est considéré comme tardif.
+
+Vos annulations tardives: ${totalLateCancellations} au total
+
+${totalLateCancellations >= 3 
+  ? '⚠️ Votre nombre d\'annulations tardives est élevé. Pour maintenir votre réputation, nous vous recommandons d\'être plus vigilant sur vos engagements.' 
+  : totalLateCancellations >= 2 
+    ? '💡 Attention, vous avez déjà plusieurs annulations tardives. Pensez à bien vérifier vos disponibilités avant d\'accepter une candidature.' 
+    : '✅ Continuez à respecter vos engagements pour maintenir une bonne réputation sur la plateforme.'}
+
+L'organisateur a été notifié et l'événement a été mis en avant pour trouver rapidement un remplaçant.
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: comedianData.email,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      },
+      categories: ['late-cancellation', 'comedian']
+    });
+
+    console.log(`✅ Email de confirmation de désistement envoyé à l'humoriste ${comedianData.email}`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email de désistement à l\'humoriste:', error);
+  }
+};
+
+/**
+ * Envoie un email urgent aux humoristes pour les informer qu'une place est disponible
+ * suite à un désistement tardif
+ */
+export const sendUrgentAvailabilityToComedians = async (
+  eventData: any,
+  organizerData: any,
+  comedianEmails: string[],
+  isFollowUpNotification: boolean = false
+): Promise<void> => {
+  try {
+    console.log(`📬 Service Email: Notification place disponible à ${comedianEmails.length} humoristes...`);
+
+    // Mode économie mémoire
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_EMAILS === 'true') {
+      console.log('⚠️ 📧 Emails désactivés pour économiser la mémoire');
+      return;
+    }
+
+    // Vérifier la configuration email
+    if (!config.email.smtpUser || !config.email.smtpPass) {
+      console.error('❌ Configuration email manquante');
+      return;
+    }
+
+    if (comedianEmails.length === 0) {
+      console.log('⚠️ Aucun humoriste à notifier');
+      return;
+    }
+
+    // Adapter le sujet et le contenu selon le type de notification
+    const subject = isFollowUpNotification
+      ? `🔥 NOUVELLE place disponible ! - ${eventData.title}`
+      : `🔥 Place disponible en urgence - ${eventData.title}`;
+
+    const eventDate = new Date(eventData.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const eventTime = eventData.startTime || 'Heure non spécifiée';
+
+    // Adapter le titre et le message selon le type de notification
+    const headerTitle = isFollowUpNotification
+      ? '🔥 NOUVELLE Place Disponible !'
+      : '🔥 Place Disponible en Urgence !';
+    const urgencyTitle = isFollowUpNotification
+      ? 'Encore une place libérée !'
+      : 'Un humoriste s\'est désisté !';
+    const urgencyText = isFollowUpNotification
+      ? 'Une <strong>NOUVELLE</strong> place vient de se libérer ! Il y a maintenant plusieurs opportunités sur cet événement.'
+      : 'Une place vient de se libérer sur cet événement. <strong>Postulez rapidement</strong> pour maximiser vos chances d\'être sélectionné.';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Place disponible en urgence</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .urgent-badge {
+            display: inline-block;
+            background: #fff;
+            color: #ff4757;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+        .content {
+            padding: 30px;
+        }
+        .urgency-box {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border: 3px solid #ff4757;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .urgency-box h2 {
+            margin: 0 0 10px 0;
+            color: #c0392b;
+            font-size: 24px;
+        }
+        .urgency-box p {
+            margin: 0;
+            color: #8b4513;
+            font-size: 16px;
+        }
+        .event-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        .event-card h3 {
+            margin: 0 0 15px 0;
+            font-size: 22px;
+        }
+        .event-details {
+            margin-top: 15px;
+        }
+        .event-details p {
+            margin: 8px 0;
+            opacity: 0.95;
+        }
+        .organizer-info {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(255, 71, 87, 0.4);
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .advantages {
+            background: #e8f5e9;
+            border-left: 5px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 12px 12px 0;
+        }
+        .advantages h4 {
+            margin: 0 0 10px 0;
+            color: #2e7d32;
+        }
+        .advantages ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #388e3c;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>${headerTitle}</h1>
+            <div class="urgent-badge">⚡ Opportunité immédiate</div>
+        </div>
+        
+        <div class="content">
+            <div class="urgency-box">
+                <h2>${urgencyTitle}</h2>
+                <p>${urgencyText}</p>
+            </div>
+
+            <div class="event-card">
+                <h3>🎭 ${eventData.title}</h3>
+                <div class="event-details">
+                    <p>📅 <strong>${eventDate}</strong></p>
+                    <p>⏰ ${eventTime}</p>
+                    <p>📍 ${eventData.location?.city || 'Lieu non spécifié'}</p>
+                    ${eventData.location?.venue ? `<p>🏢 ${eventData.location.venue}</p>` : ''}
+                </div>
+            </div>
+
+            ${organizerData ? `
+            <div class="organizer-info">
+                <h4 style="margin: 0 0 10px 0; color: #333;">Organisateur</h4>
+                <p style="margin: 0; color: #666;">
+                    ${organizerData.firstName} ${organizerData.lastName}
+                    ${organizerData.organizerProfile?.companyName ? ` - ${organizerData.organizerProfile.companyName}` : ''}
+                </p>
+            </div>
+            ` : ''}
+
+            <div class="advantages">
+                <h4>✅ Pourquoi postuler maintenant ?</h4>
+                <ul>
+                    <li><strong>Place en priorité</strong> : L'événement est boosté dans les recommandations</li>
+                    <li><strong>Moins de concurrence</strong> : Moins de candidatures que d'habitude</li>
+                    <li><strong>Visibilité maximale</strong> : L'organisateur cherche activement un remplaçant</li>
+                </ul>
+            </div>
+
+            <p style="text-align: center;">
+                <a href="${config.frontend.url}/events/${eventData._id}" class="cta-button">
+                    🚀 Postuler maintenant
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 14px; text-align: center; margin-top: 20px;">
+                ⏱️ Cette opportunité est limitée dans le temps. Ne tardez pas !
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>L'équipe Connect Comedy Club</strong></p>
+            <p>Connecter les talents avec les opportunités</p>
+        </div>
+
+        <div style="padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p>Vous recevez cet email car vous êtes inscrit sur Connect Comedy Club.</p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    const textTitle = isFollowUpNotification
+      ? '🔥 NOUVELLE PLACE DISPONIBLE !'
+      : '🔥 PLACE DISPONIBLE EN URGENCE !';
+    const textMessage = isFollowUpNotification
+      ? 'Encore une place libérée ! Il y a maintenant plusieurs opportunités sur cet événement.'
+      : 'Un humoriste s\'est désisté ! Une place vient de se libérer sur cet événement.';
+
+    const textContent = `
+${textTitle}
+
+${textMessage}
+Postulez rapidement pour maximiser vos chances.
+
+🎭 ${eventData.title}
+📅 ${eventDate}
+⏰ ${eventTime}
+📍 ${eventData.location?.city || 'Lieu non spécifié'}
+
+POURQUOI POSTULER MAINTENANT ?
+- Place en priorité : L'événement est boosté dans les recommandations
+- Moins de concurrence : Moins de candidatures que d'habitude  
+- Visibilité maximale : L'organisateur cherche activement un remplaçant
+
+POSTULER : ${config.frontend.url}/events/${eventData._id}
+
+⏱️ Cette opportunité est limitée dans le temps. Ne tardez pas !
+
+L'équipe Connect Comedy Club
+    `.trim();
+
+    // Envoyer à tous les humoristes en BCC pour ne pas exposer les emails
+    await sgMail.send({
+      from: {
+        email: config.email.smtpUser,
+        name: 'Connect Comedy Club'
+      },
+      to: config.email.smtpUser,
+      bcc: comedianEmails,
+      subject: subject,
+      html: htmlContent,
+      text: textContent,
+      categories: ['urgent', 'late-cancellation', 'opportunity']
+    });
+
+    console.log(`✅ Email urgent envoyé à ${comedianEmails.length} humoristes pour l'événement "${eventData.title}"`);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email urgent aux humoristes:', error);
+  }
+};
+
+/**
+ * Email récapitulatif quotidien pour les spectateurs (événements dans leur rayon).
+ * Max 1 envoi par jour (géré par l'appelant avec lastDailyRecapAt).
+ */
+export const sendDailySpectatorRecapEmail = async (
+  spectator: { email: string; firstName?: string; lastName?: string },
+  events: Array<{ title?: string; date?: Date; location?: { city?: string } }>
+): Promise<void> => {
+  if (!config.email.smtpUser || !config.email.smtpPass) {
+    console.warn('📧 Email non configuré, récap spectateur ignoré');
+    return;
+  }
+
+  const name = [spectator.firstName, spectator.lastName].filter(Boolean).join(' ') || 'Spectateur';
+  const eventList = events
+    .slice(0, 20)
+    .map(
+      (e) =>
+        `• ${e.title || 'Événement'} - ${e.date ? new Date(e.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''}${e.location?.city ? ` (${e.location.city})` : ''}`
+    )
+    .join('\n');
+
+  const htmlContent = `
+    <div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);padding:24px;font-family:Arial,sans-serif;">
+      <h2 style="color:#1a1a2e;margin-bottom:16px;">Récap des événements près de chez vous</h2>
+      <p style="color:#444;">Bonjour ${name},</p>
+      <p style="color:#444;">Voici les nouveaux événements dans votre rayon ces dernières 24h :</p>
+      <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-line;font-size:14px;">${eventList}</div>
+      <p style="color:#444;">
+        <a href="${config.frontend.url}/spectateur" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#FF5A7E,#FF7A92);color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">Voir sur l'accueil</a>
+      </p>
+      <p style="color:#888;font-size:12px;">Connect Comedy Club – 1 récap par jour maximum.</p>
+    </div>
+  `.trim();
+
+  await sgMail.send({
+    from: { email: config.email.smtpUser, name: 'Connect Comedy Club' },
+    to: spectator.email,
+    subject: `Récap : ${events.length} événement(s) près de chez vous`,
+    html: htmlContent,
+    categories: ['spectator-recap', 'evenement'],
+  });
+};

@@ -30,9 +30,33 @@ const cronJobs: CronJob[] = [
     enabled: config.cron.enabled
   },
   {
+    name: 'Relances humoristes (événements incomplets J-2 et J-1)',
+    schedule: config.cron.organizerReminderSchedule,
+    endpoint: '/api/email/jobs/incomplete-event-reminders',
+    enabled: config.cron.enabled
+  },
+  {
     name: 'Marquage évènements terminés',
     schedule: config.cron.markCompletedSchedule,
     endpoint: '/api/events/jobs/mark-completed',
+    enabled: config.cron.enabled
+  },
+  {
+    name: 'Vérification scores de présence',
+    schedule: config.cron.presenceAlertSchedule,
+    endpoint: '/api/presence-alerts/jobs/check',
+    enabled: config.cron.enabled
+  },
+  {
+    name: 'Nettoyage comptes désactivés (RGPD 30j)',
+    schedule: config.cron.accountCleanupSchedule,
+    endpoint: '/api/users/jobs/cleanup-deactivated',
+    enabled: config.cron.enabled
+  },
+  {
+    name: 'Récap quotidien spectateurs (événements dans le rayon)',
+    schedule: config.cron.dailySpectatorRecapSchedule,
+    endpoint: '/api/email/jobs/daily-spectator-recap',
     enabled: config.cron.enabled
   }
 ];

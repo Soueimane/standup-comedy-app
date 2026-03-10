@@ -520,6 +520,28 @@ function ComedianDetailsModal({ isOpen, onClose, comedian }: ComedianDetailsModa
                 </span>
               </div>
 
+              <div style={infoRowStyle}>
+                <span style={infoLabelStyle}>⏰ Annulations tardives:</span>
+                <span style={{
+                  ...infoValueStyle,
+                  color: (comedian.stats?.lateCancellations || 0) >= 3 ? '#dc3545' :
+                         (comedian.stats?.lateCancellations || 0) >= 2 ? '#ffc107' : '#28a745',
+                  fontWeight: 'bold'
+                }}>
+                  {comedian.stats?.lateCancellations || 0}
+                  {(comedian.stats?.lateCancellations || 0) >= 2 && (
+                    <span
+                      title={(comedian.stats?.lateCancellations || 0) >= 3
+                        ? 'Attention: Cet humoriste a un historique eleve d\'annulations tardives'
+                        : 'Cet humoriste a quelques annulations tardives'}
+                      style={{ marginLeft: 6, cursor: 'pointer' }}
+                    >
+                      ⚠️
+                    </span>
+                  )}
+                </span>
+              </div>
+
               {/* Détails des absences avec messages */}
               {loadingAbsences ? (
                 <div style={{ textAlign: 'center', color: '#aaa', padding: '10px', fontSize: '12px' }}>

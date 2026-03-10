@@ -1,13 +1,17 @@
 import { Router } from 'express';
-import { 
-  register, 
-  login, 
-  getProfile, 
+import {
+  register,
+  login,
+  reactivateAccount,
+  getProfile,
   getAllUsers,
   forgotPassword,
   resetPassword,
   getPasswordResetRequests,
-  adminResetPassword
+  adminResetPassword,
+  deactivateUser,
+  reactivateUser,
+  deleteUser,
 } from '../controllers/auth';
 import { authMiddleware, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -18,6 +22,7 @@ const router = Router();
 // Routes publiques
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
+router.post('/reactivate', validate(loginSchema), reactivateAccount);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
@@ -28,5 +33,10 @@ router.get('/users', authMiddleware, authorizeRoles('SUPER_ADMIN'), getAllUsers)
 // Routes Super Admin pour gestion des réinitialisations
 router.get('/admin/password-reset-requests', authMiddleware, authorizeRoles('SUPER_ADMIN'), getPasswordResetRequests);
 router.post('/admin/reset-password', authMiddleware, authorizeRoles('SUPER_ADMIN'), adminResetPassword);
+
+// Routes Super Admin pour desactiver/reactiver/supprimer des comptes
+router.patch('/users/:userId/deactivate', authMiddleware, authorizeRoles('SUPER_ADMIN'), deactivateUser);
+router.patch('/users/:userId/reactivate', authMiddleware, authorizeRoles('SUPER_ADMIN'), reactivateUser);
+router.delete('/users/:userId', authMiddleware, authorizeRoles('SUPER_ADMIN'), deleteUser);
 
 export default router; 

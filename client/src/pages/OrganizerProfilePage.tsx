@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditOrganizerProfileForm from '../components/EditOrganizerProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
+import DeleteAccountSection from '../components/DeleteAccountSection';
+import ExportDataSection from '../components/ExportDataSection';
 
 function OrganizerProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
@@ -224,17 +226,36 @@ function OrganizerProfilePage() {
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Budget moyen:</span>
-              <span style={infoValueStyle}>{(user?.organizerProfile?.averageBudget?.min !== undefined ? user.organizerProfile.averageBudget.min : 'Non spécifié')} - {(user?.organizerProfile?.averageBudget?.max !== undefined ? user.organizerProfile.averageBudget.max : 'Non spécifié')}€</span>
+              <span style={infoValueStyle}>
+                {user?.organizerProfile?.averageBudget?.min !== undefined && user?.organizerProfile?.averageBudget?.max !== undefined
+                  ? `${user.organizerProfile.averageBudget.min} - ${user.organizerProfile.averageBudget.max}€`
+                  : 'Non spécifié'}
+              </span>
             </div>
             <div style={infoRowStyle}>
               <span style={infoLabelStyle}>Fréquence des évènements:</span>
-              <span style={infoValueStyle}>{user?.organizerProfile?.eventFrequency || 'monthly'}</span>
+              <span style={infoValueStyle}>
+                {user?.organizerProfile?.eventFrequency === 'weekly' ? 'Hebdomadaire' :
+                 user?.organizerProfile?.eventFrequency === 'monthly' ? 'Mensuel' :
+                 user?.organizerProfile?.eventFrequency === 'occasional' ? 'Occasionnel' :
+                 'Non spécifié'}
+              </span>
             </div>
           </div>
 
           {/* Préférences Email */}
           <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
             <EmailPreferences />
+          </div>
+
+          {/* Export des données (RGPD) */}
+          <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2', marginTop: '20px' }}>
+            <ExportDataSection />
+          </div>
+
+          {/* Suppression de compte */}
+          <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
+            <DeleteAccountSection />
           </div>
         </div>
       )}

@@ -27,20 +27,12 @@ export const registerSchema = z.object({
       return !invalidPatterns.some(pattern => pattern.test(email.trim()));
     }, 'Format d\'email invalide (ex: nom@domaine.com)'),
   phone: z.string()
+    .optional()
     .refine((phone) => {
-      // Nettoyer le numéro (supprimer espaces, tirets, parenthèses, +)
+      if (!phone || phone.trim() === '') return true;
       const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '');
-      
-      // Validation pour numéros français (mobiles + fixes)
-      // Mobiles: 06, 07
-      // Fixes: 01, 02, 03, 04, 05, 08, 09 (selon région)
       const frenchPhoneRegex = /^(0[1-9])[0-9]{8}$/;
-      
-      // Validation pour numéros belges (mobiles + fixes)
-      // Mobiles: 04
-      // Fixes: 02, 03, 04, 09, 010, 011, 012, 013, 014, 015, 016, 019, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 067, 068, 069, 071, 080, 081, 082, 083, 084, 085, 086, 087, 089
       const belgianPhoneRegex = /^(0[1-9][0-9]{7,8})$/;
-      
       return frenchPhoneRegex.test(cleanPhone) || belgianPhoneRegex.test(cleanPhone);
     }, 'Numéro de téléphone invalide (format français: 0XXXXXXXXX, format belge: 0XXXXXXXX ou 0XXXXXXXXX)'),
   password: z.string()
@@ -53,16 +45,60 @@ export const registerSchema = z.object({
   lastName: z.string()
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'),
-  role: z.enum(['COMEDIAN', 'ORGANIZER', 'ADMIN']),
+  role: z.enum(['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR']),
+  city: z.string().optional(),
+  birthDate: z.string().optional(),
   profile: z.object({
     bio: z.string()
       .min(10, 'La biographie doit contenir au moins 10 caractères')
       .max(500, 'La biographie ne peut pas dépasser 500 caractères'),
-    experience: z.number()
-      .min(0, 'L\'expérience doit être un nombre positif')
-      .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
+    experience: z.preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const parsed = parseInt(val, 10);
+          return isNaN(parsed) ? 0 : parsed;
+        }
+        return typeof val === 'number' ? val : 0;
+      },
+      z.number()
+        .min(0, 'L\'expérience doit être un nombre positif')
+        .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
+    )
+  }).optional(),
+  // Consentement RGPD
+  consent: z.object({
+    termsAccepted: z.boolean(),
+    privacyAccepted: z.boolean(),
+    isAdult: z.boolean()
+  }).optional()
+})
+  .refine((data) => {
+    if (data.role === 'COMEDIAN') {
+      if (!data.profile || data.profile === null || data.profile === undefined) {
+        return false;
+      }
+      if (!data.profile.bio || data.profile.bio.trim().length < 10) {
+        return false;
+      }
+      if (data.profile.experience === undefined || data.profile.experience === null) {
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }, {
+    message: 'Le profil est requis pour les humoristes avec une biographie d\'au moins 10 caractères et une expérience',
+    path: ['profile']
   })
-});
+  .refine((data) => {
+    if (data.role === 'SPECTATOR') {
+      return typeof data.city === 'string' && data.city.trim().length >= 2;
+    }
+    return true;
+  }, {
+    message: 'La ville de résidence est requise pour les spectateurs (au moins 2 caractères)',
+    path: ['city']
+  });
 
 export const loginSchema = z.object({
   email: z.string()
@@ -82,6 +118,7 @@ export const locationSchema = z.object({
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(100, { message: 'Le nom du lieu est trop long' })
     .transform((val) => val.trim()),
+  venueType: z.enum(['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre']).optional(),
   address: z.string()
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(200, { message: 'L\'adresse est trop longue' })
@@ -90,6 +127,14 @@ export const locationSchema = z.object({
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(50, { message: 'Le nom de la ville est trop long' })
     .transform((val) => val.trim()),
+  postalCode: z.string()
+    .regex(/^\d{5}$/, { message: 'Le code postal doit contenir 5 chiffres' })
+    .optional()
+    .transform((val) => val?.trim()),
+  department: z.string()
+    .max(3, { message: 'Le code département est invalide' })
+    .optional()
+    .transform((val) => val?.trim()),
   country: z.string()
     .min(1, { message: 'Event location is incomplete or invalid' })
     .max(50, { message: 'Le nom du pays est trop long' })
@@ -98,10 +143,12 @@ export const locationSchema = z.object({
 
 export const updateLocationSchema = z.object({
   venue: z.string().max(100).optional().transform((val) => val?.trim()),
+  venueType: z.enum(['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre']).optional(),
   address: z.string().max(200).optional().transform((val) => val?.trim()),
   city: z.string().max(50).optional().transform((val) => val?.trim()),
+  postalCode: z.string().optional().transform((val) => val?.trim()),
+  department: z.string().max(3).optional().transform((val) => val?.trim()),
   country: z.string().max(50).optional().transform((val) => val?.trim()),
-  postalCode: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 }).strict().partial();
@@ -118,7 +165,8 @@ export const requirementsSchema = z.object({
   duration: z.number()
     .min(1, { message: 'Invalid event requirements' })
     .max(480, { message: 'Invalid event requirements' })
-    .optional()
+    .optional(),
+  requiredExperienceLevel: z.enum(['all', '0-50', '50-200', '200+']).optional()
 });
 
 export const createEventSchema = z.object({
@@ -130,6 +178,7 @@ export const createEventSchema = z.object({
     .min(10, { message: 'La description doit contenir au moins 10 caractères' })
     .max(2000, { message: 'La description ne peut pas dépasser 2000 caractères' })
     .transform((val) => val.trim()),
+  // date est optionnel si isRecurring est true
   date: z.string()
     .refine((str) => {
       const date = new Date(str);
@@ -141,7 +190,38 @@ export const createEventSchema = z.object({
       today.setHours(0, 0, 0, 0);
       return date >= today;
     }, { message: 'Event date is invalid or in the past' })
-    .transform((str) => new Date(str)),
+    .transform((str) => new Date(str))
+    .optional(),
+  // dates est requis si isRecurring est true
+  dates: z.array(z.string())
+    .min(1, { message: 'Au moins une date est requise pour un événement récurrent' })
+    .refine((dates) => {
+      return dates.every(dateStr => {
+        const date = new Date(dateStr);
+        return !isNaN(date.getTime());
+      });
+    }, { message: 'Une ou plusieurs dates sont invalides' })
+    .refine((dates) => {
+      return dates.length === new Set(dates).size;
+    }, { message: 'Les dates doivent être uniques' })
+    .refine((dates) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return dates.every(dateStr => {
+        const date = new Date(dateStr);
+        date.setHours(0, 0, 0, 0);
+        return date >= today;
+      });
+    }, { message: 'Toutes les dates doivent être dans le futur' })
+    .optional(),
+  isRecurring: z.union([z.boolean(), z.string()])
+    .transform((val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return val === true;
+    })
+    .optional(),
   location: locationSchema,
   requirements: requirementsSchema,
   startTime: z.string()
@@ -159,16 +239,37 @@ export const createEventSchema = z.object({
     .min(1, { message: 'Invalid maximum number of performers' })
     .max(100, { message: 'Invalid maximum number of performers' })
     .optional(),
+  maxSpectators: z.number()
+    .min(1, { message: 'Le nombre de places doit être au moins 1' })
+    .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
+    .optional(),
+  // Heures par date pour événements récurrents (optionnel)
+  dateTimes: z.array(z.object({
+    date: z.string(),
+    startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+    endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  })).optional(),
 }).refine((data) => {
-  const startParts = data.startTime.split(':');
-  const endParts = data.endTime.split(':');
-  const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-  const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-  return endMinutes > startMinutes;
+  // Validation : si isRecurring est true, dates doit être présent et date ne doit pas l'être
+  if (data.isRecurring === true) {
+    if (!data.dates || data.dates.length === 0) {
+      return false;
+    }
+    if (data.date) {
+      return false; // Ne pas permettre date et dates en même temps
+    }
+  } else {
+    // Si isRecurring est false ou undefined, date doit être présent
+    if (!data.date) {
+      return false;
+    }
+  }
+  return true;
 }, {
-  message: 'End time must be after start time',
-  path: ['endTime']
+  message: 'Pour un événement unique, fournissez "date". Pour un événement récurrent, fournissez "isRecurring: true" et "dates"',
+  path: ['date']
 });
+// Note: on n'exige plus endTime > startTime pour autoriser les événements qui dépassent minuit (fin le lendemain)
 
 export const updateEventSchema = z.object({
   title: z.string()
@@ -214,20 +315,12 @@ export const updateEventSchema = z.object({
     .min(1, { message: 'Invalid maximum number of performers' })
     .max(100, { message: 'Invalid maximum number of performers' })
     .optional(),
-}).partial().refine((data) => {
-  // Si les deux heures sont fournies, validez que la fin est après le début
-  if (data.startTime && data.endTime) {
-    const startParts = data.startTime.split(':');
-    const endParts = data.endTime.split(':');
-    const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-    const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-    return endMinutes > startMinutes;
-  }
-  return true;
-}, {
-  message: 'End time must be after start time',
-  path: ['endTime']
-});
+  maxSpectators: z.number()
+    .min(1, { message: 'Le nombre de places doit être au moins 1' })
+    .max(10000, { message: 'Le nombre de places ne peut pas dépasser 10000' })
+    .optional(),
+}).partial();
+// Note: on n'exige plus endTime > startTime pour autoriser les événements qui dépassent minuit (fin le lendemain)
 
 // ============================================================================
 // SCHÉMAS D'APPLICATION
@@ -291,6 +384,7 @@ export const updateProfileSchema = z.object({
     }, { message: 'Invalid phone number format' })
     .optional(),
   address: z.string().optional(),
+  birthDate: z.string().optional(),
   gender: z.enum(['femme', 'homme'], {
     errorMap: () => ({ message: 'Le genre doit être "femme" ou "homme"' })
   }).optional(),
@@ -311,6 +405,10 @@ export const updateProfileSchema = z.object({
     numberOfScenes: z.enum(['0-50', '50-200', '200+']).optional(),
     comedyStyle: z.array(z.enum(['stand-up', 'improvisation', 'plateau', 'sketch'])).optional(),
     performanceLanguages: z.array(z.enum(['francais', 'arabe', 'anglais', 'italien', 'espagnol'])).optional(),
+    mobilityZone: z.array(z.object({
+      type: z.enum(['ville', 'departement', 'region']),
+      value: z.string().min(1, { message: 'La valeur de la zone ne peut pas être vide' }),
+    })).optional(),
     socialLinks: z.object({
       youtube: z.string().url().optional().or(z.string().length(0)),
       instagram: z.string().url().optional().or(z.string().length(0)),
@@ -330,4 +428,24 @@ export const updateProfileSchema = z.object({
     location: updateLocationSchema.optional(),
     phone: z.string().optional(),
   }).optional(),
-}).partial(); 
+  spectatorPreferences: z.object({
+    radiusKm: z.number().refine((n) => [5, 10, 20, 50].includes(n), { message: 'Rayon invalide (5, 10, 20 ou 50 km)' }).optional(),
+    dailyRecapEmail: z.boolean().optional(),
+  }).optional(),
+}).partial();
+
+// ============================================================================
+// SCHÉMAS DE RECOMMANDATION
+// ============================================================================
+
+export const getRecommendationsQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(500).default(10), // Augmenté pour charger tous les événements
+  minScore: z.coerce.number().min(0).max(100).default(0)
+});
+
+// Schéma pour les recommandations intelligentes (basées sur l'historique)
+export const getSmartRecommendationsQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(50)
+}); 

@@ -11,7 +11,9 @@ export interface EventDocument extends Document {
   requirements: EventRequirements;
   applications: Types.ObjectId[];
   participants: Types.ObjectId[];
-  withdrawnComedians: Types.ObjectId[]; // Nouveaux: humoristes qui se sont désinscrits
+  spectatorRegistrations?: Types.ObjectId[];
+  withdrawnComedians: Types.ObjectId[]; // Humoristes qui se sont désinscrits
+  withdrawnSpectators?: Types.ObjectId[]; // Spectateurs qui se sont désinscrits (réinscription interdite)
   startTime?: string;
   endTime?: string;
   venue?: string;
@@ -30,21 +32,47 @@ export interface EventDocument extends Document {
     j2Sent?: boolean;  // Relance 2 jours avant
     j1Sent?: boolean;  // Relance 1 jour avant
   };
+  // Tracking des relances envoyées aux humoristes par zone de mobilité (événements incomplets)
+  mobilityReminders?: {
+    j2?: { sentAt: Date; comedianIds: Types.ObjectId[]; emails: string[] };
+    j1?: { sentAt: Date; comedianIds: Types.ObjectId[]; emails: string[] };
+  };
+  // Récurrence : ID du groupe d'événements récurrents
+  recurrenceGroupId?: Types.ObjectId;
+  /** Nombre max de places pour spectateurs (optionnel) */
+  maxSpectators?: number;
+  // Annulation tardive : boost recommandations
+  hasLateCancellation?: boolean;
+  lateCancellationAt?: Date;
+  // Tracking notification humoristes
+  lateCancellationNotifiedAt?: Date;
+  lateCancellationNotificationCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const locationSchema = new Schema<Location>({
   venue: { type: String, required: false },
+  venueType: { type: String, enum: ['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre'], required: false },
   address: { type: String, required: true },
   city: { type: String, required: true },
-  country: { type: String, required: true }
+  postalCode: { type: String, required: false },
+  department: { type: String, required: false },
+  country: { type: String, required: true },
+  latitude: { type: Number, required: false },
+  longitude: { type: Number, required: false },
 });
 
 const requirementsSchema = new Schema<EventRequirements>({
   minExperience: { type: Number, required: true },
   maxPerformers: { type: Number, required: false },
-  duration: { type: Number, required: true }
+  duration: { type: Number, required: true },
+  requiredExperienceLevel: { 
+    type: String, 
+    enum: ['all', '0-50', '50-200', '200+'],
+    required: false,
+    default: 'all'
+  }
 });
 
 const eventSchema = new Schema<EventDocument>({
@@ -88,7 +116,18 @@ const eventSchema = new Schema<EventDocument>({
     ref: 'User',
     default: []
   }],
+  /** Spectateurs inscrits à l'événement (réservation / suivi) */
+  spectatorRegistrations: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
   withdrawnComedians: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
+  withdrawnSpectators: [{
     type: Schema.Types.ObjectId,
     ref: 'User',
     default: []
@@ -125,6 +164,44 @@ const eventSchema = new Schema<EventDocument>({
     j3Sent: { type: Boolean, default: false },
     j2Sent: { type: Boolean, default: false },
     j1Sent: { type: Boolean, default: false }
+  },
+  maxSpectators: { type: Number, required: false },
+  // Schéma pour le tracking des relances humoristes par mobilité (événements incomplets)
+  mobilityReminders: {
+    j2: {
+      sentAt: { type: Date },
+      comedianIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      emails: [{ type: String }]
+    },
+    j1: {
+      sentAt: { type: Date },
+      comedianIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      emails: [{ type: String }]
+    }
+  },
+  // Récurrence : ID du groupe d'événements récurrents
+  recurrenceGroupId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Event',
+    required: false,
+    index: true
+  },
+  // Annulation tardive : boost recommandations
+  hasLateCancellation: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  lateCancellationAt: {
+    type: Date
+  },
+  // Tracking notification humoristes (anti-spam)
+  lateCancellationNotifiedAt: {
+    type: Date
+  },
+  lateCancellationNotificationCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
@@ -134,5 +211,6 @@ const eventSchema = new Schema<EventDocument>({
 eventSchema.index({ date: 1 });
 eventSchema.index({ organizer: 1 });
 eventSchema.index({ status: 1 });
+eventSchema.index({ recurrenceGroupId: 1 });
 
 export const EventModel = mongoose.model<EventDocument>('Event', eventSchema); 

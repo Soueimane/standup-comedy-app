@@ -7,12 +7,20 @@ import { ApplicationDocument } from '../models/Application';
 import { Event, Application } from '../types';
 import { Types } from 'mongoose';
 import { UserModel } from '../models/User';
-import { sendApplicationNotificationToOrganizer, sendApplicationStatusToComedian } from '../services/emailService';
+import {
+  sendApplicationNotificationToOrganizer,
+  sendApplicationStatusToComedian,
+  sendLateCancellationToOrganizer,
+  sendLateCancellationToComedian
+} from '../services/emailService';
+import { createLateCancellationAlert } from '../services/lateCancellationAlertService';
+import { notifyComediansOfLateCancellationAsync } from '../services/mobilityNotificationService';
 import { IPopulatedApplication, IPopulatedEvent } from '../types';
 import { IPopulatedUser } from '../types/user';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
-import { emitApplicationCreated, emitApplicationStatusChanged, emitApplicationWithdrawn } from '../services/eventEmitter';
+import { emitApplicationCreated, emitApplicationStatusChanged, emitApplicationWithdrawn, emitLateCancellation } from '../services/eventEmitter';
+import { createNotification } from './notification';
 
 // Fonction pour construire avatarUrl à partir de avatar.data
 const buildAvatarDataUrl = (user: any): string | undefined => {
@@ -56,6 +64,21 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    // Vérifier le statut de l'évènement
+    if (event.status === 'cancelled') {
+      res.status(400).json({
+        message: 'Impossible de postuler à un évènement annulé'
+      });
+      return;
+    }
+
+    if (event.status === 'completed') {
+      res.status(400).json({
+        message: 'Impossible de postuler à un évènement terminé'
+      });
+      return;
+    }
+
     // Vérifier si l'application existe déjà
     const existingApplication = await ApplicationModel.findOne({
       event: eventObjectId,
@@ -91,28 +114,73 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     await application.save();
 
-    // Émettre un évènement SSE pour notifier tous les clients
-    emitApplicationCreated(application._id.toString(), eventId);
-
-    // Ajouter l'application à l'évènement
-    const eventDoc = event as EventDocument;
-    eventDoc.applications.push(application._id as unknown as Types.ObjectId);
-    await eventDoc.save();
-
-    // Mettre à jour les statistiques de l'humoriste
-    const comedian = await UserModel.findById(comedianId);
-    if (comedian) {
-      if (!comedian.stats) {
-        comedian.stats = {};
-      }
-      comedian.stats.applicationsSent = (comedian.stats.applicationsSent || 0) + 1;
-      comedian.markModified('stats');
-      await comedian.save();
+    // Émettre un évènement SSE pour notifier tous les clients (non-bloquant)
+    try {
+      emitApplicationCreated(application._id.toString(), eventId);
+    } catch (sseError) {
+      console.error('⚠️ Erreur lors de l\'émission SSE (non-bloquant):', sseError);
+      // Ne pas throw, continuer le flux
     }
 
-    // Envoyer une notification à l'organisateur
+    // ========== OPÉRATIONS CRITIQUES AVEC ROLLBACK ==========
+    // L'ordre est important pour maintenir la cohérence des stats
+
+    // 1. Mettre à jour les statistiques du comédien (CRITIQUE - doit réussir)
+    // Utilisation de $inc pour éviter les ValidationError sur le document User complet
+    try {
+      await UserModel.findByIdAndUpdate(
+        comedianId,
+        { $inc: { 'stats.applicationsSent': 1 } },
+        { runValidators: false }
+      );
+    } catch (statsError) {
+      console.error('❌ ERREUR CRITIQUE : Échec de la mise à jour des stats');
+      console.error('🔄 ROLLBACK : Suppression de l\'application créée');
+
+      // ROLLBACK : Supprimer l'application créée
+      try {
+        await ApplicationModel.findByIdAndDelete(application._id);
+        console.log('✅ Rollback réussi : application supprimée');
+      } catch (rollbackError) {
+        console.error('💥 ÉCHEC DU ROLLBACK:', rollbackError);
+      }
+
+      throw new Error('Échec de la mise à jour des statistiques');
+    }
+
+    // 2. Ajouter l'application à l'évènement (CRITIQUE - doit réussir)
+    // Utilisation de $push pour éviter race conditions et ValidationError
+    try {
+      await EventModel.findByIdAndUpdate(
+        eventObjectId,
+        { $push: { applications: application._id } },
+        { runValidators: false }
+      );
+    } catch (eventUpdateError) {
+      console.error('❌ ERREUR CRITIQUE : Échec de la mise à jour de l\'événement');
+      console.error('🔄 ROLLBACK : Suppression de l\'application ET décrémentation des stats');
+
+      // ROLLBACK : Supprimer l'application ET décrémenter les stats
+      try {
+        await ApplicationModel.findByIdAndDelete(application._id);
+        await UserModel.findByIdAndUpdate(
+          comedianId,
+          { $inc: { 'stats.applicationsSent': -1 } },
+          { runValidators: false }
+        );
+        console.log('✅ Rollback réussi : application supprimée et stats décrémentées');
+      } catch (rollbackError) {
+        console.error('💥 ÉCHEC DU ROLLBACK:', rollbackError);
+        // TODO: Alerter l'équipe technique (Sentry, Slack, etc.)
+      }
+
+      throw new Error('Échec de la mise à jour de l\'événement');
+    }
+
+    // Envoyer une notification email à l'organisateur
     try {
       const organizer = await UserModel.findById(event.organizer);
+      const comedian = await UserModel.findById(comedianId);
       if (organizer && comedian) {
         await sendApplicationNotificationToOrganizer(
           event,
@@ -123,6 +191,26 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       }
     } catch (emailError) {
       console.error('Erreur lors de l\'envoi de la notification à l\'organisateur:', emailError);
+    }
+
+    // Créer une notification in-app pour l'organisateur
+    try {
+      const organizer = await UserModel.findById(event.organizer);
+      const comedian = await UserModel.findById(comedianId);
+      if (organizer && comedian && organizer.role === 'ORGANIZER') {
+        await createNotification(
+          organizer._id.toString(),
+          'new_application',
+          'Nouvelle candidature',
+          `${comedian.firstName} ${comedian.lastName} a postulé pour l'évènement "${event.title}"`,
+          event._id.toString(),
+          application._id.toString(),
+          comedian._id.toString()
+        );
+      }
+    } catch (notificationError) {
+      console.error('Erreur lors de la création de la notification in-app:', notificationError);
+      // Ne pas faire échouer la création de l'application
     }
 
     res.status(201).json({
@@ -252,6 +340,16 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
         eventId,
         { $addToSet: { participants: comedianId } } // $addToSet évite les doublons
       );
+
+      // Reset du boost si l'evenement avait une annulation tardive (remplacant trouve)
+      const event = await EventModel.findById(eventId);
+      if (event?.hasLateCancellation) {
+        console.log(`✅ Remplacant trouve pour "${event.title}" - Reset du boost d'annulation tardive`);
+        await EventModel.findByIdAndUpdate(eventId, {
+          hasLateCancellation: false,
+          lateCancellationAt: null
+        });
+      }
     }
 
     // Retrait du participant si le statut passe de ACCEPTED à autre chose
@@ -331,6 +429,34 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response): 
         }).catch(err => {
           console.error(`[EMAIL] Erreur lors de l'envoi à l'humoriste (${(updatedApplication.comedian as any).email}) :`, err);
         });
+      }
+
+      // Créer une notification in-app pour l'humoriste
+      try {
+        const comedianId = (updatedApplication.comedian as any)._id?.toString() || updatedApplication.comedian?.toString();
+        const comedian = await UserModel.findById(comedianId);
+        if (comedian && comedian.role === 'COMEDIAN') {
+          const notificationType = status === 'ACCEPTED' ? 'application_accepted' : 'application_rejected';
+          const notificationTitle = status === 'ACCEPTED' 
+            ? 'Candidature acceptée 🎉'
+            : 'Candidature refusée';
+          const notificationMessage = status === 'ACCEPTED'
+            ? `Votre candidature pour l'évènement "${event.title}" a été acceptée !`
+            : `Votre candidature pour l'évènement "${event.title}" n'a pas été retenue.`;
+          
+          await createNotification(
+            comedianId,
+            notificationType,
+            notificationTitle,
+            notificationMessage,
+            eventId.toString(),
+            updatedApplication._id.toString(),
+            organizer._id?.toString() || organizer.toString()
+          );
+        }
+      } catch (notificationError) {
+        console.error('Erreur lors de la création de la notification in-app pour l\'humoriste:', notificationError);
+        // Ne pas faire échouer l'opération principale
       }
     }
 
@@ -441,7 +567,10 @@ export const getAllApplications = async (req: AuthRequest, res: Response): Promi
           select: 'firstName lastName email'
         }
       })
-      .populate('comedian');
+      .populate({
+        path: 'comedian',
+        select: 'firstName lastName email phone avatarUrl profile'
+      });
 
     // Récupérer les informations de l'utilisateur pour vérifier son rôle
     const currentUser = await UserModel.findById(userId);
@@ -637,6 +766,11 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
     const comedianId = (application.comedian as any)._id || application.comedian;
     const comedian = await UserModel.findById(comedianId);
 
+    // Variables pour l'annulation tardive (declarees avant la sauvegarde)
+    let isLateCancellation = false;
+    let hoursUntilEvent = 0;
+    let totalLateCancellations = 0;
+
     if (comedian) {
       if (!comedian.stats) {
         comedian.stats = {};
@@ -653,9 +787,118 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
         comedian.stats.applicationsRejected = Math.max(0, (comedian.stats.applicationsRejected || 0) - 1);
       }
 
+      // 🚨 DÉTECTION ANNULATION TARDIVE (< 72h) - AVANT la sauvegarde!
+      if (oldStatus === 'ACCEPTED') {
+        const event = (application.event as IPopulatedEvent);
+        hoursUntilEvent = (new Date(event.date).getTime() - Date.now()) / (1000 * 60 * 60);
+
+        if (hoursUntilEvent > 0 && hoursUntilEvent < 72) {
+          isLateCancellation = true;
+          console.log(`🚨 ANNULATION TARDIVE DÉTECTÉE: ${comedian.firstName} ${comedian.lastName} - ${hoursUntilEvent.toFixed(1)}h avant l'événement`);
+
+          // Incrémenter le compteur d'annulations tardives AVANT la sauvegarde
+          comedian.stats.lateCancellations = (comedian.stats.lateCancellations || 0) + 1;
+          totalLateCancellations = comedian.stats.lateCancellations;
+          console.log(`📊 Compteur lateCancellations incrémenté: ${totalLateCancellations}`);
+        }
+      }
+
+      // Sauvegarder TOUTES les stats (y compris lateCancellations si applicable)
       comedian.markModified('stats');
       await comedian.save();
       console.log(`💾 Stats sauvegardées après retrait pour ${comedian.firstName} ${comedian.lastName}`);
+
+      // 🚨 TRAITEMENT ANNULATION TARDIVE (notifications, emails, etc.)
+      if (isLateCancellation && oldStatus === 'ACCEPTED') {
+        const event = (application.event as IPopulatedEvent);
+        const eventId = (application.event as any)._id || application.event;
+
+        // 1. Marquer l'événement pour boost dans les recommandations
+        await EventModel.findByIdAndUpdate(eventId, {
+          hasLateCancellation: true,
+          lateCancellationAt: new Date()
+        });
+
+        // 2. Récupérer les données de l'organisateur
+        const organizer = await UserModel.findById(event.organizer._id || event.organizer);
+
+        if (organizer) {
+            // 4. Créer notification in-app pour l'organisateur
+            await createNotification(
+              organizer._id.toString(),
+              'late_cancellation_organizer',
+              '⚠️ Désistement tardif',
+              `${comedian.firstName} ${comedian.lastName} s'est désisté à ${hoursUntilEvent.toFixed(0)}h de l'événement "${event.title}". L'événement est mis en avant.`,
+              eventId.toString(),
+              (application._id as any).toString(),
+              comedian._id.toString()
+            );
+
+            // 5. Créer notification in-app pour l'humoriste
+            await createNotification(
+              comedian._id.toString(),
+              'late_cancellation_comedian',
+              '⚠️ Désistement tardif enregistré',
+              `Votre désistement pour "${event.title}" a été enregistré comme tardif. Total: ${totalLateCancellations} annulation(s) tardive(s).`,
+              eventId.toString(),
+              (application._id as any).toString()
+            );
+
+            // 6. Envoyer email à l'organisateur
+            await sendLateCancellationToOrganizer(
+              event,
+              comedian,
+              organizer,
+              hoursUntilEvent
+            );
+
+            // 7. Envoyer email à l'humoriste
+            await sendLateCancellationToComedian(
+              event,
+              comedian,
+              hoursUntilEvent,
+              totalLateCancellations
+            );
+          }
+
+          // 8. Créer une alerte pour les super-admins
+          await createLateCancellationAlert(
+            application,
+            comedian,
+            event,
+            hoursUntilEvent,
+            totalLateCancellations
+          );
+
+          // 9. Émettre événement SSE pour temps réel
+          emitLateCancellation(
+            eventId.toString(),
+            comedian._id.toString(),
+            (application._id as any).toString()
+          );
+
+          // 10. Notifier les humoristes de la place disponible
+          const eventDoc = await EventModel.findById(eventId);
+          if (eventDoc) {
+            const notificationNumber = (eventDoc.lateCancellationNotificationCount || 0) + 1;
+            console.log(`📧 Notification #${notificationNumber} aux humoristes pour la place disponible sur "${event.title}"`);
+
+            notifyComediansOfLateCancellationAsync(
+              eventDoc,
+              organizer || undefined,
+              [comedian._id.toString()] // Exclure celui qui s'est désisté
+            );
+
+            // Mettre à jour le tracking
+            eventDoc.lateCancellationNotifiedAt = new Date();
+            eventDoc.lateCancellationNotificationCount = notificationNumber;
+            await eventDoc.save();
+
+            console.log(`✅ Notification #${notificationNumber} humoristes programmée pour "${event.title}"`);
+          }
+
+          console.log(`✅ Gestion de l'annulation tardive terminée pour ${comedian.firstName} ${comedian.lastName}`);
+      }
     }
 
     // Au lieu de supprimer, changer le statut à WITHDRAWN

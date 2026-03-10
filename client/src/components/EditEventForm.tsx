@@ -1,7 +1,10 @@
-import React, { type CSSProperties, useState, useEffect } from 'react';
+import React, { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
+import { usePostalCodeValidation } from '../hooks/usePostalCodeValidation';
 import type { IEvent } from '../types/event';
 import api from '../services/api';
+import { getErrorMessage, ErrorMessages, SuccessMessages, WarningMessages } from '../services/systemMessages';
 
 interface EditEventFormProps {
   onClose: () => void;
@@ -11,10 +14,12 @@ interface EditEventFormProps {
 
 function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormProps) {
   const { token } = useAuth();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     city: '',
+    postalCode: '',
     address: '',
     country: '',
     date: '',
@@ -23,21 +28,46 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     endTime: '',
     minExperience: '',
     maxPerformers: '',
-    status: 'PUBLISHED',
+    requiredExperienceLevel: 'all' as 'all' | '0-50' | '50-200' | '200+',
+    status: 'published',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
+  // États pour l'auto-complétion
+  const isAutoFillingRef = useRef(false);
+  const addressSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; city: string; postalCode: string }>>([]);
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ city: string; postcode: string }>>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+
+  // Hook de validation du code postal
+  const { isValidating: isValidatingPostalCode, error: postalCodeError, cities, validatePostalCode, clearError: clearPostalCodeError } = usePostalCodeValidation({
+    postalCode: formData.postalCode,
+    onCityAutoFill: (city) => {
+      // TOUJOURS remplacer la ville, même si déjà remplie
+      isAutoFillingRef.current = true;
+      setFormData(prev => ({ ...prev, city }));
+      setTimeout(() => { isAutoFillingRef.current = false; }, 100);
+      setShowCityDropdown(false);
+    },
+    onMultipleCities: (cityOptions) => {
+      setCitySuggestions(cityOptions);
+      setShowCityDropdown(true);
+    }
+  });
+
   useEffect(() => {
     if (eventToEdit) {
       const eventDate = new Date(eventToEdit.date);
       const formattedDate = `${eventDate.getDate().toString().padStart(2, '0')}/${(eventDate.getMonth() + 1).toString().padStart(2, '0')}/${eventDate.getFullYear()}`;
-      
+
       setFormData({
         title: eventToEdit.title,
         description: eventToEdit.description,
         city: eventToEdit.location.city,
+        postalCode: eventToEdit.location.postalCode || '',
         address: eventToEdit.location.address,
         country: eventToEdit.location.country,
         date: formattedDate,
@@ -46,18 +76,114 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         endTime: eventToEdit.endTime || '',
         minExperience: eventToEdit.requirements.minExperience.toString(),
         maxPerformers: eventToEdit.requirements.maxPerformers?.toString() || '',
+        requiredExperienceLevel: eventToEdit.requirements.requiredExperienceLevel || 'all',
         status: eventToEdit.status,
       });
     }
   }, [eventToEdit]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // Auto-validate when postal code reaches 5 digits
+  useEffect(() => {
+    const trimmedPostalCode = formData.postalCode.trim();
+
+    // Only validate if we have exactly 5 digits and not already validating
+    if (trimmedPostalCode.length === 5 && /^\d{5}$/.test(trimmedPostalCode) && !isValidatingPostalCode) {
+      validatePostalCode();
+    }
+  }, [formData.postalCode]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Fonction pour rechercher un code postal par ville
+  const searchPostalCodeByCity = async (city: string): Promise<{ city: string; postalCode: string } | null> => {
+    if (!city || city.length < 2) return null;
+
+    try {
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(city)}&limit=1&type=municipality`);
+      const data = await response.json();
+
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0];
+        const foundCity = feature.properties.city || feature.properties.name;
+        const code = feature.properties.postcode;
+        // Vérifier que la ville correspond bien
+        if (foundCity.toLowerCase().includes(city.toLowerCase()) || city.toLowerCase().includes(foundCity.toLowerCase())) {
+          return { city: foundCity, postalCode: code };
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche par ville:', error);
+    }
+    return null;
+  };
+
+  // Fonction pour rechercher ville et code postal par adresse
+  const searchLocationByAddress = async (address: string): Promise<Array<{ label: string; city: string; postalCode: string }>> => {
+    if (!address || address.length < 5) return [];
+
+    try {
+      const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=5`);
+      const data = await response.json();
+
+      if (data.features && data.features.length > 0) {
+        return data.features.map((feature: any) => ({
+          label: feature.properties.label,
+          city: feature.properties.city || feature.properties.name,
+          postalCode: feature.properties.postcode
+        }));
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche par adresse:', error);
+    }
+    return [];
+  };
+
+  const handleCitySelect = (city: string) => {
+    isAutoFillingRef.current = true;
+    setFormData(prev => ({ ...prev, city }));
+    setTimeout(() => { isAutoFillingRef.current = false; }, 100);
+    setShowCityDropdown(false);
+    setCitySuggestions([]);
+  };
+
+  const handleSelectAddressSuggestion = (suggestion: { label: string; city: string; postalCode: string }) => {
+    isAutoFillingRef.current = true;
+    setFormData(prev => ({
+      ...prev,
+      address: suggestion.label,
+      city: suggestion.city,
+      postalCode: suggestion.postalCode
+    }));
+    setAddressSuggestions([]);
+    setTimeout(() => {
+      isAutoFillingRef.current = false;
+    }, 100);
+  };
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
+
+    // Ne pas auto-remplir si c'est déjà en cours d'auto-remplissage
+    if (isAutoFillingRef.current) {
+      setFormData(prev => ({
+        ...prev,
+        [id]: value
+      }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [id]: value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[id]) {
       setErrors(prev => ({
@@ -65,9 +191,64 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         [id]: ''
       }));
     }
+
+    // Clear postal code validation error when user types
+    if (id === 'postalCode') {
+      clearPostalCodeError();
+    }
+
+    // Auto-complétion pour la ville
+    if (id === 'city' && value.length >= 3) {
+      // Annuler le timeout précédent
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+
+      // Attendre 800ms après la dernière frappe (plus long car recherche par texte)
+      addressSearchTimeoutRef.current = setTimeout(async () => {
+        const result = await searchPostalCodeByCity(value);
+        if (result) {
+          isAutoFillingRef.current = true;
+          setFormData(prev => {
+            // Ne remplir que si le code postal est vide
+            if (!prev.postalCode || prev.postalCode.length < 5) {
+              return {
+                ...prev,
+                postalCode: result.postalCode,
+                city: result.city // Utiliser la ville normalisée de l'API
+              };
+            }
+            // Même si le code postal existe, on peut normaliser la ville
+            return {
+              ...prev,
+              city: result.city
+            };
+          });
+          setTimeout(() => {
+            isAutoFillingRef.current = false;
+          }, 100);
+        }
+      }, 800);
+    }
+
+    // Auto-complétion pour l'adresse
+    if (id === 'address' && value.length >= 5) {
+      // Annuler le timeout précédent
+      if (addressSearchTimeoutRef.current) {
+        clearTimeout(addressSearchTimeoutRef.current);
+      }
+
+      // Attendre 800ms après la dernière frappe
+      addressSearchTimeoutRef.current = setTimeout(async () => {
+        const results = await searchLocationByAddress(value);
+        setAddressSuggestions(results);
+      }, 800);
+    } else if (id === 'address' && value.length < 5) {
+      setAddressSuggestions([]);
+    }
   };
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const newErrors: {[key: string]: string} = {};
     
     // Validation du titre
@@ -97,14 +278,28 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     } else if (formData.city.trim().length < 2) {
       newErrors.city = 'Le nom de la ville doit contenir au moins 2 caractères';
     }
-    
+
+    // Validation du code postal avec API
+    if (!formData.postalCode.trim()) {
+      // Le code postal peut être optionnel si adresse et ville sont complètes
+      if (!formData.address.trim() || !formData.city.trim()) {
+        newErrors.postalCode = 'Le code postal est requis';
+      }
+    } else {
+      // Si un code postal est fourni, on le valide
+      const isValid = await validatePostalCode();
+      if (!isValid && postalCodeError) {
+        newErrors.postalCode = postalCodeError;
+      }
+    }
+
     // Validation de l'adresse
     if (!formData.address.trim()) {
       newErrors.address = 'L\'adresse est requise';
     } else if (formData.address.trim().length < 5) {
       newErrors.address = 'L\'adresse doit contenir au moins 5 caractères';
     }
-    
+
     // Validation du pays
     if (!formData.country.trim()) {
       newErrors.country = 'Le pays est requis';
@@ -187,18 +382,19 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
     e.preventDefault();
 
     if (!token) {
-      alert("Vous devez être connecté pour modifier un évènement.");
+      showWarning(WarningMessages.AUTH_REQUIRED_EDIT_EVENT);
       return;
     }
 
-    if (!validateForm()) {
+    const isValid = await validateForm();
+    if (!isValid) {
       return;
     }
 
     // Validation de l'ID de l'évènement
     if (!eventToEdit || !eventToEdit._id) {
       console.error('❌ [EditEventForm] Évènement invalide - pas d\'ID', { eventToEdit });
-      alert('Erreur: Impossible de modifier cet évènement. ID manquant.');
+      showError(ErrorMessages.EVENT_MISSING_ID);
       return;
     }
 
@@ -230,6 +426,33 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         durationInMinutes = (24 * 60 - startMinutes) + endMinutes;
       }
 
+      // Extraire le code postal depuis l'adresse s'il n'est pas déjà présent
+      let postalCode = formData.postalCode;
+      if (!postalCode && formData.address) {
+        const postalCodeMatch = formData.address.match(/\b(\d{5})\b/);
+        if (postalCodeMatch) {
+          postalCode = postalCodeMatch[1];
+        }
+      }
+
+      // Calculer le département à partir du code postal
+      let department: string | undefined = undefined;
+      if (postalCode) {
+        // Corse
+        const numericCode = parseInt(postalCode, 10);
+        if (numericCode >= 20000 && numericCode <= 20199) {
+          department = '2A';
+        } else if (numericCode >= 20200 && numericCode <= 20999) {
+          department = '2B';
+        } else if (postalCode.startsWith('97')) {
+          // Outre-mer
+          department = postalCode.substring(0, 3);
+        } else {
+          // Métropole
+          department = postalCode.substring(0, 2);
+        }
+      }
+
       const eventData = {
         title: formData.title,
         description: formData.description,
@@ -238,14 +461,16 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
           venue: formData.venue,
           address: formData.address,
           city: formData.city,
+          postalCode: postalCode || undefined,
+          department: department,
           country: formData.country,
         },
         requirements: {
           minExperience: Number(formData.minExperience),
           maxPerformers: Number(formData.maxPerformers),
           duration: durationInMinutes,
+          requiredExperienceLevel: formData.requiredExperienceLevel,
         },
-        status: formData.status.toUpperCase(),
         startTime: formData.startTime,
         endTime: formData.endTime,
       };
@@ -268,7 +493,7 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
       
       const response = await api.put(`/events/${eventToEdit._id}`, eventData, config);
       console.log('✅ [EditEventForm] Réponse serveur:', response.data);
-      alert('Évènement mis à jour avec succès !');
+      showSuccess(SuccessMessages.EVENT_UPDATED);
       onEventUpdated();
     } catch (error: any) {
       console.error('❌ [EditEventForm] Erreur lors de la mise à jour de l\'évènement:', {
@@ -279,19 +504,9 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         eventId: eventToEdit._id,
         url: error.config?.url,
       });
-      
-      let errorMessage = 'Erreur lors de la mise à jour de l\'évènement';
-      if (error.response?.status === 404) {
-        errorMessage = `Évènement non trouvé (ID: ${eventToEdit._id}). Vérifiez que l'évènement existe et que vous êtes autorisé à le modifier.`;
-      } else if (error.response?.status === 403) {
-        errorMessage = 'Vous n\'êtes pas autorisé à modifier cet évènement.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+
+      const errorMessage = getErrorMessage(error, ErrorMessages.EVENT_UPDATE_FAILED);
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -423,22 +638,107 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
         </div>
         
         <div style={twoColumnLayout}>
-          <div style={inputGroupStyle}>
+          <div style={{ ...inputGroupStyle, position: 'relative' }}>
             <label htmlFor="city" style={labelStyle}>Ville *</label>
-            <input 
-              type="text" 
-              id="city" 
+            <input
+              type="text"
+              id="city"
               style={{
                 ...inputStyle,
                 borderColor: errors.city ? '#ef4444' : '#555'
-              }} 
-              value={formData.city} 
-              onChange={handleChange} 
+              }}
+              value={formData.city}
+              onChange={handleChange}
               placeholder="Ex: Paris"
             />
             {errors.city && (
               <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
                 {errors.city}
+              </p>
+            )}
+          </div>
+          <div style={{ ...inputGroupStyle, position: 'relative' }}>
+            <label htmlFor="postalCode" style={labelStyle}>
+              Code postal * {isValidatingPostalCode && <span style={{ fontSize: '12px', color: '#888' }}>(validation...)</span>}
+            </label>
+            <input
+              type="text"
+              id="postalCode"
+              style={{
+                ...inputStyle,
+                borderColor: (errors.postalCode || postalCodeError) ? '#ef4444' : '#555'
+              }}
+              value={formData.postalCode}
+              onChange={handleChange}
+              onBlur={validatePostalCode}
+              placeholder="Ex: 75001"
+              maxLength={5}
+              disabled={isValidatingPostalCode}
+            />
+            {(errors.postalCode || postalCodeError) && (
+              <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                {errors.postalCode || postalCodeError}
+              </p>
+            )}
+
+            {/* Dropdown de sélection de ville si plusieurs options */}
+            {showCityDropdown && citySuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #444',
+                borderRadius: '4px',
+                marginTop: '4px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                zIndex: 1000,
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
+              }}>
+                <div style={{ padding: '8px', color: '#888', fontSize: '12px', borderBottom: '1px solid #444' }}>
+                  Plusieurs villes possibles pour ce code postal :
+                </div>
+                {citySuggestions.map((option, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleCitySelect(option.city)}
+                    style={{
+                      padding: '12px',
+                      cursor: 'pointer',
+                      borderBottom: index < citySuggestions.length - 1 ? '1px solid #333' : 'none',
+                      color: '#ccc',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#333'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {option.city} ({option.postcode})
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={twoColumnLayout}>
+          <div style={inputGroupStyle}>
+            <label htmlFor="address" style={labelStyle}>Adresse *</label>
+            <input 
+              type="text" 
+              id="address" 
+              style={{
+                ...inputStyle,
+                borderColor: errors.address ? '#ef4444' : '#555'
+              }} 
+              value={formData.address} 
+              onChange={handleChange} 
+              placeholder="Ex: 123 rue de la Comédie"
+            />
+            {errors.address && (
+              <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+                {errors.address}
               </p>
             )}
           </div>
@@ -461,26 +761,6 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
               </p>
             )}
           </div>
-        </div>
-
-        <div style={inputGroupStyle}>
-          <label htmlFor="address" style={labelStyle}>Adresse *</label>
-          <input 
-            type="text" 
-            id="address" 
-            style={{
-              ...inputStyle,
-              borderColor: errors.address ? '#ef4444' : '#555'
-            }} 
-            value={formData.address} 
-            onChange={handleChange} 
-            placeholder="Ex: 123 rue de la Comédie"
-          />
-          {errors.address && (
-            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
-              {errors.address}
-            </p>
-          )}
         </div>
 
         <div style={twoColumnLayout}>
@@ -606,6 +886,29 @@ function EditEventForm({ onClose, onEventUpdated, eventToEdit }: EditEventFormPr
               </p>
             )}
           </div>
+        </div>
+
+        <div style={inputGroupStyle}>
+          <label htmlFor="requiredExperienceLevel" style={labelStyle}>Niveau d'expérience requis</label>
+          <select
+            id="requiredExperienceLevel"
+            value={formData.requiredExperienceLevel}
+            onChange={handleChange}
+            style={{
+              ...inputStyle,
+              borderColor: errors.requiredExperienceLevel ? '#ef4444' : '#555'
+            }}
+          >
+            <option value="all">Tous les niveaux</option>
+            <option value="0-50">Débutant (0-50 scènes)</option>
+            <option value="50-200">Expérimenté (50-200 scènes)</option>
+            <option value="200+">Pro (200+ scènes)</option>
+          </select>
+          {errors.requiredExperienceLevel && (
+            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0' }}>
+              {errors.requiredExperienceLevel}
+            </p>
+          )}
         </div>
 
         <div style={buttonContainerStyle}>

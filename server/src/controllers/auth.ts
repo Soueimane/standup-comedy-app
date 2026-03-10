@@ -1,8 +1,15 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Types } from 'mongoose';
 import { UserModel } from '../models/User';
 import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
+import { ApplicationModel } from '../models/Application';
+import { AbsenceModel } from '../models/Absence';
+import { EventModel } from '../models/Event';
+import { PresenceAlertModel } from '../models/PresenceAlert';
+import { ComedianReportModel } from '../models/ComedianReport';
+import { NotificationModel } from '../models/Notification';
 import { config } from '../config/env';
 import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
@@ -10,7 +17,11 @@ import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter'
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, phone, password, firstName, lastName, role, city } = req.body;
+    console.log('📝 [REGISTER] Données reçues:', JSON.stringify(req.body, null, 2));
+    const { email, phone, password, firstName, lastName, role, city, birthDate, profile: profileData, consent } = req.body;
+
+    console.log('📝 [REGISTER] Rôle:', role);
+    console.log('📝 [REGISTER] Profile data:', profileData);
 
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await UserModel.findOne({ email });
@@ -21,16 +32,26 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Créer le profil utilisateur en fonction du rôle
-    const profile = role === 'COMEDIAN' ? {
-      bio: '',
-      experience: 0,
-      speciality: '',
-      socialLinks: {},
-      performances: [],
-      numberOfScenes: 0,
-      comedyStyle: [],
-      performanceLanguages: [],
-    } : undefined;
+    let profile;
+    if (role === 'COMEDIAN') {
+      const experienceValue = profileData?.experience !== undefined 
+        ? (typeof profileData.experience === 'string' ? parseInt(profileData.experience, 10) : profileData.experience)
+        : 0;
+      
+      profile = {
+        bio: profileData?.bio || '',
+        experience: experienceValue,
+        speciality: '',
+        socialLinks: {},
+        performances: [],
+        numberOfScenes: '0-50' as const, // Doit être une string avec enum ['0-50', '50-200', '200+']
+        comedyStyle: [],
+        performanceLanguages: [],
+      };
+      console.log('📝 [REGISTER] Profil créé pour COMEDIAN:', profile);
+    } else {
+      profile = undefined;
+    }
 
     const organizerProfile = role === 'ORGANIZER' ? {
       companyName: '',
@@ -48,7 +69,7 @@ export const register = async (req: Request, res: Response) => {
     } : undefined;
 
     // Créer un nouvel utilisateur
-    const user = new UserModel({
+    const userData: any = {
       email,
       phone: phone || '',
       password,
@@ -56,11 +77,40 @@ export const register = async (req: Request, res: Response) => {
       lastName,
       role,
       city: city || '',
-      ...(profile && { profile }),
-      ...(organizerProfile && { organizerProfile }),
-    });
+      ...(birthDate && { birthDate: new Date(birthDate) }),
+      // Enregistrement du consentement RGPD
+      consent: {
+        termsAccepted: consent?.termsAccepted || false,
+        termsAcceptedAt: consent?.termsAccepted ? new Date() : undefined,
+        termsVersion: '1.0',
+        privacyAccepted: consent?.privacyAccepted || false,
+        privacyAcceptedAt: consent?.privacyAccepted ? new Date() : undefined,
+        privacyVersion: '1.0',
+        isAdult: consent?.isAdult || false,
+      },
+    };
 
-    await user.save();
+    if (profile) {
+      userData.profile = profile;
+    }
+    if (organizerProfile) {
+      userData.organizerProfile = organizerProfile;
+    }
+    
+    console.log('📝 [REGISTER] Données utilisateur à créer:', JSON.stringify({ ...userData, password: '***' }, null, 2));
+    
+    const user = new UserModel(userData);
+
+    try {
+      await user.save();
+      console.log('✅ [REGISTER] Utilisateur sauvegardé avec succès:', user._id);
+    } catch (saveError: any) {
+      console.error('❌ [REGISTER] Erreur lors de la sauvegarde:', saveError);
+      if (saveError.errors) {
+        console.error('❌ [REGISTER] Détails des erreurs de validation:', saveError.errors);
+      }
+      throw saveError;
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitUserRegistered(user._id.toString());
@@ -102,8 +152,35 @@ export const register = async (req: Request, res: Response) => {
       user: userResponse
     });
   } catch (error) {
-    console.error('Erreur lors de l\'enregistrement:', error);
-    res.status(500).json({ message: 'Erreur lors de l\'enregistrement de l\'utilisateur' });
+    console.error('❌ [REGISTER] Erreur lors de l\'enregistrement:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    // Logs détaillés pour le debugging
+    console.error('❌ [REGISTER] Détails de l\'erreur:', { 
+      errorMessage, 
+      errorStack,
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      body: JSON.stringify(req.body, null, 2)
+    });
+    
+    // Si c'est une erreur de validation Mongoose, donner plus de détails
+    if (error && typeof error === 'object' && 'errors' in error) {
+      const mongooseError = error as any;
+      console.error('❌ [REGISTER] Erreurs de validation Mongoose:', mongooseError.errors);
+      return res.status(400).json({ 
+        message: 'Erreur de validation des données',
+        errors: Object.keys(mongooseError.errors || {}).map(key => ({
+          field: key,
+          message: mongooseError.errors[key]?.message || 'Erreur de validation'
+        }))
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'enregistrement de l\'utilisateur',
+      error: process.env.NODE_ENV === 'production' ? 'Erreur serveur' : errorMessage // Cacher les détails en production
+    });
   }
 };
 
@@ -130,6 +207,36 @@ export const login = async (req: Request, res: Response) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    // Vérifier si le compte est désactivé
+    if ((user as any).isActive === false) {
+      const deactivatedAt = (user as any).deactivatedAt;
+      const deactivationReason = (user as any).deactivationReason;
+
+      // Vérifier si c'est une demande de suppression RGPD (grace period actif)
+      if (deactivationReason?.includes('RGPD') && deactivatedAt) {
+        const daysSinceDeactivation = Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24));
+        const daysRemaining = 30 - daysSinceDeactivation;
+
+        if (daysRemaining > 0) {
+          // Le compte peut encore être réactivé
+          return res.status(403).json({
+            code: 'ACCOUNT_PENDING_DELETION',
+            message: 'Votre compte est en cours de suppression',
+            canReactivate: true,
+            deactivatedAt: deactivatedAt.toISOString(),
+            daysRemaining,
+            deletionDate: new Date(deactivatedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          });
+        }
+      }
+
+      // Compte désactivé par un admin ou grace period expiré
+      return res.status(403).json({
+        code: 'ACCOUNT_DEACTIVATED',
+        message: 'Votre compte a été désactivé. Veuillez contacter le support.'
       });
     }
 
@@ -170,6 +277,75 @@ export const login = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la connexion:', error);
     res.status(500).json({ message: 'Erreur lors de la connexion' });
+  }
+};
+
+/**
+ * Réactive un compte en cours de suppression (grace period RGPD)
+ * L'utilisateur doit fournir son email et mot de passe pour confirmer
+ */
+export const reactivateAccount = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await UserModel.findOne({ email }).select('+password');
+
+    if (!user) {
+      return res.status(401).json({
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    // Vérifier que le compte est bien en attente de suppression RGPD
+    if ((user as any).isActive !== false) {
+      return res.status(400).json({
+        message: 'Ce compte est déjà actif'
+      });
+    }
+
+    const deactivationReason = (user as any).deactivationReason;
+    if (!deactivationReason?.includes('RGPD')) {
+      return res.status(403).json({
+        message: 'Ce compte a été désactivé par un administrateur. Veuillez contacter le support.'
+      });
+    }
+
+    // Vérifier que le grace period n'est pas expiré
+    const deactivatedAt = (user as any).deactivatedAt;
+    if (deactivatedAt) {
+      const daysSinceDeactivation = Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceDeactivation >= 30) {
+        return res.status(403).json({
+          message: 'Le délai de réactivation de 30 jours est expiré. Votre compte a été supprimé.'
+        });
+      }
+    }
+
+    // Réactiver le compte
+    (user as any).isActive = true;
+    (user as any).deactivatedAt = undefined;
+    (user as any).deactivatedBy = undefined;
+    (user as any).deactivationReason = undefined;
+
+    await user.save();
+
+    console.log(`✅ [reactivateAccount] Compte ${user.email} réactivé avec succès`);
+
+    // Retourner un message de succès (l'utilisateur devra se reconnecter)
+    res.status(200).json({
+      message: 'Votre compte a été réactivé avec succès. Vous pouvez maintenant vous connecter.',
+      reactivated: true
+    });
+  } catch (error) {
+    console.error('Erreur lors de la réactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la réactivation du compte' });
   }
 };
 
@@ -251,7 +427,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const users = await UserModel.find({
       role: { $in: ['COMEDIAN', 'ORGANIZER'] }
     })
-      .select('firstName lastName email phone role city createdAt stats profile organizerProfile')
+      .select('firstName lastName email phone role city createdAt stats profile organizerProfile isActive deactivatedAt deactivationReason')
       .populate('profile')
       .populate('organizerProfile')
       .sort({ createdAt: -1 });
@@ -273,6 +449,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         stats: user.stats || {},
+        isActive: (user as any).isActive !== false, // Par defaut true si non defini
+        deactivatedAt: (user as any).deactivatedAt || null,
+        deactivationReason: (user as any).deactivationReason || null,
       };
 
       // Ajouter des données spécifiques au rôle
@@ -281,7 +460,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
           ...baseData,
           bio: (user.profile as any).bio || '',
           experience: (user.profile as any).experience || 0,
-          numberOfScenes: (user.profile as any).numberOfScenes || 0,
+          numberOfScenes: (user.profile as any).numberOfScenes || '0-50',
         };
       }
 
@@ -583,5 +762,160 @@ export const adminResetPassword = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la réinitialisation admin:', error);
     res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
+  }
+};
+
+// ============================================================================
+// DEACTIVATE USER - Desactiver un compte (Super Admin uniquement)
+// ============================================================================
+export const deactivateUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Acces refuse' });
+    }
+
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouve' });
+    }
+
+    // Empecher la desactivation d'un Super Admin
+    if (user.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Impossible de desactiver un Super Admin' });
+    }
+
+    // Verifier si deja desactive
+    if ((user as any).isActive === false) {
+      return res.status(400).json({ message: 'Ce compte est deja desactive' });
+    }
+
+    // Desactiver le compte
+    (user as any).isActive = false;
+    (user as any).deactivatedAt = new Date();
+    (user as any).deactivatedBy = new Types.ObjectId(req.user.id);
+    (user as any).deactivationReason = reason || '';
+    await user.save();
+
+    console.log(`✅ Compte desactive: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} desactive avec succes`,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: (user as any).isActive,
+        deactivatedAt: (user as any).deactivatedAt,
+        deactivationReason: (user as any).deactivationReason
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la desactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la desactivation du compte' });
+  }
+};
+
+// ============================================================================
+// REACTIVATE USER - Reactiver un compte (Super Admin uniquement)
+// ============================================================================
+export const reactivateUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Acces refuse' });
+    }
+
+    const { userId } = req.params;
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouve' });
+    }
+
+    // Verifier si deja actif
+    if ((user as any).isActive !== false) {
+      return res.status(400).json({ message: 'Ce compte est deja actif' });
+    }
+
+    // Reactiver le compte
+    (user as any).isActive = true;
+    (user as any).deactivatedAt = undefined;
+    (user as any).deactivatedBy = undefined;
+    (user as any).deactivationReason = undefined;
+    await user.save();
+
+    console.log(`✅ Compte reactive: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} reactive avec succes`,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: (user as any).isActive
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la reactivation:', error);
+    res.status(500).json({ message: 'Erreur lors de la reactivation du compte' });
+  }
+};
+
+// ============================================================================
+// DELETE USER - Supprimer définitivement un compte (Super Admin uniquement)
+// ============================================================================
+export const deleteUser = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+
+    const { userId } = req.params;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    if (user.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Impossible de supprimer un Super Admin' });
+    }
+
+    const id = new Types.ObjectId(userId);
+
+    if (user.role === 'COMEDIAN') {
+      await ApplicationModel.deleteMany({ comedian: id });
+      await AbsenceModel.deleteMany({ comedian: id });
+      await PresenceAlertModel.deleteMany({ comedian: id });
+      await ComedianReportModel.deleteMany({ comedian: id });
+      await UserModel.updateMany(
+        { favoriteComedians: id },
+        { $pull: { favoriteComedians: id } }
+      );
+    } else if (user.role === 'ORGANIZER') {
+      const organizerEvents = await EventModel.find({ organizer: id }).select('_id');
+      const eventIds = organizerEvents.map((e) => e._id);
+      await ApplicationModel.deleteMany({ event: { $in: eventIds } });
+      await AbsenceModel.deleteMany({ event: { $in: eventIds } });
+      await AbsenceModel.deleteMany({ organizer: id });
+      await EventModel.deleteMany({ organizer: id });
+    }
+
+    await PasswordResetRequestModel.deleteMany({ user: id });
+    await NotificationModel.deleteMany({ user: id });
+    await UserModel.findByIdAndDelete(userId);
+
+    console.log(`✅ Compte supprimé: ${user.firstName} ${user.lastName} (${user.email})`);
+
+    res.status(200).json({
+      message: `Compte de ${user.firstName} ${user.lastName} supprimé définitivement`,
+      userId,
+    });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du compte:', error);
+    res.status(500).json({ message: 'Erreur lors de la suppression du compte' });
   }
 };

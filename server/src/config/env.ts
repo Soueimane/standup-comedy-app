@@ -32,6 +32,9 @@ export const config = {
     comedianReminderSchedule: process.env.CRON_COMEDIAN_SCHEDULE || '0 * * * *', // Toutes les heures
     organizerReminderSchedule: process.env.CRON_ORGANIZER_SCHEDULE || '0 */6 * * *', // Toutes les 6 heures
     markCompletedSchedule: process.env.CRON_MARK_COMPLETED_SCHEDULE || '0 2 * * *', // Tous les jours à 2h du matin
+    presenceAlertSchedule: process.env.CRON_PRESENCE_ALERT_SCHEDULE || '0 9 * * *', // Tous les jours à 9h du matin
+    accountCleanupSchedule: process.env.CRON_ACCOUNT_CLEANUP_SCHEDULE || '0 3 * * *', // Tous les jours à 3h du matin
+    dailySpectatorRecapSchedule: process.env.CRON_DAILY_SPECTATOR_RECAP_SCHEDULE || '0 8 * * *', // Tous les jours à 8h
   },
 
   frontend: {
@@ -40,6 +43,14 @@ export const config = {
 
   api: {
     url: process.env.API_URL || 'http://localhost:3001',
+  },
+
+  keycloak: {
+    url: process.env.KEYCLOAK_URL || 'http://localhost:8080',
+    realm: process.env.KEYCLOAK_REALM || 'standup-comedy',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'standup-app',
+    clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || '',
+    enabled: process.env.KEYCLOAK_ENABLED === 'true',
   }
 };
 

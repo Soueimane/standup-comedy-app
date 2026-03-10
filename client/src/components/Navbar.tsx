@@ -1,6 +1,7 @@
 import { type CSSProperties, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import NotificationDropdown from './NotificationDropdown';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -82,6 +83,15 @@ function Navbar() {
         badgeText: 'Super Admin',
         avatarGradient: 'rgba(128, 128, 128, 0.6)',
       };
+    } else if (user?.role === 'SPECTATOR') {
+      return {
+        navbarBg: 'rgba(0, 0, 0, 0.4)',
+        badgeBg: 'transparent',
+        badgeColor: '#ffffff',
+        badgeIcon: '👥',
+        badgeText: 'Spectateur',
+        avatarGradient: 'rgba(128, 128, 128, 0.6)',
+      };
     }
     return {
       navbarBg: 'rgba(0, 0, 0, 0.4)',
@@ -97,6 +107,15 @@ function Navbar() {
 
   // Navigation items pour le menu mobile
   const getNavigationItems = () => {
+    // Spectateur : uniquement Accueil et Évènements
+    if (user?.role === 'SPECTATOR') {
+      return [
+        { to: '/spectateur', label: 'Accueil', icon: '🏠', show: true },
+        { to: '/spectateur/events', label: 'Évènements', icon: '📅', show: true },
+        { to: '/spectateur/profile', label: 'Profil', icon: '👤', show: true },
+      ];
+    }
+
     const items = [
       {
         to: "/dashboard",
@@ -108,6 +127,12 @@ function Navbar() {
         to: "/events",
         label: user?.role === 'ORGANIZER' ? 'Mes Évènements' : 'Évènements',
         icon: "📅",
+        show: true
+      },
+      {
+        to: "/calendar",
+        label: "Calendrier",
+        icon: "🗓️",
         show: true
       }
     ];
@@ -173,9 +198,20 @@ function Navbar() {
         <div style={{ display: 'flex', alignItems: 'center' }} id="desktop-nav">
           <h2 style={{ margin: '0', color: '#ff4b2b' }}>Connect Comedy Club</h2>
           <div style={{ marginLeft: '30px' }}>
+            {user?.role === 'SPECTATOR' ? (
+              <>
+                <Link to="/spectateur" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur' ? activeLinkStyle : {}) }}>Accueil</Link>
+                <Link to="/spectateur/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur/events' ? activeLinkStyle : {}) }}>Évènements</Link>
+                <Link to="/spectateur/profile" style={{ ...navLinkBaseStyle, ...(location.pathname === '/spectateur/profile' ? activeLinkStyle : {}) }}>Profil</Link>
+              </>
+            ) : (
+              <>
             <Link to="/dashboard" style={{ ...navLinkBaseStyle, ...(location.pathname === '/dashboard' ? activeLinkStyle : {}) }}>Accueil</Link>
             <Link to="/events" style={{ ...navLinkBaseStyle, ...(location.pathname === '/events' ? activeLinkStyle : {}) }}>
               {user?.role === 'ORGANIZER' ? 'Mes Évènements' : 'Évènements'}
+            </Link>
+            <Link to="/calendar" style={{ ...navLinkBaseStyle, ...(location.pathname === '/calendar' ? activeLinkStyle : {}) }}>
+              Calendrier
             </Link>
             {user?.role !== 'SUPER_ADMIN' && (
               <Link to="/applications" style={{ ...navLinkBaseStyle, ...(location.pathname === '/applications' ? activeLinkStyle : {}) }}>Candidatures</Link>
@@ -188,6 +224,8 @@ function Navbar() {
             )}
             {user?.role === 'COMEDIAN' && (
               <Link to="/profile/comedian" style={{ ...navLinkBaseStyle, ...(location.pathname === '/profile/comedian' ? activeLinkStyle : {}) }}>Profil</Link>
+            )}
+              </>
             )}
           </div>
         </div>
@@ -225,7 +263,8 @@ function Navbar() {
         </div>
 
         {/* Info utilisateur Desktop - Masqué sur mobile */}
-        <div id="desktop-user" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div id="desktop-user" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          {/* Ligne du rôle et nom */}
           {user && (
             <div style={{
               display: 'flex',
@@ -241,14 +280,17 @@ function Navbar() {
             }}>
               <span style={{ fontSize: '1rem' }}>{roleStyles.badgeIcon}</span>
               <span>{roleStyles.badgeText}</span>
+              <span style={{ color: '#aaa', margin: '0 4px' }}>|</span>
+              <span style={{ color: '#ffffff' }}>{`${user.firstName} ${user.lastName}`}</span>
             </div>
           )}
-          {user ? (
-            <span style={userNameStyle}>{`${user.firstName} ${user.lastName}`}</span>
-          ) : (
-            <span style={userNameStyle}>Invité</span>
-          )}
-          <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
+          {/* Ligne avec cloche et déconnexion */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Badge de notifications pour les organisateurs et humoristes */}
+            {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN' || user?.role === 'SPECTATOR') && <NotificationDropdown />}
+            {!user && <span style={userNameStyle}>Invité</span>}
+            <button onClick={logout} style={rightLinkStyle}>Déconnexion</button>
+          </div>
         </div>
       </nav>
 
@@ -420,6 +462,18 @@ function Navbar() {
                   </Link>
                 );
               })}
+              
+              {/* Badge de notifications pour les organisateurs, humoristes et spectateurs dans le menu mobile */}
+              {(user?.role === 'ORGANIZER' || user?.role === 'COMEDIAN' || user?.role === 'SPECTATOR') && (
+                <div style={{
+                  padding: '16px 20px',
+                  borderTop: '1px solid #e0e0e0',
+                  borderBottom: '1px solid #e0e0e0',
+                  backgroundColor: '#f8f9fa',
+                }}>
+                  <NotificationDropdown />
+                </div>
+              )}
             </nav>
 
             {/* Bouton Déconnexion */}

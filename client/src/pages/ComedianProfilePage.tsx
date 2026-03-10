@@ -6,6 +6,9 @@ import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
 import EditComedianProfileForm from '../components/EditComedianProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
+import DeleteAccountSection from '../components/DeleteAccountSection';
+import ExportDataSection from '../components/ExportDataSection';
+import ReportComedianModal from '../components/ReportComedianModal';
 import api from '../services/api';
 
 function ComedianProfilePage() {
@@ -14,7 +17,9 @@ function ComedianProfilePage() {
   const navigate = useNavigate();
   const { user: authUser, token, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
+  const isOrganizer = authUser?.role === 'ORGANIZER';
   const searchParams = new URLSearchParams(location.search);
   const fromApplications = searchParams.get('from') === 'applications';
   const applicationIdFromQuery = searchParams.get('applicationId');
@@ -189,6 +194,19 @@ function ComedianProfilePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {isOrganizer && isViewingOtherProfile && user && (
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              style={{
+                ...editButtonStyle,
+                background: 'linear-gradient(to right, #dc3545, #c82333)',
+                marginLeft: 0
+              }}
+            >
+              🚫 Signaler
+            </button>
+          )}
           {fromApplications && (
             <button type="button" style={backButtonStyle} onClick={handleBackToApplication}>
               ← Retour à la candidature
@@ -323,6 +341,21 @@ function ComedianProfilePage() {
                   : 'Non spécifié'}
               </span>
             </div>
+            <div style={infoRowStyle}>
+              <span style={infoLabelStyle}>Zone de mobilité:</span>
+              <span style={infoValueStyle}>
+                {user?.profile?.mobilityZone && user.profile.mobilityZone.length > 0
+                  ? user.profile.mobilityZone.map((zone, index) => {
+                      const typeLabels: Record<string, string> = {
+                        'ville': 'Ville',
+                        'departement': 'Département',
+                        'region': 'Région'
+                      };
+                      return `${typeLabels[zone.type] || zone.type}: ${zone.value}`;
+                    }).join(', ')
+                  : 'Non spécifié'}
+              </span>
+            </div>
             {(user?.profile?.socialLinks?.youtube || user?.profile?.socialLinks?.instagram || user?.profile?.socialLinks?.facebook) && (
               <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
                 <h3 style={{ ...cardTitleStyle, fontSize: '1.1em', marginBottom: '10px' }}>Réseaux sociaux</h3>
@@ -386,12 +419,36 @@ function ComedianProfilePage() {
               <EmailPreferences />
             </div>
           )}
+
+          {/* Export des données (RGPD) - uniquement pour son propre profil */}
+          {!isViewingOtherProfile && (
+            <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2', marginTop: '20px' }}>
+              <ExportDataSection />
+            </div>
+          )}
+
+          {/* Suppression de compte - uniquement pour son propre profil */}
+          {!isViewingOtherProfile && (
+            <div style={{ gridColumn: window.innerWidth < 768 ? 'span 1' : 'span 2' }}>
+              <DeleteAccountSection />
+            </div>
+          )}
         </div>
       )}
       {loading && (
         <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
           Chargement du profil...
         </div>
+      )}
+
+      {/* Modal de signalement */}
+      {isOrganizer && isViewingOtherProfile && user && (
+        <ReportComedianModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          comedianId={user._id}
+          comedianName={`${user.firstName} ${user.lastName}`}
+        />
       )}
     </div>
   );

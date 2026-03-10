@@ -17,6 +17,9 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       console.log('📅 [SSE] Nouvel évènement créé');
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events', 'stats'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['notifications'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     case 'EVENT_UPDATED':
@@ -26,6 +29,8 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.id) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.id], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     case 'EVENT_DELETED':
@@ -35,6 +40,8 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.id) {
         queryClient.removeQueries({ queryKey: ['event', event.data.id] });
       }
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     case 'EVENT_COMPLETED':
@@ -44,6 +51,8 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.id) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.id], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     // === CANDIDATURES ===
@@ -56,6 +65,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
       break;
 
     case 'APPLICATION_STATUS_CHANGED':
@@ -67,6 +77,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     case 'APPLICATION_WITHDRAWN':
@@ -78,12 +89,14 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['smartRecommendations'], exact: false });
       break;
 
     // === ABSENCES ===
     case 'ABSENCE_MARKED':
       console.log('⚠️ [SSE] Absence marquée:', event.data.eventId, event.data.comedianId);
       queryClient.invalidateQueries({ queryKey: ['absences'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
@@ -93,6 +106,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
     case 'ABSENCE_CANCELLED':
       console.log('✅ [SSE] Absence annulée:', event.data.eventId, event.data.comedianId);
       queryClient.invalidateQueries({ queryKey: ['absences'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['events'], exact: false });
       if (event.data.eventId) {
         queryClient.invalidateQueries({ queryKey: ['event', event.data.eventId], exact: false });
@@ -135,6 +149,7 @@ export const handleSSEEvent = (queryClient: QueryClient, event: SSEEvent): void 
       if (event.data.userId) {
         queryClient.invalidateQueries({ queryKey: ['user', event.data.userId], exact: false });
       }
+      queryClient.invalidateQueries({ queryKey: ['recommendations'], exact: false });
       break;
 
     case 'USER_REGISTERED':

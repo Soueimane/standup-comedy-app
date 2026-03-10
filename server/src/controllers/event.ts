@@ -5,10 +5,15 @@ import { AuthRequest } from '../middleware/auth';
 import mongoose from 'mongoose';
 import { ApplicationModel } from '../models/Application';
 import { expirePendingApplicationsForEvent } from './application';
-import { sendNewEventNotificationToHumorists, sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants } from '../services/emailService';
+import { sendEventUpdatedNotificationToApplicants, sendEventCancellationToParticipants, sendNewEventNotificationToHumorists, sendEventInvitationToComedian } from '../services/emailService';
+import { notifyComediansByMobilityAsync, notifyComediansByMobilityForRecurringGroupAsync } from '../services/mobilityNotificationService';
 import { config } from '../config/env';
 import { AbsenceModel } from '../models/Absence';
 import { emitEventCreated, emitEventUpdated, emitEventDeleted, emitEventCompleted } from '../services/eventEmitter';
+import { Types } from 'mongoose';
+import { extractPostalCode, getDepartmentFromPostalCode } from '../utils/cityMapping';
+import { getCityCoordinates } from '../utils/cityMapping';
+import { notifySpectatorsInRadius } from '../services/spectatorNotificationService';
 
 // ============================================================================
 // CREATE EVENT
@@ -24,16 +29,48 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { title, description, date, location, requirements, startTime, endTime, budget, maxPerformers } = req.body;
+    const { title, description, date, dates, location, requirements, startTime, endTime, budget, maxPerformers, maxSpectators, isRecurring, dateTimes } = req.body;
 
+    // Si c'est un événement récurrent avec plusieurs dates
+    if (isRecurring && dates && Array.isArray(dates) && dates.length > 0) {
+      return await createRecurringEvents(req, res, organizerId, {
+        title,
+        description,
+        dates,
+        location,
+        requirements,
+        startTime,
+        endTime,
+        budget,
+        maxPerformers,
+        maxSpectators,
+        dateTimes: Array.isArray(dateTimes) ? dateTimes : undefined,
+      });
+    }
+
+    // Sinon, création d'un événement unique (comportement existant)
     console.log('📅 Date reçue:', date, 'Type:', typeof date);
     console.log('📅 Date parsée:', new Date(date));
+
+    // Extraire le code postal de l'adresse et calculer le département
+    let enhancedLocation = { ...location };
+    if (location?.address) {
+      const postalCode = extractPostalCode(location.address);
+      if (postalCode) {
+        enhancedLocation.postalCode = postalCode;
+        const department = getDepartmentFromPostalCode(postalCode);
+        if (department) {
+          enhancedLocation.department = department;
+          console.log(`📍 [DEBUG] Code postal extrait: ${postalCode} → Département: ${department}`);
+        }
+      }
+    }
 
     const event = new EventModel({
       title,
       description,
       date,
-      location,
+      location: enhancedLocation,
       requirements,
       organizer: organizerId,
       status: 'published',
@@ -42,11 +79,25 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       endTime,
       venue: location.venue,
       budget,
-      maxPerformers
+      maxPerformers,
+      maxSpectators: maxSpectators != null ? Number(maxSpectators) : undefined,
     });
 
     await event.save();
     console.log('✅ Évènement sauvegardé avec succès:', event._id);
+
+    // Géocoder l'événement pour le rayon spectateurs (async, non bloquant)
+    const loc = event.location;
+    if (loc && (loc as any).latitude == null && (loc as any).longitude == null && loc.city) {
+      getCityCoordinates(loc.city, (loc as any).postalCode).then((coords) => {
+        if (coords) {
+          EventModel.updateOne(
+            { _id: event._id },
+            { $set: { 'location.latitude': coords.lat, 'location.longitude': coords.lon } }
+          ).catch((e) => console.warn('Geocode event location:', e));
+        }
+      });
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventCreated(event._id.toString());
@@ -77,53 +128,41 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
       // Ne pas faire échouer la création de l'évènement si les stats échouent
     }
 
-    // Envoyer les notifications par email aux humoristes (en arrière-plan)
-    console.log('📧 Démarrage envoi notifications email...');
-    console.log('📋 Données évènement pour email:', {
+    // Envoyer les notifications par mobilité aux humoristes dont la zone correspond
+    console.log('📍 [EVENT_UNIQUE] Démarrage envoi notifications par mobilité...');
+    console.log('📋 [EVENT_UNIQUE] Données évènement:', {
       title: event.title,
-      date: event.date,
-      location: event.location,
-      startTime: req.body.startTime,
-      endTime: req.body.endTime,
-      requirements: event.requirements
-    });
-    console.log('👤 Données organisateur pour email:', {
-      firstName: organizer.firstName,
-      lastName: organizer.lastName,
-      email: organizer.email
-    });
-
-    // Vérifier les variables d'environnement avant d'envoyer
-    console.log('🔍 Vérification variables d\'environnement:', {
-      NODE_ENV: process.env.NODE_ENV,
-      DISABLE_EMAILS: process.env.DISABLE_EMAILS,
-      SMTP_USER: config.email.smtpUser ? 'Configuré' : 'MANQUANT',
-      SMTP_PASS: config.email.smtpPass ? 'Configuré (masqué)' : 'MANQUANT'
-    });
-
-    sendNewEventNotificationToHumorists({
-      title: event.title,
-      description: event.description,
       date: event.date,
       location: event.location,
       requirements: event.requirements,
-      startTime: req.body.startTime,
-      endTime: req.body.endTime
-    }, {
+      eventId: event._id.toString()
+    });
+    console.log('👤 [EVENT_UNIQUE] Organisateur:', {
       firstName: organizer.firstName,
       lastName: organizer.lastName,
       email: organizer.email
-    }).then((result) => {
-      console.log('✅ Fonction d\'envoi d\'emails terminée avec succès', result);
-    }).catch(emailError => {
-      console.error('❌ Erreur lors de l\'envoi des notifications:', emailError);
-      console.error('🔍 Détails de l\'erreur:', {
-        message: emailError?.message,
-        response: emailError?.response?.body,
-        code: emailError?.code,
-        stack: emailError instanceof Error ? emailError.stack : 'N/A'
-      });
     });
+
+    try {
+      notifyComediansByMobilityAsync(event, {
+        firstName: organizer.firstName,
+        lastName: organizer.lastName,
+        email: organizer.email
+      });
+      console.log('✅ [EVENT_UNIQUE] Notification mobilité lancée avec succès');
+    } catch (notifError) {
+      console.error('❌ [EVENT_UNIQUE] Erreur lors du lancement de la notification mobilité:', notifError);
+      // Ne pas faire échouer la création de l'événement si la notification échoue
+    }
+
+    // Notifier les spectateurs dans le rayon (nouvel événement publié)
+    const eventStatus = (event as any).status?.toLowerCase?.() || '';
+    if (eventStatus === 'published') {
+      const eventForNotif = (event.toObject ? event.toObject() : event) as { _id: Types.ObjectId; title: string; date: Date; location?: { city?: string; postalCode?: string; latitude?: number; longitude?: number } };
+      notifySpectatorsInRadius(event._id.toString(), eventForNotif).catch((err) => {
+        console.error('❌ [EVENT_UNIQUE] Erreur notification spectateurs par rayon (non-bloquant):', err);
+      });
+    }
 
     // Convertir l'évènement en objet JSON pour éviter les problèmes de sérialisation
     const eventResponse = event.toObject ? event.toObject() : event;
@@ -140,6 +179,334 @@ export const createEvent = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+/**
+ * Crée plusieurs événements récurrents avec les mêmes informations mais des dates différentes
+ * Utilise une transaction MongoDB pour garantir l'atomicité
+ */
+const createRecurringEvents = async (
+  req: AuthRequest,
+  res: Response,
+  organizerId: string,
+  eventData: {
+    title: string;
+    description: string;
+    dates: string[];
+    location: any;
+    requirements: any;
+    startTime?: string;
+    endTime?: string;
+    budget?: any;
+    maxPerformers?: number;
+    maxSpectators?: number;
+    /** Heures par date (optionnel). Si fourni, utilise startTime/endTime par date au lieu des valeurs globales. */
+    dateTimes?: Array<{ date: string; startTime: string; endTime: string }>;
+  }
+): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    console.log('🔄 [RECURRENCE] Création de', eventData.dates.length, 'événements récurrents');
+
+    // Validation : vérifier qu'il n'y a pas de doublons de dates
+    const uniqueDates = [...new Set(eventData.dates)];
+    if (uniqueDates.length !== eventData.dates.length) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les dates doivent être uniques' });
+      return;
+    }
+
+    // Validation : vérifier que toutes les dates sont dans le futur
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (const dateStr of eventData.dates) {
+      const eventDate = new Date(dateStr);
+      eventDate.setHours(0, 0, 0, 0);
+      if (eventDate < today) {
+        await session.abortTransaction();
+        session.endSession();
+        res.status(400).json({ message: `La date ${dateStr} est dans le passé` });
+        return;
+      }
+    }
+
+    // Générer un ID de groupe de récurrence (utiliser le premier événement comme référence)
+    const recurrenceGroupId = new Types.ObjectId();
+    
+    // Convertir organizerId en ObjectId si nécessaire
+    const organizerObjectId = Types.ObjectId.isValid(organizerId) 
+      ? new Types.ObjectId(organizerId) 
+      : organizerId;
+
+    // Créer tous les événements dans la transaction
+    const createdEvents = [];
+    console.log('🔄 [RECURRENCE] Données reçues:', {
+      title: eventData.title,
+      dates: eventData.dates,
+      location: eventData.location,
+      requirements: eventData.requirements,
+      startTime: eventData.startTime,
+      endTime: eventData.endTime,
+      organizerId: organizerId,
+      organizerObjectId: organizerObjectId.toString()
+    });
+    
+    // Vérifier que les champs requis sont présents
+    if (!eventData.location || !eventData.location.address || !eventData.location.city || !eventData.location.country) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les champs de localisation sont incomplets (address, city, country requis)' });
+      return;
+    }
+    
+    if (!eventData.requirements) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'Les exigences sont requises' });
+      return;
+    }
+    
+    if (typeof eventData.requirements.minExperience !== 'number') {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'minExperience doit être un nombre' });
+      return;
+    }
+    
+    if (typeof eventData.requirements.duration !== 'number' || eventData.requirements.duration <= 0) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'duration doit être un nombre positif (en minutes)' });
+      return;
+    }
+    
+    if (!eventData.startTime || !eventData.endTime) {
+      await session.abortTransaction();
+      session.endSession();
+      res.status(400).json({ message: 'startTime et endTime sont requis' });
+      return;
+    }
+    
+    const dateTimesMap = new Map<string, { startTime: string; endTime: string }>();
+    if (eventData.dateTimes && eventData.dateTimes.length > 0) {
+      for (const dt of eventData.dateTimes) {
+        const key = typeof dt.date === 'string' ? dt.date.split('T')[0] : String(dt.date).split('T')[0];
+        dateTimesMap.set(key, { startTime: dt.startTime, endTime: dt.endTime });
+      }
+    }
+
+    // Extraire le code postal et le département de l'adresse (une seule fois pour tous les événements)
+    let enhancedLocation = { ...eventData.location };
+    if (eventData.location?.address) {
+      const postalCode = extractPostalCode(eventData.location.address);
+      if (postalCode) {
+        enhancedLocation.postalCode = postalCode;
+        const department = getDepartmentFromPostalCode(postalCode);
+        if (department) {
+          enhancedLocation.department = department;
+          console.log(`📍 [RECURRENCE] Code postal extrait: ${postalCode} → Département: ${department}`);
+        }
+      }
+    }
+
+    for (const dateStr of eventData.dates) {
+      try {
+        console.log(`🔄 [RECURRENCE] Création de l'événement pour le ${dateStr}...`);
+        const override = dateTimesMap.get(dateStr);
+        const startTime = override?.startTime ?? eventData.startTime;
+        const endTime = override?.endTime ?? eventData.endTime;
+        if (!startTime || !endTime) {
+          await session.abortTransaction();
+          session.endSession();
+          res.status(400).json({ message: `Heures manquantes pour la date ${dateStr}` });
+          return;
+        }
+
+        const event = new EventModel({
+          title: eventData.title,
+          description: eventData.description,
+          date: new Date(dateStr),
+          location: enhancedLocation,
+          requirements: eventData.requirements,
+          organizer: organizerObjectId,
+          status: 'published',
+          applications: [],
+          startTime,
+          endTime,
+          venue: enhancedLocation.venue,
+          budget: eventData.budget,
+          maxPerformers: eventData.maxPerformers,
+          maxSpectators: eventData.maxSpectators != null ? Number(eventData.maxSpectators) : undefined,
+          recurrenceGroupId: recurrenceGroupId
+        });
+
+        console.log(`🔄 [RECURRENCE] Événement modèle créé, validation...`);
+        const savedEvent = await event.save({ session });
+        createdEvents.push(savedEvent);
+        console.log(`✅ [RECURRENCE] Événement créé pour le ${dateStr}:`, savedEvent._id);
+
+        // Émettre un évènement SSE pour chaque événement créé
+        emitEventCreated(savedEvent._id.toString());
+      } catch (eventError: any) {
+        console.error(`❌ [RECURRENCE] Erreur lors de la création de l'événement pour ${dateStr}:`, eventError);
+        console.error(`❌ [RECURRENCE] Détails de l'erreur:`, {
+          message: eventError?.message,
+          name: eventError?.name,
+          errors: eventError?.errors
+        });
+        throw eventError; // Re-lancer l'erreur pour que le catch principal la gère
+      }
+    }
+
+    // Récupérer l'organisateur pour les notifications (sans session pour éviter les problèmes de validation)
+    let organizer;
+    try {
+      organizer = await UserModel.findById(organizerId).select('firstName lastName email').lean();
+      if (!organizer) {
+        console.error('⚠️ [RECURRENCE] Organisateur non trouvé pour les notifications');
+      }
+    } catch (organizerError) {
+      console.error('⚠️ [RECURRENCE] Erreur lors de la récupération de l\'organisateur:', organizerError);
+    }
+
+    // Mettre à jour les statistiques de l'organisateur
+    // Utiliser findByIdAndUpdate avec $inc pour éviter les problèmes de validation
+    // car on ne modifie que les stats, pas le profil
+    try {
+      await UserModel.findByIdAndUpdate(
+        organizerId,
+        { $inc: { 'stats.totalEvents': createdEvents.length } },
+        { 
+          session,
+          runValidators: false // Ne pas valider les autres champs comme numberOfScenes
+        }
+      );
+      console.log(`✅ [RECURRENCE] Stats de l'organisateur mises à jour (+${createdEvents.length} événements)`);
+    } catch (statsError: any) {
+      console.error('❌ [RECURRENCE] Erreur lors de la mise à jour des stats:', statsError);
+      // Ne pas faire échouer la création des événements si les stats échouent
+      // Les événements sont déjà créés, on continue
+    }
+
+    // Valider la transaction
+    await session.commitTransaction();
+    await session.endSession();
+
+    console.log(`✅ [RECURRENCE] Transaction commitée - ${createdEvents.length} événements créés avec succès dans le groupe ${recurrenceGroupId}`);
+    console.log(`✅ [RECURRENCE] IDs des événements créés:`, createdEvents.map(e => e._id.toString()));
+
+    // Vérifier que les événements sont bien en base (optionnel, pour debug)
+    try {
+      const eventIds = createdEvents.map(e => e._id);
+      const verifiedEvents = await EventModel.find({ _id: { $in: eventIds } });
+      console.log(`✅ [RECURRENCE] Vérification: ${verifiedEvents.length}/${createdEvents.length} événements trouvés en base`);
+    } catch (verifyError) {
+      console.error('⚠️ [RECURRENCE] Erreur lors de la vérification (non-bloquant):', verifyError);
+    }
+
+    // Envoyer UN SEUL email par humoriste regroupant toutes les dates (au lieu d'un email par date)
+    if (organizer) {
+      console.log(`📧 [RECURRENCE] Démarrage envoi notifications groupées (1 email par humoriste, ${createdEvents.length} dates)...`);
+
+      const eventIds = createdEvents.map(e => e._id);
+      const eventsForNotification = await EventModel.find({ _id: { $in: eventIds } }).sort({ date: 1 });
+
+      console.log(`📧 [RECURRENCE] ${eventsForNotification.length} événements récupérés pour notification groupée`);
+
+      try {
+        notifyComediansByMobilityForRecurringGroupAsync(eventsForNotification, {
+          firstName: organizer.firstName || '',
+          lastName: organizer.lastName || '',
+          email: organizer.email || ''
+        });
+        console.log(`✅ [RECURRENCE] Notification groupée lancée (1 email par humoriste avec toutes les dates)`);
+      } catch (notifError) {
+        console.error(`⚠️ [RECURRENCE] Erreur notification mobilité groupée (non-bloquant):`, notifError);
+      }
+    } else {
+      console.error('⚠️ [RECURRENCE] Organisateur non trouvé, notifications non envoyées');
+    }
+
+    // Retourner le premier événement et le nombre total créé
+    try {
+      const eventsResponse = createdEvents.map(e => {
+        try {
+          return e.toObject ? e.toObject() : e;
+        } catch (toObjectError) {
+          console.error('⚠️ [RECURRENCE] Erreur toObject (non-bloquant):', toObjectError);
+          // Retourner un objet simplifié si toObject échoue
+          return {
+            _id: e._id,
+            title: e.title,
+            date: e.date,
+            status: e.status
+          };
+        }
+      });
+
+      res.status(201).json({
+        message: `${createdEvents.length} événements récurrents créés avec succès`,
+        events: eventsResponse,
+        recurrenceGroupId: recurrenceGroupId.toString(),
+        count: createdEvents.length
+      });
+      
+      console.log(`✅ [RECURRENCE] Réponse HTTP envoyée avec succès`);
+    } catch (responseError) {
+      // Si la réponse échoue mais que les événements sont créés, on doit quand même informer
+      console.error('❌ [RECURRENCE] Erreur lors de l\'envoi de la réponse HTTP:', responseError);
+      console.error('⚠️ [RECURRENCE] ATTENTION: Les événements sont créés en base mais la réponse a échoué');
+      
+      // Essayer d'envoyer une réponse simplifiée
+      try {
+        res.status(201).json({
+          message: `${createdEvents.length} événements récurrents créés avec succès`,
+          count: createdEvents.length,
+          recurrenceGroupId: recurrenceGroupId.toString(),
+          note: 'Les événements ont été créés mais certains détails n\'ont pas pu être renvoyés'
+        });
+      } catch (fallbackError) {
+        console.error('❌ [RECURRENCE] Impossible d\'envoyer une réponse de secours:', fallbackError);
+        // À ce stade, les événements sont créés mais on ne peut pas répondre
+        // Le client verra une erreur mais les événements existent en base
+      }
+    }
+
+  } catch (error: any) {
+    console.error('❌ [RECURRENCE] Erreur lors de la création des événements récurrents:', error);
+    console.error('❌ [RECURRENCE] Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors,
+      eventData: {
+        title: eventData.title,
+        datesCount: eventData.dates?.length,
+        location: eventData.location,
+        requirements: eventData.requirements
+      }
+    });
+    
+    try {
+      await session.abortTransaction();
+      await session.endSession();
+    } catch (sessionError) {
+      console.error('❌ [RECURRENCE] Erreur lors de l\'abandon de la transaction:', sessionError);
+    }
+    
+    // Retourner un message d'erreur plus détaillé
+    const errorMessage = error?.message || 'Erreur lors de la création des événements récurrents';
+    const validationErrors = error?.errors ? Object.values(error.errors).map((e: any) => e.message).join(', ') : null;
+    
+    res.status(500).json({ 
+      message: 'Erreur lors de la création des événements récurrents',
+      error: errorMessage,
+      validationErrors: validationErrors || undefined
+    });
+  }
+};
+
 // ============================================================================
 // GET EVENTS (with filtering by role)
 // ============================================================================
@@ -152,6 +519,13 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const organizerId = req.query.organizerId as string;
+    const city = req.query.city as string;
+    const cityRadius = req.query.cityRadius as string; // rayon autour de la ville recherchée
+    const type = req.query.type as string; // recherche par mot-clé (titre / description)
+    const venueType = req.query.venueType as string; // filtre par type de lieu
+    const myRegistrations = req.query.myRegistrations === 'true';
+    const nearMe = req.query.nearMe === 'true';
+    const radiusKmParam = req.query.radiusKm as string; // 5, 10, 20, 50
     const userRole = req.user?.role;
     const userId = req.user?.id;
 
@@ -164,20 +538,78 @@ export const getEventsList = async (req: AuthRequest, res: Response): Promise<vo
       res.status(400).json({ message: 'Invalid organizerId format' });
       return;
     } else if (userRole === 'ORGANIZER') {
-      // If no specific organizerId, and user is an ORGANIZER, show their own events
       query.organizer = userId;
-    } else if (userRole === 'COMEDIAN') {
-      // For comedians, show all published events
+    } else if (userRole === 'COMEDIAN' || userRole === 'SPECTATOR') {
       query.status = { $in: ['published', 'PUBLISHED', 'completed', 'COMPLETED', 'cancelled', 'CANCELLED'] };
     } else if (userRole === 'SUPER_ADMIN') {
-      // Super Admin can see ALL events
       query = {};
     } else {
-      // Fallback
       query.status = 'published';
     }
 
-    const events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email');
+    // Filtre "mes inscriptions" pour le spectateur
+    if (userRole === 'SPECTATOR' && myRegistrations && userId) {
+      query.spectatorRegistrations = new mongoose.Types.ObjectId(userId);
+    }
+
+    // Filtre par ville (lieu) — si cityRadius est fourni, on filtre par distance après la requête
+    const cityRadiusKm = [5, 10, 20, 50].includes(Number(cityRadius)) ? Number(cityRadius) : 0;
+    if (city && city.trim() && !cityRadiusKm) {
+      query['location.city'] = new RegExp(city.trim(), 'i');
+    }
+
+    // Filtre par type (mot-clé dans titre ou description)
+    if (type && type.trim()) {
+      query.$or = [
+        { title: new RegExp(type.trim(), 'i') },
+        { description: new RegExp(type.trim(), 'i') },
+      ];
+    }
+
+    // Filtre par type de lieu
+    if (venueType && ['theatre', 'salle_polyvalente', 'cafe', 'restaurant', 'autre'].includes(venueType.trim())) {
+      query['location.venueType'] = venueType.trim();
+    }
+
+    let events = await EventModel.find(query).select('+withdrawnComedians').populate('participants').populate('organizer', 'firstName lastName email').populate('spectatorRegistrations', 'firstName lastName');
+
+    // Filtre "près de moi" (rayon en km) pour le spectateur
+    if (userRole === 'SPECTATOR' && nearMe && userId) {
+      const { getEventCoordinates, getSpectatorCoordinates } = await import('../services/spectatorNotificationService');
+      const { distanceKm } = await import('../utils/cityMapping');
+      const spectator = await UserModel.findById(userId).select('city latitude longitude spectatorPreferences').lean();
+      if (spectator) {
+        const specCoords = await getSpectatorCoordinates(spectator as any);
+        const radiusKm = [5, 10, 20, 50].includes(Number(radiusKmParam)) ? Number(radiusKmParam) : (spectator as any).spectatorPreferences?.radiusKm ?? 20;
+        if (specCoords) {
+          const inRadius: typeof events = [];
+          for (const ev of events) {
+            const coords = await getEventCoordinates(ev as any);
+            if (coords && distanceKm(coords.lat, coords.lon, specCoords.lat, specCoords.lon) <= radiusKm) {
+              inRadius.push(ev);
+            }
+          }
+          events = inRadius;
+        }
+      }
+    }
+
+    // Filtre par rayon autour de la ville recherchée
+    if (city && city.trim() && cityRadiusKm > 0) {
+      const { getEventCoordinates } = await import('../services/spectatorNotificationService');
+      const { getCityCoordinates, distanceKm } = await import('../utils/cityMapping');
+      const cityCoords = await getCityCoordinates(city.trim());
+      if (cityCoords) {
+        const inRadius: typeof events = [];
+        for (const ev of events) {
+          const coords = await getEventCoordinates(ev as any);
+          if (coords && distanceKm(cityCoords.lat, cityCoords.lon, coords.lat, coords.lon) <= cityRadiusKm) {
+            inRadius.push(ev);
+          }
+        }
+        events = inRadius;
+      }
+    }
 
     // Filtrer les évènements qui n'ont pas d'organisateur valide
     const validEvents = events.filter(event => {
@@ -284,6 +716,89 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
 };
 
 // ============================================================================
+// SPECTATOR REGISTRATION (s'inscrire à un événement)
+// ============================================================================
+export const registerSpectator = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || userRole !== 'SPECTATOR') {
+      res.status(403).json({ message: 'Seuls les spectateurs peuvent s\'inscrire à un événement' });
+      return;
+    }
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'ID d\'événement invalide' });
+      return;
+    }
+
+    const event = await EventModel.findById(eventId);
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+    if (event.status?.toLowerCase() === 'cancelled') {
+      res.status(400).json({ message: 'Cet événement est annulé' });
+      return;
+    }
+
+    const withdrawnSpectators = (event as any).withdrawnSpectators || [];
+    if (withdrawnSpectators.some((id: mongoose.Types.ObjectId) => id.toString() === userId)) {
+      res.status(403).json({ message: 'Vous vous êtes désinscrit de cet événement ; la réinscription n\'est pas possible.' });
+      return;
+    }
+    const spectatorRegistrations = event.spectatorRegistrations || [];
+    if (spectatorRegistrations.some((id) => id.toString() === userId)) {
+      res.status(409).json({ message: 'Vous êtes déjà inscrit à cet événement' });
+      return;
+    }
+    const maxSpectators = (event as any).maxSpectators;
+    if (maxSpectators != null && typeof maxSpectators === 'number' && spectatorRegistrations.length >= maxSpectators) {
+      res.status(409).json({ message: 'Plus de places disponibles pour les spectateurs' });
+      return;
+    }
+
+    await EventModel.findByIdAndUpdate(eventId, {
+      $addToSet: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
+    });
+
+    const updated = await EventModel.findById(eventId).populate('organizer', 'firstName lastName email').populate('spectatorRegistrations', 'firstName lastName');
+    res.status(201).json({ message: 'Inscription enregistrée', event: updated });
+  } catch (error) {
+    console.error('Register spectator error:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'inscription' });
+  }
+};
+
+export const unregisterSpectator = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || userRole !== 'SPECTATOR') {
+      res.status(403).json({ message: 'Non autorisé' });
+      return;
+    }
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'ID d\'événement invalide' });
+      return;
+    }
+
+    await EventModel.findByIdAndUpdate(eventId, {
+      $pull: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
+      $addToSet: { withdrawnSpectators: new mongoose.Types.ObjectId(userId) },
+    });
+
+    res.status(200).json({ message: 'Désinscription enregistrée' });
+  } catch (error) {
+    console.error('Unregister spectator error:', error);
+    res.status(500).json({ message: 'Erreur lors de la désinscription' });
+  }
+};
+
+// ============================================================================
 // UPDATE EVENT
 // ============================================================================
 export const updateEvent = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -334,9 +849,27 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       requestingOrganizer: organizerId,
     });
 
+    // Sauvegarder l'ancienne ville pour détecter le changement
+    const oldCity = event.location?.city;
+
+    // Préparer les données de mise à jour avec extraction du code postal/département si la location est fournie
+    let updateData = { ...req.body, modifiedByOrganizer: true };
+    
+    if (req.body.location?.address) {
+      const postalCode = extractPostalCode(req.body.location.address);
+      if (postalCode) {
+        updateData.location = {
+          ...req.body.location,
+          postalCode: postalCode,
+          department: getDepartmentFromPostalCode(postalCode)
+        };
+        console.log(`📍 [DEBUG updateEvent] Code postal extrait: ${postalCode} → Département: ${updateData.location.department}`);
+      }
+    }
+
     const updatedEvent = await EventModel.findByIdAndUpdate(
       eventId,
-      { $set: { ...req.body, modifiedByOrganizer: true } },
+      { $set: updateData },
       { new: true }
     );
 
@@ -350,6 +883,22 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
       eventId: updatedEvent._id,
       title: updatedEvent.title,
     });
+
+    // Si la ville a changé, notifier les humoristes dont la zone de mobilité correspond
+    const newCity = updatedEvent.location?.city;
+    if (oldCity !== newCity && newCity) {
+      console.log(`📍 [MobilityNotification] Ville de l'événement modifiée: "${oldCity}" → "${newCity}"`);
+
+      const organizer = await UserModel.findById(organizerId).select('firstName lastName email');
+      if (organizer) {
+        notifyComediansByMobilityAsync(updatedEvent, {
+          firstName: organizer.firstName,
+          lastName: organizer.lastName,
+          email: organizer.email
+        });
+        console.log('📧 [MobilityNotification] Notification des humoristes par zone de mobilité lancée en arrière-plan');
+      }
+    }
 
     // Émettre un évènement SSE pour notifier tous les clients
     emitEventUpdated(updatedEvent._id.toString());
@@ -377,6 +926,52 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
             lastName: organizer.lastName,
             email: organizer.email,
           }, (req.body as any).cancellationReason);
+
+          // Créer des notifications in-app pour les humoristes concernés
+          try {
+            const { createNotification } = await import('./notification');
+            for (const app of affectedApplications) {
+              const comedian = app.comedian;
+              if (comedian && (comedian as any).role === 'COMEDIAN') {
+                const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                await createNotification(
+                  comedianId,
+                  'event_cancelled',
+                  'Évènement annulé',
+                  `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été annulé.`,
+                  updatedEvent._id.toString(),
+                  app._id.toString(),
+                  organizer._id?.toString() || organizer.toString()
+                );
+              }
+            }
+          } catch (notificationError) {
+            console.error('Erreur lors de la création des notifications in-app pour l\'annulation:', notificationError);
+          }
+          console.log(`✅ [Annulation] Notifications in-app créées pour ${affectedApplications.length} candidature(s).`);
+
+          // Notifier les spectateurs inscrits à l'événement (annulation)
+          const spectatorIds = (updatedEvent.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+          if (spectatorIds.length > 0) {
+            try {
+              const { createNotification } = await import('./notification');
+              for (const sid of spectatorIds) {
+                const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+                if (spectatorId) {
+                  await createNotification(
+                    spectatorId,
+                    'event_cancelled',
+                    'Évènement annulé',
+                    `L'évènement "${updatedEvent.title}" auquel vous étiez inscrit a été annulé.`,
+                    updatedEvent._id.toString()
+                  );
+                }
+              }
+              console.log(`✅ [Annulation] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+            } catch (notifErr) {
+              console.error('Erreur notifications in-app spectateurs (annulation):', notifErr);
+            }
+          }
         } else {
           // Sinon, envoyer une notification de mise à jour classique
           try {
@@ -386,12 +981,58 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
               email: organizer.email,
             });
             console.log(`✅ [DEBUG] Emails de mise à jour envoyés à ${applications.length} humoriste(s)`);
+            // Créer des notifications in-app pour les humoristes concernés
+            try {
+              const { createNotification } = await import('./notification');
+              for (const app of applications) {
+                const comedian = app.comedian;
+                if (comedian && (comedian as any).role === 'COMEDIAN') {
+                  const comedianId = (comedian as any)._id?.toString() || comedian.toString();
+                  await createNotification(
+                    comedianId,
+                    'event_updated',
+                    'Évènement modifié',
+                    `L'évènement "${updatedEvent.title}" auquel vous avez postulé a été modifié.`,
+                    updatedEvent._id.toString(),
+                    app._id.toString(),
+                    organizer._id?.toString() || organizer.toString()
+                  );
+                }
+              }
+            } catch (notificationError) {
+              console.error('Erreur lors de la création des notifications in-app pour la mise à jour:', notificationError);
+            }
           } catch (err) {
             console.error('❌ Erreur envoi emails maj évènement:', err);
           }
         }
       } else {
         console.log('ℹ️ [DEBUG] Aucun destinataire email trouvé ou organisateur introuvable.');
+      }
+    }
+
+    // Notifier les spectateurs inscrits en cas de modification (évènement non annulé)
+    if (updatedEvent && updatedEvent.status !== 'cancelled' && new Date(updatedEvent.date) >= new Date()) {
+      const spectatorIds = (updatedEvent.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+      if (spectatorIds.length > 0) {
+        try {
+          const { createNotification } = await import('./notification');
+          for (const sid of spectatorIds) {
+            const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+            if (spectatorId) {
+              await createNotification(
+                spectatorId,
+                'event_updated',
+                'Évènement modifié',
+                `L'évènement "${updatedEvent.title}" auquel vous êtes inscrit a été modifié.`,
+                updatedEvent._id.toString()
+              );
+            }
+          }
+          console.log(`✅ [Mise à jour] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+        } catch (notifErr) {
+          console.error('Erreur notifications in-app spectateurs (mise à jour):', notifErr);
+        }
       }
     }
 
@@ -480,6 +1121,29 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
       console.error('❌ Erreur lors de l\'envoi des emails d\'annulation avant suppression:', emailErr);
     }
 
+    // Notifier les spectateurs inscrits (événement supprimé)
+    const spectatorIds = (event.spectatorRegistrations || []) as mongoose.Types.ObjectId[];
+    if (spectatorIds.length > 0) {
+      try {
+        const { createNotification } = await import('./notification');
+        for (const sid of spectatorIds) {
+          const spectatorId = sid?.toString?.() || (sid as any).toString?.();
+          if (spectatorId) {
+            await createNotification(
+              spectatorId,
+              'event_cancelled',
+              'Évènement annulé',
+              `L'évènement "${event.title}" auquel vous étiez inscrit a été annulé par l'organisateur.`,
+              eventId
+            );
+          }
+        }
+        console.log(`✅ [Suppression] Notifications in-app créées pour ${spectatorIds.length} spectateur(s).`);
+      } catch (notifErr) {
+        console.error('Erreur notifications in-app spectateurs (suppression):', notifErr);
+      }
+    }
+
     // Delete all applications for this event after notifications
     await ApplicationModel.deleteMany({ event: eventId });
 
@@ -489,20 +1153,32 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
     emitEventDeleted(eventId);
 
     // Décrémenter le compteur d'évènements créés de l'organisateur
-    const organizer = await UserModel.findById(organizerId);
-    if (organizer) {
-      if (organizer.stats && organizer.stats.totalEvents && organizer.stats.totalEvents > 0) {
-        organizer.stats.totalEvents -= 1;
-        organizer.markModified('stats');
-        await organizer.save();
-        console.log('Total events après décrémentation et sauvegarde:', organizer.stats.totalEvents);
-      }
+    // Utiliser findByIdAndUpdate avec $inc pour éviter les problèmes de validation
+    try {
+      await UserModel.findByIdAndUpdate(
+        organizerId,
+        { $inc: { 'stats.totalEvents': -1 } },
+        { runValidators: false } // Ne pas valider les autres champs comme numberOfScenes
+      );
+      console.log('✅ Stats de l\'organisateur décrémentées (suppression événement)');
+    } catch (statsError) {
+      console.error('⚠️ Erreur lors de la décrémentation des stats de l\'organisateur:', statsError);
+      // Ne pas faire échouer la suppression si les stats échouent
     }
 
     res.json({ message: 'Évènement supprimé avec succès' });
-  } catch (error) {
-    console.error('Delete event error:', error);
-    res.status(500).json({ message: 'Error deleting event' });
+  } catch (error: any) {
+    console.error('❌ Delete event error:', error);
+    console.error('❌ Détails de l\'erreur:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      errors: error?.errors
+    });
+    res.status(500).json({ 
+      message: 'Error deleting event',
+      error: error?.message || 'Erreur inconnue'
+    });
   }
 };
 
@@ -824,6 +1500,139 @@ export const notifyHumorists = async (req: AuthRequest, res: Response): Promise<
 };
 
 // ============================================================================
+// INVITE COMEDIAN TO EVENT
+// ============================================================================
+/**
+ * Permet à un organisateur d'inviter un humoriste spécifique à postuler pour un de ses événements
+ */
+export const inviteComedian = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { eventId, comedianId } = req.params;
+    const organizerId = req.user?.id;
+
+    // Vérifier que l'utilisateur est authentifié
+    if (!organizerId) {
+      res.status(401).json({ message: 'Utilisateur non authentifié' });
+      return;
+    }
+
+    // Vérifier que l'utilisateur est un organisateur
+    if (req.user?.role !== 'ORGANIZER') {
+      res.status(403).json({ message: 'Seuls les organisateurs peuvent inviter des humoristes' });
+      return;
+    }
+
+    // Valider les formats des IDs
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      res.status(400).json({ message: 'Format d\'ID d\'événement invalide' });
+      return;
+    }
+    if (!mongoose.Types.ObjectId.isValid(comedianId)) {
+      res.status(400).json({ message: 'Format d\'ID d\'humoriste invalide' });
+      return;
+    }
+
+    // Récupérer l'événement
+    const event = await EventModel.findById(eventId);
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    // Vérifier que l'utilisateur est bien l'organisateur de l'événement
+    const eventOrganizerId = typeof event.organizer === 'object' && event.organizer !== null
+      ? (event.organizer as any)._id?.toString()
+      : event.organizer?.toString();
+
+    if (eventOrganizerId !== organizerId) {
+      res.status(403).json({ message: 'Vous n\'êtes pas autorisé à inviter des humoristes pour cet événement' });
+      return;
+    }
+
+    // Vérifier que l'événement est publié
+    const eventStatus = event.status?.toLowerCase();
+    if (eventStatus !== 'published') {
+      res.status(400).json({ message: 'L\'événement doit être publié pour inviter des humoristes' });
+      return;
+    }
+
+    // Vérifier que l'événement est à venir
+    const eventDate = new Date(event.date);
+    const now = new Date();
+    if (eventDate < now) {
+      res.status(400).json({ message: 'Impossible d\'inviter des humoristes pour un événement passé' });
+      return;
+    }
+
+    // Récupérer l'humoriste
+    const comedian = await UserModel.findById(comedianId);
+    if (!comedian) {
+      res.status(404).json({ message: 'Humoriste non trouvé' });
+      return;
+    }
+
+    // Vérifier que c'est bien un humoriste
+    if (comedian.role !== 'COMEDIAN') {
+      res.status(400).json({ message: 'L\'utilisateur n\'est pas un humoriste' });
+      return;
+    }
+
+    // Récupérer les informations de l'organisateur
+    const organizer = await UserModel.findById(organizerId);
+    if (!organizer) {
+      res.status(404).json({ message: 'Organisateur non trouvé' });
+      return;
+    }
+
+    // Préparer les données pour l'email
+    const comedianData = {
+      _id: comedian._id.toString(),
+      email: comedian.email,
+      firstName: comedian.firstName,
+      lastName: comedian.lastName,
+      emailSubscriptions: comedian.emailSubscriptions
+    };
+
+    const eventData = {
+      _id: event._id,
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      location: event.location,
+      requirements: event.requirements,
+      startTime: event.startTime,
+      endTime: event.endTime
+    };
+
+    const organizerData = {
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+      email: organizer.email
+    };
+
+    // Envoyer l'invitation en arrière-plan
+    sendEventInvitationToComedian(comedianData, eventData, organizerData)
+      .then(() => {
+        console.log(`✅ Invitation envoyée à ${comedian.email} pour l'événement "${event.title}" par ${organizer.firstName} ${organizer.lastName}`);
+      })
+      .catch((error) => {
+        console.error('❌ Erreur lors de l\'envoi de l\'invitation:', error);
+      });
+
+    res.status(200).json({
+      message: 'Invitation envoyée avec succès',
+      eventId: event._id,
+      eventTitle: event.title,
+      comedianEmail: comedian.email,
+      comedianName: `${comedian.firstName} ${comedian.lastName}`
+    });
+  } catch (error) {
+    console.error('Error inviting comedian:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'envoi de l\'invitation' });
+  }
+};
+
+// ============================================================================
 // PROCESS COMPLETED EVENTS
 // ============================================================================
 export const processCompletedEvents = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -991,17 +1800,17 @@ export const markEventsAsCompletedCron = async (req: Request, res: Response): Pr
         let eventEndDateTime: Date;
 
         if (event.endTime) {
-          // Si endTime est défini, l'utiliser
-          const [hours, minutes] = event.endTime.split(':').map(Number);
-          eventEndDateTime = new Date(
-            eventDate.getFullYear(),
-            eventDate.getMonth(),
-            eventDate.getDate(),
-            hours,
-            minutes,
-            0,
-            0
-          );
+          const [endH, endM] = event.endTime.split(':').map(Number);
+          const endMinutes = endH * 60 + endM;
+          let endDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+          if (event.startTime) {
+            const [startH, startM] = event.startTime.split(':').map(Number);
+            const startMinutes = startH * 60 + startM;
+            if (endMinutes <= startMinutes) {
+              endDate.setDate(endDate.getDate() + 1);
+            }
+          }
+          eventEndDateTime = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), endH, endM, 0, 0);
         } else {
           // Sinon, considérer la fin de la journée (23:59:59)
           eventEndDateTime = new Date(
