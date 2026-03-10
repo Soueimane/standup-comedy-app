@@ -174,8 +174,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await api.post('/auth/register', data);
       return response.data;
     },
-    onSuccess: (data) => {
-      setUser(data.user);
+    onSuccess: async (data) => {
+      await refreshUser();
       redirectByRole(data.user.role);
     }
   });
@@ -185,8 +185,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await api.post('/auth/login', data);
       return response.data;
     },
-    onSuccess: (data) => {
-      setUser(data.user);
+    onSuccess: async (data) => {
+      await refreshUser();
       redirectByRole(data.user.role);
     }
   });
