@@ -23,7 +23,7 @@ jobs:
 
 
 
-            script: |
+          script: |
               echo "✅ Connecté au VPS"
 
                cd ${{ secrets.VPS_PATH_DEV }}
