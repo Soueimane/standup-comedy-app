@@ -43,22 +43,22 @@ jobs:
                cd ..
 
               echo "---- BUILD SERVER ----"
-             cd server
+              cd server
                npm install
-            npm run build
+              npm run build
                cd ..
 
-             echo "---- DOCKER CLEAN ----"
+              echo "---- DOCKER CLEAN ----"
 
-            docker-compose down --remove-orphans
+              docker-compose down --remove-orphans
               docker system prune -af
-             docker volume prune -f
+              docker volume prune -f
 
-            echo "---- DOCKER BUILD ----"
+              echo "---- DOCKER BUILD ----"
 
                docker-compose build --no-cache
-             docker-compose up -d
+              docker-compose up -d
 
-            docker ps -a
+              docker ps -a
 
-            echo "✅ Déploiement terminé"
+              echo "✅ Déploiement terminé"
