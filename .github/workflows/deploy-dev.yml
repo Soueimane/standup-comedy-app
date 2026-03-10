@@ -6,48 +6,59 @@ on:
       - dev_brach_env2
 
 jobs:
-  build-and-deploy:
+  deploy-dev:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push backend image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/standup-backend:dev ./standup-comedy-app/server
-          docker push ${{ secrets.DOCKER_USERNAME }}/standup-backend:dev
-
-      - name: Build and push frontend image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/standup-frontend:dev ./standup-comedy-app/client
-          docker push ${{ secrets.DOCKER_USERNAME }}/standup-frontend:dev
-
-      - name: Deploy to VPS via SSH
+      - name: Deploy to DEV VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+
+
+
           script: |
-            cd ${{ secrets.VPS_PATH_DEV }}
+              echo "✅ Connecté au VPS"
 
-            echo "---- Pull latest images ----"
-            docker pull ${{ secrets.DOCKER_USERNAME }}/standup-backend:dev
-            docker pull ${{ secrets.DOCKER_USERNAME }}/standup-frontend:dev
+               cd ${{ secrets.VPS_PATH_DEV }}
+               echo "📂 Dossier DEV: $(pwd)"
 
-            echo "---- Stop old containers ----"
-            docker compose down --remove-orphans
+              echo "---- GIT UPDATE ----"
 
-            echo "---- Start containers ----"
-            docker compose up -d
+              git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+              git pull origin dev_brach_env2
 
-            echo "✅ Déploiement terminé"
-            docker ps
+              echo "📦 Code à jour avec git pull"
+
+              echo "---- BUILD CLIENT ----"
+              cd client
+              npm install
+              npm run build
+               cd ..
+
+              echo "---- BUILD SERVER ----"
+              cd server
+               npm install
+              npm run build
+               cd ..
+
+              echo "---- DOCKER CLEAN ----"
+
+              docker-compose down --remove-orphans
+              docker system prune -af
+              docker volume prune -f
+
+              echo "---- DOCKER BUILD ----"
+
+               docker-compose build --no-cache
+              docker-compose up -d
+
+              docker ps -a
+
+              echo "✅ Déploiement terminé"
