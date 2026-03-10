@@ -1,49 +1,39 @@
-name: Deploy DEV
+script: |
+  echo "✅ Connecté au VPS"
 
-on:
-  push:
-    branches:
-      - dev_brach_env2
+  cd ${{ secrets.VPS_PATH_DEV }}
+  echo "📂 Dossier DEV: $(pwd)"
 
-jobs:
-  deploy-dev:
-    runs-on: ubuntu-latest
+  echo "---- GIT UPDATE ----"
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+  git pull origin dev_brach_env2
 
-      - name: Deploy to DEV VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
-          script: |
-            echo "✅ Connecté au VPS"
+  echo "📦 Code à jour avec git pull"
 
-            cd ${{ secrets.VPS_PATH_DEV }}
-            echo "📂 Dossier DEV: $(pwd)"
+  echo "---- BUILD CLIENT ----"
+  cd client
+  npm install
+  npm run build
+  cd ..
 
-            echo "---- GIT UPDATE ----"
+  echo "---- BUILD SERVER ----"
+  cd server
+  npm install
+  npm run build
+  cd ..
 
-            git checkout dev_brach_env2 || git checkout -b dev_brach_env2
-            git pull origin dev_brach_env2
+  echo "---- DOCKER CLEAN ----"
 
-            echo "📦 Code à jour avec git pull"
+  docker-compose down --remove-orphans
+  docker system prune -af
+  docker volume prune -f
 
-            echo "---- DOCKER CLEAN ----"
+  echo "---- DOCKER BUILD ----"
 
-            docker-compose down --remove-orphans
-            docker system prune -af
-            docker volume prune -f
+  docker-compose build --no-cache
+  docker-compose up -d
 
-            echo "---- DOCKER BUILD ----"
+  docker ps -a
 
-            docker-compose build --no-cache
-            docker-compose up -d
-
-            docker ps -a
-
-            echo "✅ Déploiement terminé"
+  echo "✅ Déploiement terminé"
