@@ -47,7 +47,7 @@ type EventsSubTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'recurringE
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
 function MyEventsPage() {
-  const { token, user, refreshUser, isLoading: authIsLoading } = useAuth();
+  const { user, refreshUser, isLoading: authIsLoading } = useAuth();
   const { showSuccess, showError, showWarning, showInfo } = useAlert();
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -80,21 +80,16 @@ function MyEventsPage() {
     }
   }, [user?.role]);
 
-  // Calculer isQueryEnabled avant son utilisation
-  const isQueryEnabled = !authIsLoading && !!token && !!user?._id;
+  // Calculer isQueryEnabled avant son utilisation (auth par cookie : user suffit, token peut être null)
+  const isQueryEnabled = !authIsLoading && !!user?._id;
 
   // Charger les favoris depuis l'API
   const { data: eventFavoritesData, refetch: refetchEventFavorites } = useQuery<{ favorites: IEvent[] }, Error>({
-    queryKey: ['eventFavorites', user?._id, token],
+    queryKey: ['eventFavorites', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+      if (!user?._id || user?.role !== 'COMEDIAN') {
         throw new Error("Informations d'authentification manquantes.");
       }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
       const response = await getEventFavorites();
       return response;
     },
@@ -115,9 +110,9 @@ function MyEventsPage() {
 
   // Charger les humoristes favoris (pour les organisateurs) avec React Query
   const { data: favoriteComediansData, refetch: refetchFavoriteComedians } = useQuery<{ favorites: any[] }, Error>({
-    queryKey: ['organizerFavoriteComedians', user?._id, token],
+    queryKey: ['organizerFavoriteComedians', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+      if (!user?._id || user?.role !== 'ORGANIZER') {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getFavorites();
@@ -281,42 +276,20 @@ useEffect(() => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openActionsEventId]);
 
-  console.log("MyEventsPage: Initial token", token);
-  console.log("MyEventsPage: Initial user", user);
-  console.log("MyEventsPage: Auth is loading?", authIsLoading);
-  console.log("MyEventsPage: useQuery enabled status", isQueryEnabled, { authIsLoading, token, userId: user?._id, userRole: user?.role });
-
-  // Debug supplémentaire pour diagnostiquer le problème
-  console.log("🔧 DEBUG ACTIVATION QUERY:", {
-    authIsLoading,
-    hasToken: !!token,
-    hasUserId: !!user?._id,
-    userRole: user?.role,
-    finalEnabled: isQueryEnabled
-  });
-
   const { data: fetchedEvents, isLoading: eventsLoading, isError: eventsError, error: eventsErrorMessage, refetch } = useQuery<IEvent[], Error>({
-    queryKey: ['events', user?._id, user?.role, token, location.search],
+    queryKey: ['events', user?._id, user?.role, location.search],
     queryFn: async () => {
-      console.log("🚀 MyEventsPage: useQuery queryFn called. Token:", !!token, "User ID:", user?._id, "Role:", user?.role);
-      if (!token || !user?._id) {
-        console.log("❌ Authentification manquante, arrêt de la requête");
+      if (!user?._id) {
         throw new Error("Informations d'authentification manquantes.");
       }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
       // Pour les humoristes, récupérer TOUS les évènements
       // Pour les organisateurs, récupérer seulement leurs évènements
       const apiUrl = user?.role === 'ORGANIZER'
         ? `/events?organizerId=${user._id}`
         : `/events`; // Pas de filtre organizerId pour les humoristes
       
-      console.log(`🔗 Requête API: ${apiUrl} (Role: ${user?.role})`);
       try {
-        const res = await api.get<IEvent[]>(apiUrl, config);
+        const res = await api.get<IEvent[]>(apiUrl);
         const list = Array.isArray(res.data) ? res.data : (Array.isArray((res.data as any)?.events) ? (res.data as any).events : []);
         console.log("MyEventsPage: Données d'évènements reçues par useQuery:", list);
         console.log("MyEventsPage: User role:", user?.role);
@@ -341,17 +314,12 @@ useEffect(() => {
 
   // New useQuery for comedian's applications
   const { data: comedianApplications, isLoading: comedianApplicationsLoading, isError: comedianApplicationsError, error: comedianApplicationsErrorMessage } = useQuery<IApplication[], Error>({
-    queryKey: ['comedianApplications', user?._id, token],
+    queryKey: ['comedianApplications', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id) {
+      if (!user?._id) {
         throw new Error("Informations d'authentification manquantes pour les candidatures.");
       }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      const res = await api.get<IApplication[]>(`/applications?comedianId=${user._id}`, config);
+      const res = await api.get<IApplication[]>(`/applications?comedianId=${user._id}`);
       const list = Array.isArray(res.data) ? res.data : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
       return list as IApplication[];
     },
@@ -369,9 +337,9 @@ useEffect(() => {
       matchReasons?: string[];
     }>
   }, Error>({
-    queryKey: ['recommendations', user?._id, token],
+    queryKey: ['recommendations', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+      if (!user?._id || user?.role !== 'COMEDIAN') {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getRecommendations({ limit: 200 }); // Charger suffisamment d'événements
@@ -384,9 +352,9 @@ useEffect(() => {
 
   // Charger les recommandations intelligentes (basées sur l'historique)
   const { data: smartRecommendationsData, isLoading: smartRecommendationsLoading } = useQuery<SmartRecommendationsResponse, Error>({
-    queryKey: ['smartRecommendations', user?._id, token],
+    queryKey: ['smartRecommendations', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'COMEDIAN') {
+      if (!user?._id || user?.role !== 'COMEDIAN') {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getSmartRecommendations({ limit: 100 });
@@ -482,7 +450,7 @@ useEffect(() => {
   const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
 
   const toggleFavoriteEvent = async (eventId: string) => {
-    if (!isComedianView || !token) return;
+    if (!isComedianView || !user?._id) return;
 
     const isCurrentlyFavorite = favoriteIdsSet.has(eventId);
 
@@ -523,7 +491,7 @@ useEffect(() => {
 
   // Toggle favori pour un humoriste (organisateurs)
   const toggleFavoriteComedian = async (comedianId: string) => {
-    if (!isOrganizerView || !token) return;
+    if (!isOrganizerView || !user?._id) return;
 
     const isCurrentlyFavorite = favoriteComedianIds.includes(comedianId);
 
@@ -1626,7 +1594,7 @@ useEffect(() => {
   };
 
   const confirmWithdrawApplication = async () => {
-    if (!token || !user?._id || !eventToWithdraw) return;
+    if (!user?._id || !eventToWithdraw) return;
     try {
       console.log('🔄 Début de la désinscription depuis MyEventsPage pour event:', eventToWithdraw._id);
       const app = comedianApplications?.find(a => a.event && a.event._id === eventToWithdraw._id);
@@ -1634,11 +1602,7 @@ useEffect(() => {
         console.log('❌ Application non trouvée pour cet événement');
         return;
       }
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-      };
-      console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
-      await api.delete(`/applications/${app._id}`, config);
+      await api.delete(`/applications/${app._id}`);
       console.log('✅ API call réussi, affichage de l\'alerte de succès');
       showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
       refetch();
@@ -1720,12 +1684,7 @@ useEffect(() => {
           isDangerous: true,
           onConfirm: async () => {
             try {
-              const config = {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              } as const;
-              await api.delete(`/events/${event._id}`, config);
+              await api.delete(`/events/${event._id}`);
               showSuccess(SuccessMessages.EVENT_DELETED);
               refetch();
               refreshUser();
@@ -1776,12 +1735,6 @@ useEffect(() => {
       return;
     }
 
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-
     try {
       let cancelledCount = 0;
       let skippedCount = 0;
@@ -1790,7 +1743,7 @@ useEffect(() => {
         const eventMidnight = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
         const diffDays = Math.ceil((eventMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays < 10) {
-          await api.put(`/events/${ev._id}`, { status: 'cancelled', cancellationReason: cancelReason }, config);
+          await api.put(`/events/${ev._id}`, { status: 'cancelled', cancellationReason: cancelReason });
           cancelledCount += 1;
         } else {
           skippedCount += 1;
@@ -1822,7 +1775,7 @@ useEffect(() => {
   };
 
   const handleNotifyHumorists = async (event: IEvent) => {
-    if (!token) {
+    if (!user?._id) {
       showWarning(WarningMessages.AUTH_REQUIRED_SEND_NOTIFICATIONS);
       return;
     }
@@ -1834,12 +1787,7 @@ useEffect(() => {
       onConfirm: async () => {
         setNotifyingEventId(event._id);
         try {
-          const config = {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          };
-          await api.post(`/events/${event._id}/notify`, {}, config);
+          await api.post(`/events/${event._id}/notify`, {});
           showSuccess(SuccessMessages.NOTIFICATIONS_SENT);
           setConfirmDialog({ ...confirmDialog, isOpen: false });
         } catch (error: any) {
@@ -1860,7 +1808,7 @@ useEffect(() => {
   };
 
   const handleInviteComedian = async () => {
-    if (!comedianToInvite || !selectedEventForInvite || !token) {
+    if (!comedianToInvite || !selectedEventForInvite || !user?._id) {
       showWarning(WarningMessages.SELECT_EVENT_REQUIRED);
       return;
     }

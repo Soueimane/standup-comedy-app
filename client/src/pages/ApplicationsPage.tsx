@@ -138,7 +138,7 @@ function GeographicCompatibilityBadge({
 }
 
 function ApplicationsPage() {
-  const { token, user, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { showSuccess, showError, showInfo } = useAlert();
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -186,22 +186,17 @@ function ApplicationsPage() {
   );
   const [applicationIdFromUrl, setApplicationIdFromUrl] = useState<string | null>(null);
   const isOrganizerView = user?.role === 'ORGANIZER';
-  const isQueryEnabled = !!token && !!user?._id && isOrganizerView;
+  const isQueryEnabled = !!user?._id && isOrganizerView;
 
   // Charger les candidatures avec React Query
   const { data: applicationsData, isLoading: loading, error: applicationsError } = useQuery({
     queryKey: ['applications', selectedEventId],
     queryFn: async () => {
-      if (!token) {
+      if (!user?._id) {
         throw new Error("Vous devez être connecté pour voir les candidatures.");
       }
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
       const query = selectedEventId !== 'all' ? `?eventId=${encodeURIComponent(selectedEventId)}` : '';
-      const res = await api.get<IApplication[]>(`/applications${query}`, config);
+      const res = await api.get<IApplication[]>(`/applications${query}`);
       const list = Array.isArray(res.data)
         ? res.data
         : (Array.isArray((res.data as any)?.applications) ? (res.data as any).applications : []);
@@ -219,7 +214,7 @@ function ApplicationsPage() {
       
       return list as IApplication[];
     },
-    enabled: !!token && !!user,
+    enabled: !!user,
   });
 
   const applications = applicationsData || [];
@@ -227,9 +222,9 @@ function ApplicationsPage() {
 
   // Charger les favoris d'humoristes depuis l'API
   const { data: favoritesData, refetch: refetchFavorites } = useQuery<{ favorites: IUser[] }, Error>({
-    queryKey: ['organizerFavorites', user?._id, token],
+    queryKey: ['organizerFavorites', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+      if (!user?._id || user?.role !== 'ORGANIZER') {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getFavorites();
@@ -242,9 +237,9 @@ function ApplicationsPage() {
 
   // Charger les favoris de candidatures depuis l'API
   const { data: applicationFavoritesData, refetch: refetchApplicationFavorites } = useQuery<{ favorites: IApplication[] }, Error>({
-    queryKey: ['organizerApplicationFavorites', user?._id, token],
+    queryKey: ['organizerApplicationFavorites', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id || user?.role !== 'ORGANIZER') {
+      if (!user?._id || user?.role !== 'ORGANIZER') {
         throw new Error("Informations d'authentification manquantes.");
       }
       const response = await getApplicationFavorites();
@@ -276,7 +271,7 @@ function ApplicationsPage() {
   }, [applicationFavoritesData, isOrganizerView]);
 
   const toggleFavoriteApplication = async (appId: string) => {
-    if (!isOrganizerView || !token) return;
+    if (!isOrganizerView || !user?._id) return;
     
     const app = applications.find(a => a._id === appId);
     if (!app) {
@@ -424,14 +419,9 @@ function ApplicationsPage() {
   };
 
   const handleConfirmStatus = async () => {
-    if (!token || !statusAppId || !statusToSet) return;
+    if (!user?._id || !statusAppId || !statusToSet) return;
     try {
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-      await api.put(`/applications/${statusAppId}/status`, { status: statusToSet, organizerMessage: statusMessage }, config);
+      await api.put(`/applications/${statusAppId}/status`, { status: statusToSet, organizerMessage: statusMessage });
       showSuccess(`Candidature ${statusToSet === 'ACCEPTED' ? 'acceptée' : 'refusée'} avec succès !`);
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       refreshUser();
@@ -1603,7 +1593,7 @@ function ApplicationsPage() {
                               <button
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
-                                  if (!token) return;
+                                  if (!user?._id) return;
                                   setConfirmDialog({
                                     isOpen: true,
                                     title: 'Confirmer la désinscription',
@@ -1611,9 +1601,8 @@ function ApplicationsPage() {
                                      onConfirm: async () => {
                                        console.log('🔄 Début de la désinscription (accepted) pour application:', app._id);
                                        try {
-                                         const config = { headers: { Authorization: `Bearer ${token}` } };
                                          console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
-                                         await api.delete(`/applications/${app._id}`, config);
+                                         await api.delete(`/applications/${app._id}`);
                                          console.log('✅ API call réussi, affichage de l\'alerte de succès');
                                          showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
                                          queryClient.invalidateQueries({ queryKey: ['applications'] });
@@ -1645,9 +1634,7 @@ function ApplicationsPage() {
                                 onClick={async (e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
                                   try {
-                                    await api.patch(`/applications/${app._id}/confirm`, {}, {
-                                      headers: { Authorization: `Bearer ${token}` }
-                                    });
+                                    await api.patch(`/applications/${app._id}/confirm`, {});
                                     showSuccess(SuccessMessages.APPLICATION_CONFIRMED);
                                     queryClient.invalidateQueries({ queryKey: ['applications'] });
                                   } catch (error) {
@@ -1661,7 +1648,7 @@ function ApplicationsPage() {
                               <button
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
-                                  if (!token) return;
+                                  if (!user?._id) return;
                                   setConfirmDialog({
                                     isOpen: true,
                                     title: 'Confirmer la désinscription',
@@ -1669,9 +1656,8 @@ function ApplicationsPage() {
                                      onConfirm: async () => {
                                        console.log('🔄 Début de la désinscription pour application:', app._id);
                                        try {
-                                         const config = { headers: { Authorization: `Bearer ${token}` } };
                                          console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
-                                         await api.delete(`/applications/${app._id}`, config);
+                                         await api.delete(`/applications/${app._id}`);
                                          console.log('✅ API call réussi, affichage de l\'alerte de succès');
                                          showSuccess(SuccessMessages.APPLICATION_WITHDRAWN);
                                          queryClient.invalidateQueries({ queryKey: ['applications'] });

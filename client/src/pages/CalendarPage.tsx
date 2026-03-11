@@ -10,7 +10,7 @@ import { useAlert } from '../hooks/useAlert';
 import { ErrorMessages, SuccessMessages } from '../services/systemMessages';
 
 const CalendarPage = () => {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
   const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
@@ -47,15 +47,14 @@ const CalendarPage = () => {
     return desktop;
   };
 
-  const isQueryEnabled = !!token && !!user?._id;
+  const isQueryEnabled = !!user?._id;
 
   const { data: fetchedEvents = [], isLoading, isError } = useQuery<IEvent[], Error>({
-    queryKey: ['events', user?._id, token],
+    queryKey: ['events', user?._id],
     queryFn: async () => {
-      if (!token || !user?._id) throw new Error('Authentification manquante');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
+      if (!user?._id) throw new Error('Authentification manquante');
       const apiUrl = user?.role === 'ORGANIZER' ? `/events?organizerId=${user._id}` : `/events`;
-      const res = await api.get(apiUrl, config);
+      const res = await api.get(apiUrl);
 
       // Forcer un tableau sécurisé
       let list: IEvent[] = [];
@@ -96,13 +95,11 @@ const CalendarPage = () => {
   const { data: eventAbsences = [] } = useQuery({
     queryKey: ['event-absences', allEvents.map(e => e._id)],
     queryFn: async () => {
-      if (!token || allEvents.length === 0) return [];
+      if (allEvents.length === 0) return [];
       const allAbsences: any[] = [];
       for (const event of allEvents) {
         try {
-          const res = await api.get(`/absences/event/${event._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const res = await api.get(`/absences/event/${event._id}`);
           if (Array.isArray(res.data)) {
             allAbsences.push(...res.data);
           }
@@ -112,7 +109,7 @@ const CalendarPage = () => {
       }
       return allAbsences;
     },
-    enabled: !!token && (user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN') && allEvents.length > 0,
+    enabled: !!user?._id && (user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN') && allEvents.length > 0,
   });
 
   // Mutation pour marquer absent
@@ -121,8 +118,8 @@ const CalendarPage = () => {
       return await markAbsence(eventId, comedianId, reason);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['event-absences', token] });
-      queryClient.invalidateQueries({ queryKey: ['events', user?._id, token] });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?._id] });
     },
   });
 
@@ -132,8 +129,8 @@ const CalendarPage = () => {
       return await cancelAbsence(eventId, comedianId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['event-absences', token] });
-      queryClient.invalidateQueries({ queryKey: ['events', user?._id, token] });
+      queryClient.invalidateQueries({ queryKey: ['event-absences'] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?._id] });
     },
   });
 

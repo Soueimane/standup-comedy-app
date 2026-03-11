@@ -30,7 +30,7 @@ interface CreateEventFormProps {
 }
 
 function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFormProps) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [isMobile, setIsMobile] = useState(false);
 
@@ -829,7 +829,7 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
     e.preventDefault();
     console.log('🔍 [CreateEventForm] handleSubmit appelé', { initialData, formData, eventType, recurringDates });
 
-    if (!user || !token) {
+    if (!user) {
       showWarning(WarningMessages.AUTH_REQUIRED_CREATE_EVENT);
       return;
     }
@@ -949,7 +949,6 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
       const config = {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
       };
 
