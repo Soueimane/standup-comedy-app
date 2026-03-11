@@ -475,7 +475,7 @@ function LoginPage() {
           </Link>
         </p>
 
-        <p>Pas encore de compte ? <Link to="/register" style={linkStyle}>Inscris-toi</Link></p>
+        <p>Pas encore de compte ? <Link to="/#roles" style={linkStyle}>Inscris-toi</Link></p>
       </div>
     </div>
   );

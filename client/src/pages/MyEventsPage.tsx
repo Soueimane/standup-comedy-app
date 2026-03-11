@@ -80,7 +80,7 @@ function MyEventsPage() {
     }
   }, [user?.role]);
 
-  // Calculer isQueryEnabled avant son utilisation
+  // Calculer isQueryEnabled avant son utilisation (auth par cookie : user suffit, token peut être null)
   const isQueryEnabled = !authIsLoading && !!user?._id;
 
   // Charger les favoris depuis l'API
@@ -276,26 +276,10 @@ useEffect(() => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openActionsEventId]);
 
-  
-  console.log("MyEventsPage: Initial user", user);
-  console.log("MyEventsPage: Auth is loading?", authIsLoading);
-  console.log("MyEventsPage: useQuery enabled status", isQueryEnabled, { authIsLoading, userId: user?._id, userRole: user?.role });
-
-  // Debug supplémentaire pour diagnostiquer le problème
-  console.log("🔧 DEBUG ACTIVATION QUERY:", {
-    authIsLoading,
-
-    hasUserId: !!user?._id,
-    userRole: user?.role,
-    finalEnabled: isQueryEnabled
-  });
-
   const { data: fetchedEvents, isLoading: eventsLoading, isError: eventsError, error: eventsErrorMessage, refetch } = useQuery<IEvent[], Error>({
     queryKey: ['events', user?._id, user?.role, location.search],
     queryFn: async () => {
-      console.log("🚀 MyEventsPage: useQuery queryFn called. User ID:", user?._id, "Role:", user?.role);
       if (!user?._id) {
-        console.log("❌ Authentification manquante, arrêt de la requête");
         throw new Error("Informations d'authentification manquantes.");
       }
       // Pour les humoristes, récupérer TOUS les évènements
@@ -304,7 +288,6 @@ useEffect(() => {
         ? `/events?organizerId=${user._id}`
         : `/events`; // Pas de filtre organizerId pour les humoristes
       
-      console.log(`🔗 Requête API: ${apiUrl} (Role: ${user?.role})`);
       try {
         const res = await api.get<IEvent[]>(apiUrl);
         const list = Array.isArray(res.data) ? res.data : (Array.isArray((res.data as any)?.events) ? (res.data as any).events : []);
@@ -467,7 +450,7 @@ useEffect(() => {
   const favoriteIdsSet = useMemo(() => new Set(favoriteEventIds), [favoriteEventIds]);
 
   const toggleFavoriteEvent = async (eventId: string) => {
-    if (!isComedianView) return;
+    if (!isComedianView || !user?._id) return;
 
     const isCurrentlyFavorite = favoriteIdsSet.has(eventId);
 
@@ -508,7 +491,7 @@ useEffect(() => {
 
   // Toggle favori pour un humoriste (organisateurs)
   const toggleFavoriteComedian = async (comedianId: string) => {
-    if (!isOrganizerView) return;
+    if (!isOrganizerView || !user?._id) return;
 
     const isCurrentlyFavorite = favoriteComedianIds.includes(comedianId);
 
@@ -1619,7 +1602,6 @@ useEffect(() => {
         console.log('❌ Application non trouvée pour cet événement');
         return;
       }
-      console.log('📡 Appel API de suppression:', `/applications/${app._id}`);
       await api.delete(`/applications/${app._id}`);
       console.log('✅ API call réussi, affichage de l\'alerte de succès');
       showSuccess(SuccessMessages.APPLICATION_UNSUBSCRIBED);
@@ -1793,6 +1775,11 @@ useEffect(() => {
   };
 
   const handleNotifyHumorists = async (event: IEvent) => {
+    if (!user?._id) {
+      showWarning(WarningMessages.AUTH_REQUIRED_SEND_NOTIFICATIONS);
+      return;
+    }
+
     setConfirmDialog({
       isOpen: true,
       title: 'Envoyer des notifications',
@@ -1821,7 +1808,7 @@ useEffect(() => {
   };
 
   const handleInviteComedian = async () => {
-    if (!comedianToInvite || !selectedEventForInvite) {
+    if (!comedianToInvite || !selectedEventForInvite || !user?._id) {
       showWarning(WarningMessages.SELECT_EVENT_REQUIRED);
       return;
     }

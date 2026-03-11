@@ -109,7 +109,7 @@ const CalendarPage = () => {
       }
       return allAbsences;
     },
-    enabled: (user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN') && allEvents.length > 0,
+    enabled: !!user?._id && (user?.role === 'ORGANIZER' || user?.role === 'SUPER_ADMIN') && allEvents.length > 0,
   });
 
   // Mutation pour marquer absent

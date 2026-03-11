@@ -135,6 +135,7 @@ const DirectoryPage: React.FC = () => {
     fontSize: '14px',
     minWidth: '250px',
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    color: '#000',
   };
 
   const selectStyle = {
@@ -420,6 +421,9 @@ const DirectoryPage: React.FC = () => {
             border-color: #9c27b0 !important;
             box-shadow: 0 6px 20px rgba(156, 39, 176, 0.2);
           }
+          .directory-search-input::placeholder {
+            color: #000;
+          }
         `}
       </style>
       <Navbar />
@@ -461,6 +465,7 @@ const DirectoryPage: React.FC = () => {
             value={searchTerm}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
             style={inputStyle}
+            className="directory-search-input"
           />
           <select
             value={roleFilter}

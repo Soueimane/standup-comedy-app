@@ -192,6 +192,9 @@ function ApplicationsPage() {
   const { data: applicationsData, isLoading: loading, error: applicationsError } = useQuery({
     queryKey: ['applications', selectedEventId],
     queryFn: async () => {
+      if (!user?._id) {
+        throw new Error("Vous devez être connecté pour voir les candidatures.");
+      }
       const query = selectedEventId !== 'all' ? `?eventId=${encodeURIComponent(selectedEventId)}` : '';
       const res = await api.get<IApplication[]>(`/applications${query}`);
       const list = Array.isArray(res.data)
@@ -268,7 +271,7 @@ function ApplicationsPage() {
   }, [applicationFavoritesData, isOrganizerView]);
 
   const toggleFavoriteApplication = async (appId: string) => {
-    if (!isOrganizerView) return;
+    if (!isOrganizerView || !user?._id) return;
     
     const app = applications.find(a => a._id === appId);
     if (!app) {
@@ -416,7 +419,7 @@ function ApplicationsPage() {
   };
 
   const handleConfirmStatus = async () => {
-    if (!statusAppId || !statusToSet) return;
+    if (!user?._id || !statusAppId || !statusToSet) return;
     try {
       await api.put(`/applications/${statusAppId}/status`, { status: statusToSet, organizerMessage: statusMessage });
       showSuccess(`Candidature ${statusToSet === 'ACCEPTED' ? 'acceptée' : 'refusée'} avec succès !`);
@@ -1592,6 +1595,7 @@ function ApplicationsPage() {
                               <button
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
+                                  if (!user?._id) return;
                                   setConfirmDialog({
                                     isOpen: true,
                                     title: 'Confirmer la désinscription',
@@ -1646,6 +1650,7 @@ function ApplicationsPage() {
                               <button
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
+                                  if (!user?._id) return;
                                   setConfirmDialog({
                                     isOpen: true,
                                     title: 'Confirmer la désinscription',

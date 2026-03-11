@@ -946,6 +946,12 @@ function CreateEventForm({ onClose, onEventCreated, initialData }: CreateEventFo
         imageUrl: formData.imageUrl && formData.imageUrl.trim() ? formData.imageUrl.trim() : undefined,
       };
 
+      const config = {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+
       let response;
       if (eventType === 'recurring' && recurringDates.length > 0) {
         const dateTimes = recurringDates
