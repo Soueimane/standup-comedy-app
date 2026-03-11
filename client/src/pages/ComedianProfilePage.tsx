@@ -57,15 +57,15 @@ function ComedianProfilePage() {
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#fff',
-    padding: '32px 16px',
-    background: '#0f1117',
-    fontFamily: "'Inter', sans-serif",
+    padding: '20px',
+    background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
   };
 
   const wrapperStyle: CSSProperties = {
     width: '100%',
     maxWidth: 700,
     margin: '0 auto',
+    fontFamily: "'Inter', sans-serif",
   };
 
   const headerCardStyle: CSSProperties = {
@@ -280,7 +280,6 @@ function ComedianProfilePage() {
   return (
     <div style={mainContainerStyle}>
       <Navbar />
-
       <div style={wrapperStyle}>
         {/* Header Card */}
         <div style={headerCardStyle}>

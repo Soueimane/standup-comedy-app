@@ -197,8 +197,11 @@ const CalendarPage = () => {
   const mainContainerStyle: CSSProperties = {
     minHeight: '100vh',
     color: '#ffffff',
-    padding: getResponsiveValue('16px', '24px', '32px'),
+    padding: '20px',
     background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)',
+  };
+
+  const contentWrapperStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     gap: getResponsiveValue('16px', '24px', '32px'),
@@ -207,6 +210,7 @@ const CalendarPage = () => {
   return (
     <div style={mainContainerStyle}>
       <Navbar />
+      <div style={contentWrapperStyle}>
 
       {isLoading && (
         <p style={{ textAlign:'center', marginTop:'50px', color:'#ff416c' }}>
@@ -254,6 +258,7 @@ const CalendarPage = () => {
           }
         />
       )}
+      </div>
     </div>
   );
 };
