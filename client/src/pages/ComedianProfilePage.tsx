@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -25,8 +25,10 @@ function ComedianProfilePage() {
   const navigate = useNavigate();
   const { user: authUser, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'profil'>('info');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isViewingOtherProfile = !!id && id !== authUser?._id;
   const isOrganizer = authUser?.role === 'ORGANIZER';
   const searchParams = new URLSearchParams(location.search);
@@ -162,6 +164,12 @@ function ComedianProfilePage() {
     letterSpacing: '0.1em',
   };
 
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const rowStyle: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -215,13 +223,13 @@ function ComedianProfilePage() {
   };
 
   const infoFields = [
-    { label: 'Prénom', value: user?.firstName || 'Non défini' },
-    { label: 'Nom', value: user?.lastName || 'Non défini' },
-    { label: 'Email', value: user?.email || 'Non défini', isEmail: true },
-    { label: 'Ville', value: user?.city || 'Non défini' },
-    { label: 'Téléphone', value: user?.phone || 'Non défini' },
-    { label: 'Genre', value: user?.gender === 'femme' ? 'Femme' : user?.gender === 'homme' ? 'Homme' : 'Non défini' },
-    { label: 'Adresse', value: user?.address || 'Non définie' },
+    { label: 'Prénom', value: user?.firstName || 'Non défini', fieldName: 'firstName' },
+    { label: 'Nom', value: user?.lastName || 'Non défini', fieldName: 'lastName' },
+    { label: 'Email', value: user?.email || 'Non défini', isEmail: true, fieldName: 'email' },
+    { label: 'Ville', value: user?.city || 'Non défini', fieldName: 'city' },
+    { label: 'Téléphone', value: user?.phone || 'Non défini', fieldName: 'phone' },
+    { label: 'Genre', value: user?.gender === 'femme' ? 'Femme' : user?.gender === 'homme' ? 'Homme' : 'Non défini', fieldName: 'gender' },
+    { label: 'Adresse', value: user?.address || 'Non définie', fieldName: 'address' },
   ];
 
   const experienceLabel = (() => {
@@ -259,11 +267,11 @@ function ComedianProfilePage() {
     : 'Non spécifié';
 
   const profilFields = [
-    { label: 'Bio', value: user?.profile?.bio || 'Non spécifié' },
-    { label: "Niveau d'expérience", value: experienceLabel },
-    { label: 'Style de comédie', value: comedyStyleLabel },
-    { label: 'Langues', value: langLabel },
-    { label: 'Zone de mobilité', value: mobilityLabel },
+    { label: 'Bio', value: user?.profile?.bio || 'Non spécifié', fieldName: 'profile.bio' },
+    { label: "Niveau d'expérience", value: experienceLabel, fieldName: 'profile.numberOfScenes' },
+    { label: 'Style de comédie', value: comedyStyleLabel, fieldName: 'section-comedy-style' },
+    { label: 'Langues', value: langLabel, fieldName: 'section-languages' },
+    { label: 'Zone de mobilité', value: mobilityLabel, fieldName: 'section-mobility' },
   ];
 
   if (loading) {
@@ -352,6 +360,7 @@ function ComedianProfilePage() {
             onClose={() => setIsEditing(false)}
             currentUser={user}
             onSaveSuccess={handleSaveSuccess}
+            scrollToField={scrollToField}
           />
         ) : (
           <>
@@ -384,19 +393,19 @@ function ComedianProfilePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {infoFields.map((field, i) => (
                     <div key={field.label}>
-                      <div style={rowStyle}>
-                        <div style={labelValueGroupStyle}>
-                          <span style={labelStyle}>{field.label}</span>
-                          <span style={{ ...valueStyle, color: field.isEmail ? ACCENT : VALUE_COLOR }}>
-                            {field.value}
-                          </span>
-                        </div>
-                        {!isViewingOtherProfile && (
-                          <div style={{ flexShrink: 0 }}>
+                      {isMobile ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+                            <span style={{ ...labelStyle, minWidth: 'auto' }}>{field.label}</span>
+                            <span style={{ ...valueStyle, color: field.isEmail ? ACCENT : VALUE_COLOR, whiteSpace: 'normal' }}>
+                              {field.value}
+                            </span>
+                          </div>
+                          {!isViewingOtherProfile && (
                             <button
                               type="button"
-                              onClick={() => setIsEditing(true)}
-                              style={modifierButtonStyle}
+                              onClick={() => { setScrollToField(field.fieldName); setIsEditing(true); }}
+                              style={{ ...modifierButtonStyle, padding: '5px 12px', flexShrink: 0 }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.borderColor = ACCENT;
                                 e.currentTarget.style.color = ACCENT;
@@ -408,9 +417,37 @@ function ComedianProfilePage() {
                             >
                               Modifier
                             </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={rowStyle}>
+                          <div style={labelValueGroupStyle}>
+                            <span style={labelStyle}>{field.label}</span>
+                            <span style={{ ...valueStyle, color: field.isEmail ? ACCENT : VALUE_COLOR }}>
+                              {field.value}
+                            </span>
                           </div>
-                        )}
-                      </div>
+                          {!isViewingOtherProfile && (
+                            <div style={{ flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => { setScrollToField(field.fieldName); setIsEditing(true); }}
+                                style={modifierButtonStyle}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = ACCENT;
+                                  e.currentTarget.style.color = ACCENT;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = BORDER;
+                                  e.currentTarget.style.color = '#666';
+                                }}
+                              >
+                                Modifier
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {i < infoFields.length - 1 && <div style={{ height: 1, background: SEPARATOR }} />}
                     </div>
                   ))}
@@ -428,17 +465,17 @@ function ComedianProfilePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {profilFields.map((field, i) => (
                     <div key={field.label}>
-                      <div style={rowStyle}>
-                        <div style={labelValueGroupStyle}>
-                          <span style={labelStyle}>{field.label}</span>
-                          <span style={{ ...valueStyle, whiteSpace: 'normal' }}>{field.value}</span>
-                        </div>
-                        {!isViewingOtherProfile && (
-                          <div style={{ flexShrink: 0 }}>
+                      {isMobile ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+                            <span style={{ ...labelStyle, minWidth: 'auto' }}>{field.label}</span>
+                            <span style={{ ...valueStyle, whiteSpace: 'normal' }}>{field.value}</span>
+                          </div>
+                          {!isViewingOtherProfile && (
                             <button
                               type="button"
-                              onClick={() => setIsEditing(true)}
-                              style={modifierButtonStyle}
+                              onClick={() => { setScrollToField(field.fieldName); setIsEditing(true); }}
+                              style={{ ...modifierButtonStyle, padding: '5px 12px', flexShrink: 0 }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.borderColor = ACCENT;
                                 e.currentTarget.style.color = ACCENT;
@@ -450,9 +487,35 @@ function ComedianProfilePage() {
                             >
                               Modifier
                             </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={rowStyle}>
+                          <div style={labelValueGroupStyle}>
+                            <span style={labelStyle}>{field.label}</span>
+                            <span style={{ ...valueStyle, whiteSpace: 'normal' }}>{field.value}</span>
                           </div>
-                        )}
-                      </div>
+                          {!isViewingOtherProfile && (
+                            <div style={{ flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => { setScrollToField(field.fieldName); setIsEditing(true); }}
+                                style={modifierButtonStyle}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = ACCENT;
+                                  e.currentTarget.style.color = ACCENT;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = BORDER;
+                                  e.currentTarget.style.color = '#666';
+                                }}
+                              >
+                                Modifier
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {i < profilFields.length - 1 && <div style={{ height: 1, background: SEPARATOR }} />}
                     </div>
                   ))}

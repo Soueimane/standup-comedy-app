@@ -11,12 +11,16 @@ interface EditOrganizerProfileFormProps {
   onClose: () => void;
   currentUser: IUserData;
   onSaveSuccess: () => void;
+  scrollToField?: string;
 }
 
 type OrganizerFormData = {
   firstName: string;
   lastName: string;
   email: string;
+  city: string;
+  address: string;
+  gender: string;
   avatarUrl: string | null;
   organizerProfile: {
     companyName: string;
@@ -33,13 +37,16 @@ type OrganizerFormData = {
   };
 };
 
-function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess }: EditOrganizerProfileFormProps) {
+function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess, scrollToField }: EditOrganizerProfileFormProps) {
   const { isLoading } = useAuth();
   const { showSuccess, showError, showWarning } = useAlert();
   const [formData, setFormData] = useState<OrganizerFormData>({
     firstName: currentUser.firstName || '',
     lastName: currentUser.lastName || '',
     email: currentUser.email || '',
+    city: currentUser.city || '',
+    address: currentUser.address || '',
+    gender: currentUser.gender || '',
     avatarUrl: currentUser.avatarUrl || null,
     organizerProfile: {
       companyName: currentUser.organizerProfile?.companyName || '',
@@ -48,6 +55,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       venueTypes: currentUser.organizerProfile?.venueTypes?.join(', ') || '',
       eventFrequency: currentUser.organizerProfile?.eventFrequency || 'monthly',
       phone: currentUser.organizerProfile?.phone || '',
+
       location: {
         city: currentUser.organizerProfile?.location?.city || '',
         postalCode: currentUser.organizerProfile?.location?.postalCode || '',
@@ -104,6 +112,9 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         firstName: currentUser.firstName || '',
         lastName: currentUser.lastName || '',
         email: currentUser.email || '',
+        city: currentUser.city || '',
+        address: currentUser.address || '',
+        gender: currentUser.gender || '',
         avatarUrl: currentUser.avatarUrl || null,
         organizerProfile: {
           companyName: currentUser.organizerProfile?.companyName || '',
@@ -112,6 +123,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
           venueTypes: currentUser.organizerProfile?.venueTypes?.join(', ') || '',
           eventFrequency: currentUser.organizerProfile?.eventFrequency || 'monthly',
           phone: currentUser.organizerProfile?.phone || '',
+
           location: {
             city: currentUser.organizerProfile?.location?.city || '',
             postalCode: currentUser.organizerProfile?.location?.postalCode || '',
@@ -125,6 +137,15 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       setIsInitialLoad(true);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (isOpen && scrollToField) {
+      setTimeout(() => {
+        const el = document.getElementById(scrollToField);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [isOpen, scrollToField]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -165,7 +186,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
       setIsInitialLoad(false); // Enable validation after first user interaction
     }
 
-    if (id.startsWith('organizerProfile.location.')) {
+if (id.startsWith('organizerProfile.location.')) {
       const nestedField = id.split('.')[2];
       setFormData(prev => ({
         ...prev,
@@ -222,6 +243,9 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
+        city: formData.city,
+        address: formData.address,
+        gender: formData.gender || undefined,
         organizerProfile: {
           companyName: formData.organizerProfile.companyName,
           description: formData.organizerProfile.description,
@@ -229,6 +253,7 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
           venueTypes: formData.organizerProfile.venueTypes.split(', ').map(type => type.trim()),
           eventFrequency: formData.organizerProfile.eventFrequency,
           phone: formData.organizerProfile.phone,
+
           location: {
             city: formData.organizerProfile.location.city,
             postalCode: formData.organizerProfile.location.postalCode,
@@ -446,8 +471,24 @@ function EditOrganizerProfileForm({ isOpen, onClose, currentUser, onSaveSuccess 
             <input type="email" id="email" style={inputStyle} value={formData.email} onChange={handleChange} required />
           </div>
           <div style={inputGroupStyle}>
+            <label htmlFor="city" style={labelStyle}>Ville</label>
+            <input type="text" id="city" style={inputStyle} value={formData.city} onChange={handleChange} placeholder="Paris" />
+          </div>
+          <div style={inputGroupStyle}>
             <label htmlFor="organizerProfile.phone" style={labelStyle}>Téléphone</label>
             <input type="tel" id="organizerProfile.phone" style={inputStyle} value={formData.organizerProfile.phone} onChange={handleChange} placeholder="06 12 34 56 78" />
+          </div>
+          <div style={inputGroupStyle}>
+            <label htmlFor="address" style={labelStyle}>Adresse</label>
+            <input type="text" id="address" style={inputStyle} value={formData.address} onChange={handleChange} placeholder="123 rue de la Comédie" />
+          </div>
+          <div style={inputGroupStyle}>
+            <label htmlFor="gender" style={labelStyle}>Genre</label>
+            <select id="gender" style={inputStyle} value={formData.gender} onChange={handleChange}>
+              <option value="">Non défini</option>
+              <option value="femme">Femme</option>
+              <option value="homme">Homme</option>
+            </select>
           </div>
 
           {/* Profil Organisateur */}

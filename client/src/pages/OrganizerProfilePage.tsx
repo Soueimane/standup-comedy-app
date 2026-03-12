@@ -19,11 +19,19 @@ function OrganizerProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
+  const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'info' | 'profil'>('info');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     setUser(authUser);
   }, [authUser]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleSaveSuccess = () => {
     refreshUser();
@@ -185,26 +193,23 @@ function OrganizerProfilePage() {
   };
 
   const infoFields = [
-    { key: 'firstName', label: 'Prénom', value: user?.firstName || 'Non défini' },
-    { key: 'lastName', label: 'Nom', value: user?.lastName || 'Non défini' },
-    { key: 'email', label: 'Email', value: user?.email || 'Non défini', isEmail: true },
-    { key: 'companyName', label: "Nom de l'entreprise", value: user?.organizerProfile?.companyName || 'Non défini' },
-    { key: 'city', label: 'Ville', value: user?.organizerProfile?.location?.city || 'Non défini' },
-    { key: 'phone', label: 'Téléphone', value: user?.organizerProfile?.phone || 'Non défini' },
+    { key: 'firstName', label: 'Prénom', value: user?.firstName || 'Non défini', fieldId: 'firstName' },
+    { key: 'lastName', label: 'Nom', value: user?.lastName || 'Non défini', fieldId: 'lastName' },
+    { key: 'email', label: 'Email', value: user?.email || 'Non défini', isEmail: true, fieldId: 'email' },
+    { key: 'phone', label: 'Téléphone', value: user?.organizerProfile?.phone || 'Non défini', fieldId: 'organizerProfile.phone' },
+    { key: 'city', label: 'Ville', value: user?.city || 'Non défini', fieldId: 'city' },
+    { key: 'address', label: 'Adresse', value: user?.address || 'Non défini', fieldId: 'address' },
+    { key: 'gender', label: 'Genre', value: user?.gender === 'femme' ? 'Femme' : user?.gender === 'homme' ? 'Homme' : 'Non défini', fieldId: 'gender' },
   ];
 
   const profilFields = [
-    { label: "Nom de l'entreprise", value: user?.organizerProfile?.companyName || 'Non défini' },
-    { label: 'Description', value: user?.organizerProfile?.description || 'Non spécifié' },
-    { label: 'Site web', value: user?.organizerProfile?.website || 'Non spécifié' },
-    { label: 'Types de lieux', value: user?.organizerProfile?.venueTypes?.join(', ') || 'Non spécifié' },
-    {
-      label: 'Budget moyen',
-      value:
-        user?.organizerProfile?.averageBudget?.min !== undefined && user?.organizerProfile?.averageBudget?.max !== undefined
-          ? `${user.organizerProfile.averageBudget.min} - ${user.organizerProfile.averageBudget.max}€`
-          : 'Non spécifié',
-    },
+    { label: "Nom de l'entreprise", value: user?.organizerProfile?.companyName || 'Non défini', fieldId: 'organizerProfile.companyName' },
+    { label: 'Ville', value: user?.organizerProfile?.location?.city || 'Non défini', fieldId: 'organizerProfile.location.city' },
+    { label: 'Code postal', value: user?.organizerProfile?.location?.postalCode || 'Non défini', fieldId: 'organizerProfile.location.postalCode' },
+    { label: 'Adresse', value: user?.organizerProfile?.location?.address || 'Non défini', fieldId: 'organizerProfile.location.address' },
+    { label: 'Description', value: user?.organizerProfile?.description || 'Non spécifié', fieldId: 'organizerProfile.description' },
+    { label: 'Site web', value: user?.organizerProfile?.website || 'Non spécifié', fieldId: 'organizerProfile.website' },
+    { label: 'Types de lieux', value: user?.organizerProfile?.venueTypes?.join(', ') || 'Non spécifié', fieldId: 'organizerProfile.venueTypes' },
     {
       label: 'Fréquence des évènements',
       value:
@@ -215,6 +220,7 @@ function OrganizerProfilePage() {
             : user?.organizerProfile?.eventFrequency === 'occasional'
               ? 'Occasionnel'
               : 'Non spécifié',
+      fieldId: 'organizerProfile.eventFrequency',
     },
   ];
 
@@ -223,8 +229,8 @@ function OrganizerProfilePage() {
       <Navbar />
       <div style={wrapperStyle}>
         {/* Header Card */}
-        <div style={headerCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
+        <div style={{ ...headerCardStyle, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={avatarStyle}>
               {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : 'DA')}
             </div>
@@ -241,7 +247,7 @@ function OrganizerProfilePage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
             <div style={statBoxStyle}>
               <div style={{ color: ACCENT, fontSize: 26, fontWeight: 700 }}>
                 {user?.stats?.totalEvents ?? 0}
@@ -289,6 +295,7 @@ function OrganizerProfilePage() {
             onClose={() => setIsEditing(false)}
             currentUser={user}
             onSaveSuccess={handleSaveSuccess}
+            scrollToField={scrollToField}
           />
         ) : (
           <>
@@ -302,23 +309,18 @@ function OrganizerProfilePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {infoFields.map((field, i) => (
                     <div key={field.key}>
-                      <div style={rowStyle}>
-                        <div style={labelValueGroupStyle}>
-                          <span style={labelStyle}>{field.label}</span>
-                          <span
-                            style={{
-                              ...valueStyle,
-                              color: field.isEmail ? ACCENT : VALUE_COLOR,
-                            }}
-                          >
-                            {field.value}
-                          </span>
-                        </div>
-                        <div style={{ flexShrink: 0 }}>
+                      {isMobile ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+                            <span style={{ ...labelStyle, minWidth: 'auto' }}>{field.label}</span>
+                            <span style={{ ...valueStyle, color: field.isEmail ? ACCENT : VALUE_COLOR, whiteSpace: 'normal' }}>
+                              {field.value}
+                            </span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setIsEditing(true)}
-                            style={modifierButtonStyle}
+                            onClick={() => { setScrollToField(field.fieldId); setIsEditing(true); }}
+                            style={{ ...modifierButtonStyle, padding: '5px 12px', flexShrink: 0 }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.borderColor = ACCENT;
                               e.currentTarget.style.color = ACCENT;
@@ -331,7 +333,38 @@ function OrganizerProfilePage() {
                             Modifier
                           </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={rowStyle}>
+                          <div style={labelValueGroupStyle}>
+                            <span style={labelStyle}>{field.label}</span>
+                            <span
+                              style={{
+                                ...valueStyle,
+                                color: field.isEmail ? ACCENT : VALUE_COLOR,
+                              }}
+                            >
+                              {field.value}
+                            </span>
+                          </div>
+                          <div style={{ flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setScrollToField(field.fieldId); setIsEditing(true); }}
+                              style={modifierButtonStyle}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = ACCENT;
+                                e.currentTarget.style.color = ACCENT;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = BORDER;
+                                e.currentTarget.style.color = '#666';
+                              }}
+                            >
+                              Modifier
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {i < infoFields.length - 1 && (
                         <div style={{ height: 1, background: SEPARATOR }} />
                       )}
@@ -351,16 +384,16 @@ function OrganizerProfilePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {profilFields.map((field, i) => (
                     <div key={field.label}>
-                      <div style={rowStyle}>
-                        <div style={labelValueGroupStyle}>
-                          <span style={labelStyle}>{field.label}</span>
-                          <span style={valueStyle}>{field.value}</span>
-                        </div>
-                        <div style={{ flexShrink: 0 }}>
+                      {isMobile ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+                            <span style={{ ...labelStyle, minWidth: 'auto' }}>{field.label}</span>
+                            <span style={{ ...valueStyle, whiteSpace: 'normal' }}>{field.value}</span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setIsEditing(true)}
-                            style={modifierButtonStyle}
+                            onClick={() => { setScrollToField(field.fieldId); setIsEditing(true); }}
+                            style={{ ...modifierButtonStyle, padding: '5px 12px', flexShrink: 0 }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.borderColor = ACCENT;
                               e.currentTarget.style.color = ACCENT;
@@ -373,7 +406,31 @@ function OrganizerProfilePage() {
                             Modifier
                           </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={rowStyle}>
+                          <div style={labelValueGroupStyle}>
+                            <span style={labelStyle}>{field.label}</span>
+                            <span style={valueStyle}>{field.value}</span>
+                          </div>
+                          <div style={{ flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setScrollToField(field.fieldId); setIsEditing(true); }}
+                              style={modifierButtonStyle}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = ACCENT;
+                                e.currentTarget.style.color = ACCENT;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = BORDER;
+                                e.currentTarget.style.color = '#666';
+                              }}
+                            >
+                              Modifier
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {i < profilFields.length - 1 && (
                         <div style={{ height: 1, background: SEPARATOR }} />
                       )}
