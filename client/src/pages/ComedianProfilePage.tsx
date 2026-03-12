@@ -290,7 +290,7 @@ function ComedianProfilePage() {
       <Navbar />
       <div style={wrapperStyle}>
         {/* Header Card */}
-        <div style={headerCardStyle}>
+        <div style={{ ...headerCardStyle, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
             <div style={avatarStyle}>
               {!user?.avatarUrl && (user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '—')}
