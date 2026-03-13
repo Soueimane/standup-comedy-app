@@ -93,7 +93,7 @@ const UserStatsSchema = new Schema<IUserStats>({
   netPromoterScore: { type: Number, default: 0 },
   absences: { type: Number, default: 0 },
   lateCancellations: { type: Number, default: 0 },
-  processedEvents: [{ type: Schema.Types.ObjectId, ref: 'Event' }]
+  processedEvents: [{ type: String }]
 });
 
 const HumoristeProfileSchema = new Schema<IHumoristeProfile>({

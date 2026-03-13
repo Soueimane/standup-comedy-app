@@ -112,8 +112,10 @@ const Dashboard = () => {
       // Recharger les statistiques après traitement
       await refetchStats();
     } catch (error: any) {
-      console.error('Erreur lors du traitement:', error.response?.status);
-      showError(getErrorMessage(error, 'Impossible de traiter les événements'));
+      console.error('Erreur lors du traitement:', error.response?.status, error.response?.data);
+      const serverError = error?.response?.data?.error;
+      const msg = typeof serverError === 'string' ? serverError : getErrorMessage(error, 'Impossible de traiter les événements');
+      showError(msg);
     } finally {
       setIsProcessing(false);
     }
