@@ -305,7 +305,7 @@ function ComedianProfilePage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
             <div style={statBoxStyle}>
               <div style={{ color: ACCENT, fontSize: 26, fontWeight: 700 }}>
                 {user?.stats?.applicationsAccepted ?? 0}
