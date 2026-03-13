@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -28,6 +28,7 @@ export default function SpectatorEventsPage() {
   const { token, user } = useAuth();
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [eventFilter, setEventFilter] = useState<EventsFilterTab>('inscrits');
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
   const [unregisterConfirm, setUnregisterConfirm] = useState<{ isOpen: boolean; event: IEvent | null }>({ isOpen: false, event: null });
@@ -219,6 +220,8 @@ export default function SpectatorEventsPage() {
               emptyMessage="Aucun événement archivé."
               onEventClick={setSelectedEvent}
               onRemoveFavorite={(e) => removeFavoriteMutation.mutate(e._id)}
+              onRate={(e) => navigate(`/spectateur/events/rate/${e._id}`)}
+              showRate
               isUnregistering={false}
               showUnregister={false}
               isRegistered={() => true}
@@ -336,6 +339,8 @@ function Section({
   onRegister,
   onUnregister,
   onRemoveFavorite,
+  onRate,
+  showRate = false,
   isUnregistering,
   isRegistering = false,
   showUnregister,
@@ -349,6 +354,8 @@ function Section({
   onRegister?: (e: IEvent) => void;
   onUnregister?: (e: IEvent) => void;
   onRemoveFavorite: (e: IEvent) => void;
+  onRate?: (e: IEvent) => void;
+  showRate?: boolean;
   isUnregistering: boolean;
   isRegistering?: boolean;
   showUnregister: boolean;
@@ -376,6 +383,8 @@ function Section({
               onRegister={onRegister ? () => onRegister(event) : undefined}
               onUnregister={showUnregister && onUnregister ? () => onUnregister(event) : undefined}
               onRemoveFavorite={showRemoveFavorite ? () => onRemoveFavorite(event) : undefined}
+              onRate={showRate && onRate ? () => onRate(event) : undefined}
+              showRateButton={showRate}
               isRegistered={isRegistered ? isRegistered(event) : false}
               isUnregistering={isUnregistering}
               isRegistering={isRegistering}
@@ -393,6 +402,8 @@ function EventCard({
   onRegister,
   onUnregister,
   onRemoveFavorite,
+  onRate,
+  showRateButton = false,
   isRegistered,
   isUnregistering,
   isRegistering = false,
@@ -402,6 +413,8 @@ function EventCard({
   onRegister?: () => void;
   onUnregister?: () => void;
   onRemoveFavorite?: () => void;
+  onRate?: () => void;
+  showRateButton?: boolean;
   isRegistered: boolean;
   isUnregistering: boolean;
   isRegistering?: boolean;
@@ -541,6 +554,25 @@ function EventCard({
             }}
           >
             Se désinscrire
+          </button>
+        )}
+        {showRateButton && onRate && isPast && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRate(); }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid #D4AF37',
+              background: 'linear-gradient(180deg, #FFD700 0%, #D4AF37 100%)',
+              color: '#1a1a2e',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }}
+          >
+            Noter
           </button>
         )}
         {onRemoveFavorite && (

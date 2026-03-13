@@ -46,6 +46,92 @@ type OrganizerTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'calendar' 
 type EventsSubTab = 'upcoming' | 'full' | 'archived' | 'cancelled' | 'recurringEvents';
 type SuperAdminTab = 'full' | 'upcoming' | 'archived' | 'cancelled';
 
+interface RatingsSummaryData {
+  eventTitle: string;
+  averageEventRating: number | null;
+  totalRatings: number;
+  comedianRatings: Array<{
+    comedianId: string;
+    firstName: string;
+    lastName: string;
+    averageRating: number | null;
+    ratingCount: number;
+  }>;
+}
+
+function RatingsSummaryModal({ event, onClose }: { event: IEvent | null; onClose: () => void }) {
+  const { data, isLoading, error } = useQuery<RatingsSummaryData>({
+    queryKey: ['event-ratings-summary', event?._id],
+    queryFn: async () => {
+      const res = await api.get(`/events/${event!._id}/ratings-summary`);
+      return res.data;
+    },
+    enabled: !!event?._id,
+  });
+
+  if (!event) return null;
+
+  return (
+    <Modal isOpen onClose={onClose}>
+      <div>
+        <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25em', color: '#fff' }}>
+          Notes — {event.title}
+        </h2>
+        {isLoading && <p style={{ color: '#aaa' }}>Chargement des notes…</p>}
+        {error && <p style={{ color: '#dc3545' }}>Impossible de charger les notes.</p>}
+        {data && !isLoading && (
+          <>
+            <div style={{ marginBottom: 20, padding: '16px', background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+              <div style={{ marginBottom: 12, color: '#fff', fontSize: '0.95em' }}>
+                <span style={{ color: '#888' }}>Moyenne par événement</span>
+                <div style={{ color: '#FFD700', fontWeight: 600, fontSize: '1.2em', marginTop: 4 }}>
+                  {data.averageEventRating != null ? `${data.averageEventRating}/5` : '—'}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12, color: '#fff', fontSize: '0.95em' }}>
+                <span style={{ color: '#888' }}>Nombre total d&apos;avis</span>
+                <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.2em', marginTop: 4 }}>
+                  {data.totalRatings}
+                </div>
+              </div>
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1em', color: '#ddd' }}>Moyenne par humoriste</h3>
+            {data.comedianRatings.length > 0 ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: 260, overflowY: 'auto' }}>
+                {data.comedianRatings.map((cr) => (
+                  <li
+                    key={cr.comedianId}
+                    style={{
+                      padding: '10px 0',
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ color: '#fff' }}>
+                      {cr.firstName} {cr.lastName}
+                    </span>
+                    <span style={{ color: '#FFD700', fontWeight: 600 }}>
+                      {cr.averageRating != null ? `${cr.averageRating}/5` : '—'} ({cr.ratingCount} avis)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#888', margin: 0 }}>Aucun humoriste à afficher.</p>
+            )}
+            {data.totalRatings === 0 && (
+              <p style={{ color: '#888', marginTop: 12 }}>Aucune notation pour cet événement.</p>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function MyEventsPage() {
   const { user, refreshUser, isLoading: authIsLoading } = useAuth();
   const { showSuccess, showError, showWarning, showInfo } = useAlert();
@@ -162,6 +248,7 @@ function MyEventsPage() {
   const [expandedUpcomingGroupId, setExpandedUpcomingGroupId] = useState<string | null>(null);
   const [openActionsEventId, setOpenActionsEventId] = useState<string | null>(null);
   const [spectatorsModalEvent, setSpectatorsModalEvent] = useState<IEvent | null>(null);
+  const [ratingsModalEvent, setRatingsModalEvent] = useState<IEvent | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationSearch, setLocationSearch] = useState(''); // Recherche par lieu pour les humoristes
@@ -1374,19 +1461,34 @@ useEffect(() => {
             onClick={(e) => e.stopPropagation()}
           >
             {context === 'archived' ? (
-              <button
-                type="button"
-                style={{ ...menuItemStyle }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenActionsEventId(null);
-                  handleCardClick(event, true);
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                Gérer absences
-              </button>
+              <>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle, borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    handleCardClick(event, true);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Gérer absences
+                </button>
+                <button
+                  type="button"
+                  style={{ ...menuItemStyle }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenActionsEventId(null);
+                    setRatingsModalEvent(event);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  Voir les notes
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -4423,6 +4525,12 @@ useEffect(() => {
           </div>
         </div>
       </Modal>
+
+      {/* Modal Voir les notes (organisateur - événements archivés) */}
+      <RatingsSummaryModal
+        event={ratingsModalEvent}
+        onClose={() => setRatingsModalEvent(null)}
+      />
 
       {/* Modal Voir spectateurs */}
       <Modal
