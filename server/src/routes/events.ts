@@ -24,6 +24,7 @@ import {
   unregisterSpectator,
   uploadEventImage,
 } from '../controllers/event';
+import { getRatingForm, submitRatings, getRatingStatus, getEventRatingsSummary } from '../controllers/spectatorRating';
 
 const uploadsEventsDir = path.join(process.cwd(), 'uploads', 'events');
 if (!fs.existsSync(uploadsEventsDir)) {
@@ -100,6 +101,15 @@ router.get('/user/my-events', authMiddleware, asyncHandler(getOrganizerEvents));
 router.post('/:eventId/spectator-register', authMiddleware, asyncHandler(registerSpectator));
 // DELETE /api/events/:eventId/spectator-register - Désinscription spectateur
 router.delete('/:eventId/spectator-register', authMiddleware, asyncHandler(unregisterSpectator));
+
+// GET /api/events/:eventId/rating-form - Formulaire de notation (spectateur, événement passé)
+router.get('/:eventId/rating-form', authMiddleware, asyncHandler(getRatingForm));
+// POST /api/events/:eventId/ratings - Envoyer les notes (spectateur)
+router.post('/:eventId/ratings', authMiddleware, asyncHandler(submitRatings));
+// GET /api/events/:eventId/rating-status - Savoir si déjà noté
+router.get('/:eventId/rating-status', authMiddleware, asyncHandler(getRatingStatus));
+// GET /api/events/:eventId/ratings-summary - Résumé des notes (organisateur)
+router.get('/:eventId/ratings-summary', authMiddleware, asyncHandler(getEventRatingsSummary));
 
 // GET /api/events/:eventId - Récupérer un évènement par son ID
 router.get('/:eventId', asyncHandler(getEventById));

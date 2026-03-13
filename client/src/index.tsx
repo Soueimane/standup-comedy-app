@@ -30,6 +30,7 @@ import { SSEProvider } from './components/SSEProvider'
 import CalendarPage from './pages/CalendarPage';
 import SpectatorHomePage from './pages/SpectatorHomePage';
 import SpectatorEventsPage from './pages/SpectatorEventsPage';
+import SpectatorRateEventPage from './pages/SpectatorRateEventPage';
 import SpectatorProfilePage from './pages/SpectatorProfilePage';
 import LegalMentionsPage from './pages/LegalMentionsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
@@ -75,6 +76,7 @@ const AppRouter: React.FC = () => {
       <Route path="/dashboard" element={<DashboardRouter />} />
       <Route path="/spectateur" element={<SpectatorHomePage />} />
       <Route path="/spectateur/events" element={<SpectatorEventsPage />} />
+      <Route path="/spectateur/events/rate/:eventId" element={<SpectatorRateEventPage />} />
       <Route path="/spectator/events" element={<RedirectSpectatorEvents />} />
       <Route path="/spectateur/profile" element={<SpectatorProfilePage />} />
       <Route path="/events" element={<MyEventsPage />} />
