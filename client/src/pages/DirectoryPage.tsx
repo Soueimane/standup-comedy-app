@@ -712,6 +712,7 @@ const DirectoryPage: React.FC = () => {
         }}>
           <div style={{
             backgroundColor: 'white',
+            color: '#333',
             borderRadius: '12px',
             padding: '30px',
             maxWidth: '900px',
