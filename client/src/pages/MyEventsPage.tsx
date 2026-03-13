@@ -3970,7 +3970,7 @@ useEffect(() => {
         participantsSectionRef={participantsSectionRef}
       />
 
-      <Modal isOpen={showEditEventForm} onClose={() => setShowEditEventForm(false)} title="Modifier l'évènement">
+      <Modal isOpen={showEditEventForm} onClose={() => setShowEditEventForm(false)} title="Modifier l'évènement" closeOnOverlayClick={false}>
         {eventToEdit && (
           <EditEventForm
             eventToEdit={eventToEdit}
