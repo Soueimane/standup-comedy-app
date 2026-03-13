@@ -1761,60 +1761,62 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
 
     const now = new Date();
 
-    // Trouver tous les évènements passés qui ont des participants acceptés
+    // Trouver tous les évènements passés qui ont des participants acceptés (sans populate pour garder des ObjectIds)
     const pastEvents = await EventModel.find({
       date: { $lt: now },
       status: { $in: ['published', 'completed'] }
-    }).populate('participants');
+    });
 
     let totalProcessed = 0;
     let participationsAdded = 0;
 
     for (const event of pastEvents) {
-      // Pour chaque participant de l'évènement
-      for (const participantId of event.participants) {
-        const participant = await UserModel.findById(participantId);
+      const participants = Array.isArray(event.participants) ? event.participants : [];
+      for (const participantIdRef of participants) {
+        if (participantIdRef == null) continue;
+        const participantId = participantIdRef instanceof mongoose.Types.ObjectId
+          ? participantIdRef
+          : (participantIdRef as any)?._id ?? participantIdRef;
+        if (!participantId) continue;
 
-        if (participant && participant.role === 'COMEDIAN') {
-          // Initialiser les stats si nécessaire
-          if (!participant.stats) {
-            participant.stats = {};
-          }
-          if (!participant.stats.processedEvents) {
-            participant.stats.processedEvents = [];
-          }
+        // Ne charger que role, stats et nom pour éviter de déclencher la validation du profil (ex. numberOfScenes invalide)
+        const participant = await UserModel.findById(participantId)
+          .select('role stats firstName lastName')
+          .lean();
 
-          // Vérifier si cet évènement a déjà été traité pour ce participant
-          const eventIdStr = (event._id as mongoose.Types.ObjectId).toString();
-          const alreadyProcessed = participant.stats.processedEvents.includes(eventIdStr);
+        if (!participant || participant.role !== 'COMEDIAN') continue;
 
-          if (!alreadyProcessed) {
-            // Vérifier si ce humoriste a été marqué absent pour cet évènement
-            const absence = await AbsenceModel.findOne({
-              event: event._id,
-              comedian: participantId
-            });
+        const stats = participant.stats || {};
+        const processedEvents = Array.isArray(stats.processedEvents) ? stats.processedEvents : [];
+        const eventIdStr = (event._id && (event._id as any).toString) ? (event._id as any).toString() : String(event._id);
+        const alreadyProcessed = processedEvents.some((id: any) => (id && id.toString ? id.toString() : String(id)) === eventIdStr);
 
-            // Si pas d'absence trouvée, incrémenter totalEvents (participation)
-            if (!absence) {
-              const currentTotalEvents = participant.stats.totalEvents || 0;
-              participant.stats.totalEvents = currentTotalEvents + 1;
-              participant.stats.processedEvents.push(eventIdStr);
-              participant.markModified('stats');
-              await participant.save();
+        if (alreadyProcessed) {
+          console.log(`ℹ️ Évènement "${event.title}" déjà traité pour ${participant.firstName} ${participant.lastName}`);
+          continue;
+        }
 
-              participationsAdded++;
-              console.log(`✅ Participation ajoutée pour ${participant.firstName} ${participant.lastName} à l'évènement "${event.title}"`);
-            } else {
-              // Marquer comme traité même si absent pour éviter de le retraiter
-              participant.stats.processedEvents.push(eventIdStr);
-              participant.markModified('stats');
-              await participant.save();
-              console.log(`⚠️ ${participant.firstName} ${participant.lastName} était absent à l'évènement "${event.title}" - pas de participation ajoutée`);
-            }
-          } else {
-            console.log(`ℹ️ Évènement "${event.title}" déjà traité pour ${participant.firstName} ${participant.lastName}`);
-          }
+        const absence = await AbsenceModel.findOne({
+          event: event._id,
+          comedian: participantId
+        });
+
+        // Mise à jour ciblée des stats uniquement (pas de save() du document → pas de validation profile.numberOfScenes)
+        if (!absence) {
+          await UserModel.updateOne(
+            { _id: participantId },
+            { $inc: { 'stats.totalEvents': 1 }, $push: { 'stats.processedEvents': eventIdStr } },
+            { runValidators: false }
+          );
+          participationsAdded++;
+          console.log(`✅ Participation ajoutée pour ${participant.firstName} ${participant.lastName} à l'évènement "${event.title}"`);
+        } else {
+          await UserModel.updateOne(
+            { _id: participantId },
+            { $push: { 'stats.processedEvents': eventIdStr } },
+            { runValidators: false }
+          );
+          console.log(`⚠️ ${participant.firstName} ${participant.lastName} était absent à l'évènement "${event.title}" - pas de participation ajoutée`);
         }
       }
       totalProcessed++;
@@ -1825,9 +1827,15 @@ export const processCompletedEvents = async (req: AuthRequest, res: Response): P
       eventsProcessed: totalProcessed,
       participationsAdded: participationsAdded
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur lors du traitement des évènements terminés:', error);
-    res.status(500).json({ message: 'Erreur lors du traitement des évènements terminés' });
+    const message = error?.message || 'Erreur lors du traitement des évènements terminés';
+    const detail = error?.stack || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    res.status(500).json({
+      message: 'Erreur lors du traitement des évènements terminés',
+      error: message,
+      ...(process.env.NODE_ENV !== 'production' && { detail })
+    });
   }
 };
 
