@@ -10,6 +10,37 @@ import { UserModel } from '../models/User';
  * Retourne l'événement (titre, date), la liste des humoristes participants et une éventuelle notation existante.
  * Réservé aux spectateurs inscrits à cet événement (passé).
  */
+const getEventEndDateTime = (event: any): Date => {
+  const eventDate = new Date(event.date);
+  if (event.endTime) {
+    const [hours, minutes] = String(event.endTime).split(':').map((v) => parseInt(v, 10) || 0);
+    return new Date(
+      eventDate.getFullYear(),
+      eventDate.getMonth(),
+      eventDate.getDate(),
+      hours,
+      minutes,
+      0,
+      0
+    );
+  }
+  return new Date(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate(),
+    23,
+    59,
+    59,
+    999
+  );
+};
+
+const isRatingWindowClosed = (event: any, now: Date = new Date()): boolean => {
+  const endDateTime = getEventEndDateTime(event);
+  const windowEnd = new Date(endDateTime.getTime() + 72 * 60 * 60 * 1000);
+  return now > windowEnd;
+};
+
 export const getRatingForm = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { eventId } = req.params;
@@ -26,7 +57,7 @@ export const getRatingForm = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const event = await EventModel.findById(eventId)
-      .select('title date status spectatorRegistrations participants')
+      .select('title date status spectatorRegistrations participants endTime')
       .populate('participants', 'firstName lastName avatarUrl');
 
     if (!event) {
@@ -50,6 +81,11 @@ export const getRatingForm = async (req: AuthRequest, res: Response): Promise<vo
 
     if (event.status?.toLowerCase() === 'cancelled') {
       res.status(400).json({ message: 'Cet événement est annulé' });
+      return;
+    }
+
+    if (isRatingWindowClosed(event)) {
+      res.status(400).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
       return;
     }
 
@@ -116,7 +152,7 @@ export const submitRatings = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const event = await EventModel.findById(eventId)
-      .select('title date status spectatorRegistrations participants');
+      .select('title date status spectatorRegistrations participants endTime');
     if (!event) {
       res.status(404).json({ message: 'Événement non trouvé' });
       return;
@@ -133,6 +169,11 @@ export const submitRatings = async (req: AuthRequest, res: Response): Promise<vo
     const eventDate = new Date(event.date);
     if (eventDate >= new Date()) {
       res.status(400).json({ message: 'Vous ne pouvez noter qu\'un événement passé' });
+      return;
+    }
+
+    if (isRatingWindowClosed(event)) {
+      res.status(400).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
       return;
     }
 
@@ -186,12 +227,34 @@ export const getRatingStatus = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    const event = await EventModel.findById(eventId)
+      .select('date status endTime spectatorRegistrations');
+
+    if (!event) {
+      res.status(404).json({ message: 'Événement non trouvé' });
+      return;
+    }
+
+    const isRegistered = (event.spectatorRegistrations || []).some(
+      (id: any) => (id && id.toString ? id.toString() : id) === userId
+    );
+    if (!isRegistered) {
+      res.status(403).json({ message: 'Vous n\'étiez pas inscrit à cet événement' });
+      return;
+    }
+
     const existing = await SpectatorEventRatingModel.findOne({
       event: eventId,
       spectator: userId,
     }).select('eventRating').lean();
 
-    res.status(200).json({ alreadyRated: !!existing });
+    const windowClosed = isRatingWindowClosed(event);
+
+    res.status(200).json({
+      alreadyRated: !!existing,
+      ratingWindowClosed: windowClosed,
+      eventRating: existing?.eventRating ?? null,
+    });
   } catch (error) {
     console.error('getRatingStatus error:', error);
     res.status(500).json({ message: 'Erreur' });
