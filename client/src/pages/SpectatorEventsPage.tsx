@@ -12,6 +12,7 @@ import {
   createStripeCheckoutSession,
   confirmStripeRegistration,
   unregisterSpectatorFromEvent,
+  getSpectatorEventRatingStatus,
 } from '../services/api';
 import EventDetailModal from '../components/EventDetailModal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -32,6 +33,9 @@ export default function SpectatorEventsPage() {
   const [eventFilter, setEventFilter] = useState<EventsFilterTab>('inscrits');
   const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
   const [unregisterConfirm, setUnregisterConfirm] = useState<{ isOpen: boolean; event: IEvent | null }>({ isOpen: false, event: null });
+  const [ratedEvents, setRatedEvents] = useState<Record<string, boolean>>({});
+  const [ratingWindowClosed, setRatingWindowClosed] = useState<Record<string, boolean>>({});
+  const [eventRatings, setEventRatings] = useState<Record<string, number>>({});
 
   const { data: myRegistrationsList = [], isLoading: loadingRegistrations } = useQuery({
     queryKey: ['events', 'spectator', 'myRegistrations'],
@@ -139,6 +143,64 @@ export default function SpectatorEventsPage() {
 
   const isLoading = loadingRegistrations || loadingFavorites;
 
+  // Charger le statut "déjà noté" pour les événements archivés
+  useEffect(() => {
+    if (!user || registeredArchived.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchStatuses = async () => {
+      try {
+        const entries = await Promise.all(
+          registeredArchived.map(async (e) => {
+            try {
+              const res = await getSpectatorEventRatingStatus(e._id);
+              return [e._id, !!res.alreadyRated, !!res.ratingWindowClosed, res.eventRating ?? null] as const;
+            } catch {
+              return [e._id, false, false, null] as const;
+            }
+          })
+        );
+
+        if (cancelled) return;
+
+        setRatedEvents((prev) => {
+          const updated: Record<string, boolean> = { ...prev };
+          entries.forEach(([id, alreadyRated]) => {
+            updated[id] = alreadyRated;
+          });
+          return updated;
+        });
+
+        setRatingWindowClosed((prev) => {
+          const updated: Record<string, boolean> = { ...prev };
+          entries.forEach(([id, _alreadyRated, windowClosed]) => {
+            updated[id] = windowClosed;
+          });
+          return updated;
+        });
+
+        setEventRatings((prev) => {
+          const updated: Record<string, number> = { ...prev };
+          entries.forEach(([id, _alreadyRated, _windowClosed, rating]) => {
+            if (rating != null) {
+              updated[id] = rating;
+            }
+          });
+          return updated;
+        });
+      } catch {
+        // en cas d'erreur globale, on ne bloque pas l'affichage
+      }
+    };
+
+    fetchStatuses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, registeredArchived]);
+
   const filterTabs: { id: EventsFilterTab; label: string }[] = [
     { id: 'inscrits', label: 'Inscrits (à venir)' },
     { id: 'archives', label: 'Archivés (auxquels vous étiez inscrit)' },
@@ -225,6 +287,9 @@ export default function SpectatorEventsPage() {
               isUnregistering={false}
               showUnregister={false}
               isRegistered={() => true}
+              isAlreadyRated={(e) => !!ratedEvents[e._id]}
+              isRatingWindowClosed={(e) => !!ratingWindowClosed[e._id]}
+              getEventRating={(e) => eventRatings[e._id] ?? 0}
             />
           ) : eventFilter === 'annules' ? (
             <section style={{ marginBottom: 40 }}>
@@ -346,6 +411,9 @@ function Section({
   showUnregister,
   showRemoveFavorite = false,
   isRegistered,
+  isAlreadyRated,
+  isRatingWindowClosed,
+  getEventRating,
 }: {
   title: string;
   events: IEvent[];
@@ -361,6 +429,9 @@ function Section({
   showUnregister: boolean;
   showRemoveFavorite?: boolean;
   isRegistered?: (e: IEvent) => boolean;
+  isAlreadyRated?: (e: IEvent) => boolean;
+  isRatingWindowClosed?: (e: IEvent) => boolean;
+  getEventRating?: (e: IEvent) => number;
 }) {
   return (
     <section style={{ marginBottom: 40 }}>
@@ -386,6 +457,9 @@ function Section({
               onRate={showRate && onRate ? () => onRate(event) : undefined}
               showRateButton={showRate}
               isRegistered={isRegistered ? isRegistered(event) : false}
+              alreadyRated={isAlreadyRated ? isAlreadyRated(event) : false}
+              ratingWindowClosed={isRatingWindowClosed ? isRatingWindowClosed(event) : false}
+              ratingValue={getEventRating ? getEventRating(event) : 0}
               isUnregistering={isUnregistering}
               isRegistering={isRegistering}
             />
@@ -407,6 +481,9 @@ function EventCard({
   isRegistered,
   isUnregistering,
   isRegistering = false,
+  alreadyRated = false,
+  ratingWindowClosed = false,
+  ratingValue = 0,
 }: {
   event: IEvent;
   onEventClick?: () => void;
@@ -418,6 +495,9 @@ function EventCard({
   isRegistered: boolean;
   isUnregistering: boolean;
   isRegistering?: boolean;
+  alreadyRated?: boolean;
+  ratingWindowClosed?: boolean;
+  ratingValue?: number;
 }) {
   const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
     weekday: 'short',
@@ -556,24 +636,45 @@ function EventCard({
             Se désinscrire
           </button>
         )}
-        {showRateButton && onRate && isPast && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onRate(); }}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #D4AF37',
-              background: 'linear-gradient(180deg, #FFD700 0%, #D4AF37 100%)',
-              color: '#1a1a2e',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            }}
-          >
-            Noter
-          </button>
+        {showRateButton && isPast && !ratingWindowClosed && (
+          alreadyRated ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: '1rem',
+                color: '#fbbf24',
+              }}
+            >
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span key={star}>
+                  {ratingValue >= star ? '★' : '☆'}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onRate) onRate();
+              }}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #D4AF37',
+                background: 'linear-gradient(180deg, #FFD700 0%, #D4AF37 100%)',
+                color: '#1a1a2e',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }}
+            >
+              Évaluer
+            </button>
+          )
         )}
         {onRemoveFavorite && (
           <button

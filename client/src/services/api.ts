@@ -104,6 +104,16 @@ export const unregisterSpectatorFromEvent = async (eventId: string) => {
   return response.data;
 };
 
+// Statut de notation d'un évènement pour le spectateur connecté
+export const getSpectatorEventRatingStatus = async (
+  eventId: string
+): Promise<{ alreadyRated: boolean; ratingWindowClosed?: boolean; eventRating?: number | null }> => {
+  const response = await api.get<{ alreadyRated: boolean; ratingWindowClosed?: boolean; eventRating?: number | null }>(
+    `/events/${eventId}/rating-status`,
+  );
+  return response.data;
+};
+
 // Fonctions pour gérer les favoris de comédiens (organisateurs)
 export const addFavorite = async (comedianId: string) => {
   const response = await api.post('/favorites', { comedianId });
