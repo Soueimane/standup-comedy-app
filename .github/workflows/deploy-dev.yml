@@ -20,45 +20,26 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-
-
-
           script: |
-              echo "✅ Connecté au VPS"
+            echo "✅ Connecté au VPS"
 
-               cd ${{ secrets.VPS_PATH_DEV }}
-               echo "📂 Dossier DEV: $(pwd)"
+            cd ${{ secrets.VPS_PATH_DEV }}
+            echo "📂 Dossier DEV: $(pwd)"
 
-              echo "---- GIT UPDATE ----"
+            echo "---- GIT UPDATE ----"
+            git fetch --all
+            git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+            git reset --hard origin/dev_brach_env2
+            echo "📦 Code à jour"
 
-              git checkout dev_brach_env2 || git checkout -b dev_brach_env2
-              git pull origin dev_brach_env2
+            echo "---- DOCKER CLEAN ----"
+            docker-compose down --rmi all --volumes --remove-orphans
+            docker system prune -af
 
-              echo "📦 Code à jour avec git pull"
+            echo "---- DOCKER BUILD & DEPLOY ----"
+            docker-compose up -d --build --force-recreate
 
-              echo "---- BUILD CLIENT ----"
-              cd client
-              npm install
-              npm run build
-               cd ..
+            echo "---- DOCKER STATUS ----"
+            docker ps -a
 
-              echo "---- BUILD SERVER ----"
-              cd server
-               npm install
-              npm run build
-               cd ..
-
-              echo "---- DOCKER CLEAN ----"
-
-              docker-compose down --remove-orphans
-              docker system prune -af
-              docker volume prune -f
-
-              echo "---- DOCKER BUILD ----"
-
-               docker-compose build --no-cache
-              docker-compose up -d
-
-              docker ps -a
-
-              echo "✅ Déploiement terminé"
+            echo "✅ Déploiement terminé"
