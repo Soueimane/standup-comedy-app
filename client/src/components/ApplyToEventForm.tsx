@@ -18,6 +18,7 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [hasApplied, setHasApplied] = useState(false);
+  const [hasScheduleConflict, setHasScheduleConflict] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(true);
 
   const comedianId = user?._id;
@@ -55,11 +56,17 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
     },
     onError: (error: any) => {
       console.error('Erreur lors de la soumission de la candidature:', error.response?.status);
-      const errorMessage = getErrorMessage(error, ErrorMessages.APPLICATION_SUBMIT_FAILED);
-      showError(errorMessage);
 
       if (error.response?.status === 409) {
-        setHasApplied(true);
+        const msg = error.response?.data?.message ?? '';
+        if (msg.includes('même moment')) {
+          setHasScheduleConflict(true);
+        } else {
+          setHasApplied(true);
+        }
+      } else {
+        const errorMessage = getErrorMessage(error, ErrorMessages.APPLICATION_SUBMIT_FAILED);
+        showError(errorMessage);
       }
     },
   });
@@ -192,6 +199,30 @@ function ApplyToEventForm({ event, onClose, onApplicationSubmitted }: ApplyToEve
                 100% { transform: rotate(360deg); }
               }
             `}</style>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasScheduleConflict) {
+    return (
+      <div style={formContainerStyle}>
+        <div style={formContentStyle}>
+          <div style={headerStyle}>
+            <h3 style={titleStyle}>Conflit d'agenda</h3>
+            <button onClick={onClose} style={closeButtonStyle}>✕</button>
+          </div>
+          <div style={{ marginBottom: '24px' }}>
+            <p style={{ color: '#ccc', marginBottom: '8px' }}>
+              Vous êtes déjà accepté à un autre évènement qui se déroule au même moment que <strong style={{ color: '#ff4b2b' }}>{event.title}</strong>.
+            </p>
+            <p style={{ color: '#aaa', fontSize: '0.875em' }}>
+              Pour postuler à cet évènement, vous devez d'abord vous désinscrire de l'autre évènement en conflit.
+            </p>
+          </div>
+          <div style={buttonGroupStyle}>
+            <button onClick={onClose} style={cancelButtonDynamicStyle}>Fermer</button>
           </div>
         </div>
       </div>
