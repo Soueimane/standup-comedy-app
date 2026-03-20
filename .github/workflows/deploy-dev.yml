@@ -21,33 +21,62 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
+            set -e
+
             echo "✅ Connecté au VPS"
 
             cd ${{ secrets.VPS_PATH_DEV }}
-            echo "📂 Dossier DEV: $(pwd)"
+            echo "📂 Dossier: $(pwd)"
 
-            echo "---- GIT UPDATE ----"
-            git fetch --all
+            echo "========================"
+            echo "🔄 GIT SYNC (CLEAN)"
+            echo "========================"
+
+            git fetch origin
+
             git checkout dev_brach_env2 || git checkout -b dev_brach_env2
+
             git reset --hard origin/dev_brach_env2
+
+            git clean -fd
+
+            git remote prune origin
+
+            echo "📌 Commit actuel:"
             git log -1
 
-            echo "📦 Code à jour"
+            echo "========================"
+            echo "🐳 DOCKER CLEAN"
+            echo "========================"
 
-            echo "---- DOCKER CLEAN ----"
-            docker-compose down --rmi all --volumes --remove-orphans || true
+            docker-compose down --volumes --remove-orphans || true
+
             docker system prune -af || true
+
             docker builder prune -af || true
 
-            echo "---- DOCKER BUILD ----"
+            docker images -q | xargs -r docker rmi -f || true
+
+            echo "========================"
+            echo "🏗️ DOCKER BUILD"
+            echo "========================"
+
             export CACHE_BUST=$(date +%s)
+
             docker-compose build --no-cache
+
             unset CACHE_BUST
 
-            echo "---- DOCKER DEPLOY ----"
+            echo "========================"
+            echo "🚀 DOCKER DEPLOY"
+            echo "========================"
+
             docker-compose up -d --force-recreate --remove-orphans
 
-            echo "---- DOCKER STATUS ----"
+            echo "========================"
+            echo "📊 STATUS"
+            echo "========================"
+
             docker ps -a
 
             echo "✅ Déploiement terminé"
