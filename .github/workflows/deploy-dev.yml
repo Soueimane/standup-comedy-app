@@ -40,7 +40,7 @@ jobs:
             docker builder prune -af || true
 
             echo "---- DOCKER BUILD (NO CACHE) ----"
-            docker-compose build --no-cache
+            docker-compose build --no-cache --build-arg CACHE_BUST=$(date +%s)
 
             echo "---- DOCKER DEPLOY ----"
             docker-compose up -d --force-recreate
