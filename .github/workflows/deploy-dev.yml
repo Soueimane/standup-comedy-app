@@ -39,11 +39,13 @@ jobs:
             docker system prune -af || true
             docker builder prune -af || true
 
-            echo "---- DOCKER BUILD (NO CACHE) ----"
+            echo "---- DOCKER BUILD ----"
+            export CACHE_BUST=$(date +%s)
             docker-compose build --no-cache
+            unset CACHE_BUST
 
             echo "---- DOCKER DEPLOY ----"
-            docker-compose up -d --force-recreate
+            docker-compose up -d --force-recreate --remove-orphans
 
             echo "---- DOCKER STATUS ----"
             docker ps -a
