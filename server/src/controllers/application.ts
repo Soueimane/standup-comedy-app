@@ -130,6 +130,37 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    // Vérifier si l'humoriste est déjà accepté à un évènement simultané
+    const targetDateStr = event.date ? new Date(event.date).toISOString().split('T')[0] : '';
+    const targetStart = (event.startTime ?? '00:00').trim();
+    const targetEnd = (event.endTime ?? '23:59').trim();
+
+    if (targetDateStr) {
+      const acceptedApplications = await ApplicationModel.find({
+        comedian: comedianObjectId,
+        event: { $ne: eventObjectId },
+        status: 'ACCEPTED'
+      }).populate<{ event: EventDocument }>('event');
+
+      const hasConflict = acceptedApplications.some(app => {
+        const ev = app.event as EventDocument | null;
+        if (!ev || !ev.date) return false;
+        const otherDateStr = new Date(ev.date).toISOString().split('T')[0];
+        if (otherDateStr !== targetDateStr) return false;
+        const otherStart = (ev.startTime ?? '00:00').trim();
+        const otherEnd = (ev.endTime ?? '23:59').trim();
+        // Overlap si les plages horaires se chevauchent
+        return targetStart < otherEnd && otherStart < targetEnd;
+      });
+
+      if (hasConflict) {
+        res.status(409).json({
+          message: 'Vous êtes déjà accepté à un autre événement qui se déroule au même moment.'
+        });
+        return;
+      }
+    }
+
     // Créer l'application
     const application = new ApplicationModel({
       event: eventObjectId,
