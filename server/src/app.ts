@@ -22,6 +22,7 @@ import recommendationsRoutes from './routes/recommendations';
 import comediansRoutes from './routes/comedians';
 import usersRoutes from './routes/users';
 import stripeRoutes from './routes/stripe';
+import venuesRoutes from './routes/venues';
 import { handleStripeWebhook } from './controllers/stripe';
 
 export const createApp = () => {
@@ -96,6 +97,7 @@ export const createApp = () => {
   app.use('/api/comedians', comediansRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/stripe', stripeRoutes);
+  app.use('/api/venues', venuesRoutes);
 
   app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Erreur du serveur:', err.message);

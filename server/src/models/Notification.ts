@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface NotificationDocument extends Document {
   user: Types.ObjectId; // Utilisateur destinataire (organisateur ou humoriste)
-  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'late_cancellation_organizer' | 'late_cancellation_comedian' | 'new_event';
+  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'late_cancellation_organizer' | 'late_cancellation_comedian' | 'new_event' | 'venue_booking_request' | 'venue_booking_response' | 'venue_booking_cancelled_by_owner' | 'venue_date_blocked';
   title: string; // Titre de la notification
   message: string; // Message détaillé
   relatedEvent?: Types.ObjectId; // Évènement concerné
@@ -23,7 +23,7 @@ const notificationSchema = new Schema<NotificationDocument>({
   },
   type: {
     type: String,
-    enum: ['new_application', 'application_accepted', 'application_rejected', 'event_updated', 'absence_marked', 'event_cancelled', 'late_cancellation_organizer', 'late_cancellation_comedian', 'new_event'],
+    enum: ['new_application', 'application_accepted', 'application_rejected', 'event_updated', 'absence_marked', 'event_cancelled', 'late_cancellation_organizer', 'late_cancellation_comedian', 'new_event', 'venue_booking_request', 'venue_booking_response', 'venue_booking_cancelled_by_owner', 'venue_date_blocked'],
     required: true,
     index: true
   },

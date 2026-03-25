@@ -486,4 +486,72 @@ export const getRecommendationsQuerySchema = z.object({
 export const getSmartRecommendationsQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(50)
-}); 
+});
+
+// ============================================================================
+// SCHÉMAS VENUES (SALLES)
+// ============================================================================
+
+const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+export const createVenueSchema = z.object({
+  name: z.string().min(2).max(200),
+  description: z.string().min(10).max(2000),
+  address: z.string().min(1),
+  city: z.string().min(1),
+  postalCode: z.string().min(1),
+  country: z.string().min(1),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  photos: z.array(z.string().url()).optional().default([]),
+  equipment: z.array(z.string()).optional().default([]),
+  capacity: z.number().int().min(1),
+  pricePerEvent: z.number().min(0),
+  venueType: z.enum(['bar', 'theatre', 'salle_des_fetes', 'autre']),
+});
+
+export const updateVenueSchema = createVenueSchema.partial();
+
+export const createBookingSchema = z.object({
+  requestedDate: z.string().refine((str) => {
+    const date = new Date(str);
+    return !isNaN(date.getTime()) && date > new Date();
+  }, { message: 'La date doit être dans le futur' }),
+  startTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
+  endTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
+  message: z.string().max(500).optional(),
+}).refine((data) => {
+  const [sh, sm] = data.startTime.split(':').map(Number);
+  const [eh, em] = data.endTime.split(':').map(Number);
+  return eh * 60 + em > sh * 60 + sm;
+}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] });
+
+export const updateBookingStatusSchema = z.object({
+  status: z.enum(['ACCEPTED', 'REFUSED']),
+  ownerResponse: z.string().max(500).optional(),
+});
+
+export const cancelBookingByOwnerSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export const blockDateSchema = z.object({
+  date: z.string().refine((str) => {
+    const date = new Date(str);
+    return !isNaN(date.getTime()) && date >= new Date(new Date().setHours(0, 0, 0, 0));
+  }, { message: 'La date doit être aujourd\'hui ou dans le futur' }),
+  startTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }).optional(),
+  endTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }).optional(),
+  reason: z.string().max(500).optional(),
+}).refine((data) => {
+  if (data.startTime && data.endTime) {
+    const [sh, sm] = data.startTime.split(':').map(Number);
+    const [eh, em] = data.endTime.split(':').map(Number);
+    return eh * 60 + em > sh * 60 + sm;
+  }
+  return true;
+}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] })
+.refine((data) => {
+  // startTime et endTime doivent être fournis ensemble ou pas du tout
+  return !(data.startTime && !data.endTime) && !(!data.startTime && data.endTime);
+}, { message: 'startTime et endTime doivent être fournis ensemble', path: ['startTime'] });
