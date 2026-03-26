@@ -145,9 +145,7 @@ export const deleteNotification = async (req: AuthRequest, res: Response): Promi
 
     await notification.deleteOne();
 
-    res.status(200).json({
-      message: 'Notification supprimée'
-    });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur lors de la suppression de la notification:', error);
     res.status(500).json({ message: 'Erreur lors de la suppression de la notification' });

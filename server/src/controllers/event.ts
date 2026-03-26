@@ -311,7 +311,7 @@ const createRecurringEvents = async (
       if (eventDate < today) {
         await session.abortTransaction();
         session.endSession();
-        res.status(400).json({ message: `La date ${dateStr} est dans le passé` });
+        res.status(422).json({ message: `La date ${dateStr} est dans le passé` });
         return;
       }
     }
@@ -894,7 +894,7 @@ export const unregisterSpectator = async (req: AuthRequest, res: Response): Prom
       $addToSet: { withdrawnSpectators: new mongoose.Types.ObjectId(userId) },
     });
 
-    res.status(200).json({ message: 'Désinscription enregistrée' });
+    res.status(204).send();
   } catch (error) {
     console.error('Unregister spectator error:', error);
     res.status(500).json({ message: 'Erreur lors de la désinscription' });
@@ -1276,7 +1276,7 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void
       // Ne pas faire échouer la suppression si les stats échouent
     }
 
-    res.json({ message: 'Évènement supprimé avec succès' });
+    res.status(204).send();
   } catch (error: any) {
     console.error('❌ Delete event error:', error);
     console.error('❌ Détails de l\'erreur:', {

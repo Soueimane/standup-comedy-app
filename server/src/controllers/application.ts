@@ -85,14 +85,14 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     // Vérifier le statut de l'évènement
     if (event.status === 'cancelled') {
-      res.status(400).json({
+      res.status(422).json({
         message: 'Impossible de postuler à un évènement annulé'
       });
       return;
     }
 
     if (event.status === 'completed') {
-      res.status(400).json({
+      res.status(422).json({
         message: 'Impossible de postuler à un évènement terminé'
       });
       return;
@@ -100,7 +100,7 @@ export const createApplication = async (req: AuthRequest, res: Response): Promis
 
     // À partir d'1 h avant le début, l'humoriste ne peut plus postuler
     if (isEventWithinOneHour(event)) {
-      res.status(400).json({
+      res.status(422).json({
         message: 'Impossible de postuler : l\'événement commence dans moins d\'une heure ou a déjà commencé.'
       });
       return;
@@ -1023,7 +1023,7 @@ export const deleteApplication = async (req: AuthRequest, res: Response): Promis
     const eventId = (application.event as any)?._id?.toString() || application.event?.toString() || '';
     emitApplicationWithdrawn(applicationId, eventId);
 
-    res.json({ message: 'Candidature retirée avec succès' });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur lors du retrait de la candidature:', error);
     res.status(500).json({ message: 'Erreur lors du retrait de la candidature' });

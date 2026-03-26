@@ -47,7 +47,7 @@ export const createComedianReport = async (req: AuthRequest, res: Response): Pro
 
     // Vérifier qu'on ne signale pas son propre compte
     if (comedianId === reporterId) {
-      res.status(400).json({ message: 'Vous ne pouvez pas signaler votre propre compte' });
+      res.status(422).json({ message: 'Vous ne pouvez pas signaler votre propre compte' });
       return;
     }
 

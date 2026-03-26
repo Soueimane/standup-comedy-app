@@ -38,7 +38,7 @@ export const createCheckoutSession = async (req: AuthRequest, res: Response): Pr
       return;
     }
     if (event.status?.toLowerCase() === 'cancelled') {
-      res.status(400).json({ message: 'Cet événement est annulé' });
+      res.status(422).json({ message: 'Cet événement est annulé' });
       return;
     }
 
@@ -192,7 +192,7 @@ export const confirmRegistrationAfterPayment = async (req: AuthRequest, res: Res
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     if (session.payment_status !== 'paid') {
-      res.status(400).json({ message: 'Paiement non reçu' });
+      res.status(422).json({ message: 'Paiement non reçu' });
       return;
     }
     if (session.metadata?.userId !== userId) {

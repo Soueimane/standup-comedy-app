@@ -89,7 +89,7 @@ export const authorize = async (req: Request, res: Response): Promise<void> => {
 
     const validUserTypes = ['COMEDIAN', 'ORGANIZER', 'SPECTATOR'];
     if (userType && !validUserTypes.includes(userType)) {
-      res.status(400).json({ error: 'Invalid userType' });
+      res.status(422).json({ error: 'Invalid userType' });
       return;
     }
 

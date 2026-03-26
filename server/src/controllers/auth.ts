@@ -22,7 +22,7 @@ import { sendSmsVerificationCode, verifySmsCode, toE164 } from '../services/smsS
  */
 export const logoutClassic = async (_req: Request, res: Response) => {
   res.clearCookie('auth_token', { path: '/' });
-  res.status(200).json({ message: 'Déconnexion réussie' });
+  res.status(204).send();
 };
 
 export const register = async (req: Request, res: Response) => {
@@ -379,7 +379,7 @@ export const reactivateAccount = async (req: Request, res: Response) => {
 
     // Vérifier que le compte est bien en attente de suppression RGPD
     if ((user as any).isActive !== false) {
-      return res.status(400).json({
+      return res.status(422).json({
         message: 'Ce compte est déjà actif'
       });
     }
@@ -984,10 +984,7 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
     console.log(`✅ Compte supprimé: ${user.firstName} ${user.lastName} (${user.email})`);
 
-    res.status(200).json({
-      message: `Compte de ${user.firstName} ${user.lastName} supprimé définitivement`,
-      userId,
-    });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur lors de la suppression du compte:', error);
     res.status(500).json({ message: 'Erreur lors de la suppression du compte' });

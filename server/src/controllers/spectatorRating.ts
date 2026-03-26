@@ -75,17 +75,17 @@ export const getRatingForm = async (req: AuthRequest, res: Response): Promise<vo
 
     const eventDate = new Date(event.date);
     if (eventDate >= new Date()) {
-      res.status(400).json({ message: 'Vous ne pouvez noter qu\'un événement passé' });
+      res.status(422).json({ message: 'Vous ne pouvez noter qu\'un événement passé' });
       return;
     }
 
     if (event.status?.toLowerCase() === 'cancelled') {
-      res.status(400).json({ message: 'Cet événement est annulé' });
+      res.status(422).json({ message: 'Cet événement est annulé' });
       return;
     }
 
     if (isRatingWindowClosed(event)) {
-      res.status(400).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
+      res.status(422).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
       return;
     }
 
@@ -168,12 +168,12 @@ export const submitRatings = async (req: AuthRequest, res: Response): Promise<vo
 
     const eventDate = new Date(event.date);
     if (eventDate >= new Date()) {
-      res.status(400).json({ message: 'Vous ne pouvez noter qu\'un événement passé' });
+      res.status(422).json({ message: 'Vous ne pouvez noter qu\'un événement passé' });
       return;
     }
 
     if (isRatingWindowClosed(event)) {
-      res.status(400).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
+      res.status(422).json({ message: 'La fenêtre de notation (72h après la fin de l\'événement) est dépassée.' });
       return;
     }
 
@@ -203,7 +203,7 @@ export const submitRatings = async (req: AuthRequest, res: Response): Promise<vo
       { upsert: true, new: true, runValidators: true }
     );
 
-    res.status(200).json({ message: 'Merci, votre notation a bien été enregistrée.' });
+    res.status(201).json({ message: 'Merci, votre notation a bien été enregistrée.' });
   } catch (error) {
     console.error('submitRatings error:', error);
     res.status(500).json({ message: 'Erreur lors de l\'enregistrement de la notation' });

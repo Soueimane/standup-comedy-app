@@ -503,7 +503,12 @@ export const createVenueSchema = z.object({
   country: z.string().min(1),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  photos: z.array(z.string().url()).optional().default([]),
+  photos: z.array(
+    z.string().refine(
+      (val) => val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
+      { message: 'Format photo invalide (data URL ou URL HTTP/HTTPS attendu)' }
+    )
+  ).optional().default([]),
   equipment: z.array(z.string()).optional().default([]),
   capacity: z.number().int().min(1),
   pricePerEvent: z.number().min(0),

@@ -454,7 +454,7 @@ export const unblockDate = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    res.status(200).json({ message: 'Blocage supprimé' });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur unblockDate:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });

@@ -3,8 +3,6 @@ import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import { VenueModel } from '../models/Venue';
 import { VenueBookingModel } from '../models/VenueBooking';
-import { config } from '../config/env';
-
 // ─── CRUD Venues ─────────────────────────────────────────────────────────────
 
 export const createVenue = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -110,22 +108,6 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-export const uploadVenuePhoto = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const file = (req as any).file;
-    if (!file) {
-      res.status(400).json({ message: 'Aucun fichier reçu. Formats acceptés : JPG, PNG, GIF (max 5MB).' });
-      return;
-    }
-    const baseUrl = config.api.url.replace(/\/$/, '');
-    const photoUrl = `${baseUrl}/uploads/venues/${file.filename}`;
-    res.status(200).json({ photoUrl });
-  } catch (error) {
-    console.error('Erreur uploadVenuePhoto:', error);
-    res.status(500).json({ message: 'Erreur interne du serveur' });
-  }
-};
-
 export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const ownerId = req.user?.id;
@@ -150,7 +132,7 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
     await VenueModel.findByIdAndDelete(venueId);
     await VenueBookingModel.deleteMany({ venue: venueId });
 
-    res.status(200).json({ message: 'Salle supprimée avec succès' });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur deleteVenue:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
