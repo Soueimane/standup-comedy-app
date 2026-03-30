@@ -37,6 +37,21 @@ export const SuccessMessages = {
   // Absences
   ABSENCE_MARKED: 'Absence marquée avec succès.',
   ABSENCE_CANCELLED: 'Présence confirmée avec succès.',
+
+  // Salles
+  VENUE_CREATED: 'Salle créée avec succès !',
+  VENUE_UPDATED: 'Salle mise à jour avec succès !',
+  VENUE_DELETED: 'Salle supprimée avec succès.',
+
+  // Réservations de salles
+  BOOKING_CREATED: 'Demande de réservation envoyée avec succès !',
+  BOOKING_CANCELLED: 'Réservation annulée avec succès.',
+  BOOKING_ACCEPTED: 'Réservation acceptée avec succès.',
+  BOOKING_REFUSED: 'Réservation refusée.',
+
+  // Dates bloquées
+  DATE_BLOCKED: 'Date bloquée avec succès.',
+  DATE_UNBLOCKED: 'Date débloquée avec succès.',
 };
 
 /**
@@ -78,6 +93,21 @@ export const ErrorMessages = {
   // Absences
   ABSENCE_MARK_FAILED: "Impossible de marquer l'absence.",
   ABSENCE_CANCEL_FAILED: "Impossible d'annuler l'absence.",
+
+  // Salles
+  VENUE_CREATE_FAILED: "Impossible de créer la salle.",
+  VENUE_UPDATE_FAILED: "Impossible de mettre à jour la salle.",
+  VENUE_DELETE_FAILED: "Impossible de supprimer la salle.",
+  VENUE_NOT_FOUND: "Cette salle n'a pas été trouvée.",
+
+  // Réservations de salles
+  BOOKING_CREATE_FAILED: "Impossible d'envoyer la demande de réservation.",
+  BOOKING_CANCEL_FAILED: "Impossible d'annuler la réservation.",
+  BOOKING_UPDATE_FAILED: "Impossible de mettre à jour la réservation.",
+
+  // Dates bloquées
+  DATE_BLOCK_FAILED: "Impossible de bloquer cette date.",
+  DATE_UNBLOCK_FAILED: "Impossible de débloquer cette date.",
 
   // Network & General
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion Internet.',
@@ -179,6 +209,16 @@ const SAFE_SERVER_MESSAGES = new Set([
   "La vérification SMS n'est pas configurée",
   "Numéro de téléphone invalide",
   "Erreur lors de l'envoi du SMS. Réessayez dans quelques instants.",
+
+  // Venue bookings
+  "La salle est indisponible à cette date ou sur ce créneau",
+  "Vous ne pouvez pas réserver votre propre salle",
+  "Cette réservation a déjà été traitée",
+  "Un conflit de plage horaire existe pour cette date",
+  "Seules les réservations en attente peuvent être annulées",
+  "Seules les réservations acceptées peuvent être annulées par le propriétaire",
+  "Date de réservation invalide",
+  "Salle introuvable ou indisponible",
 ]);
 
 /**

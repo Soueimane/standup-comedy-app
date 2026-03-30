@@ -155,6 +155,13 @@ function Navbar() {
       });
     }
 
+    items.push({
+      to: "/venues",
+      label: "Salles",
+      icon: "🏛️",
+      show: user?.role === 'ORGANIZER'
+    });
+
     if (user?.role === 'ORGANIZER') {
       items.push({
         to: "/profile/organizer",
@@ -218,6 +225,9 @@ function Navbar() {
             )}
             {user?.role === 'SUPER_ADMIN' && (
               <Link to="/directory" style={{ ...navLinkBaseStyle, ...(location.pathname === '/directory' ? activeLinkStyle : {}) }}>Répertoire</Link>
+            )}
+            {user?.role === 'ORGANIZER' && (
+              <Link to="/venues" style={{ ...navLinkBaseStyle, ...(location.pathname.startsWith('/venues') || location.pathname === '/my-venues' || location.pathname === '/my-bookings' ? activeLinkStyle : {}) }}>Salles</Link>
             )}
             {user?.role === 'ORGANIZER' && (
               <Link to="/profile/organizer" style={{ ...navLinkBaseStyle, ...(location.pathname === '/profile/organizer' ? activeLinkStyle : {}) }}>Profil</Link>

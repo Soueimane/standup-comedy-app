@@ -350,4 +350,176 @@ export const deleteUser = async (userId: string) => {
   return response.data;
 };
 
+// ===== Salles (Venues) =====
+
+export const createVenue = async (data: {
+  name: string;
+  description: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  capacity: number;
+  pricePerEvent: number;
+  venueType: string;
+  equipment?: string[];
+  latitude?: number;
+  longitude?: number;
+  photos?: string[];
+}) => {
+  const response = await api.post('/venues', data);
+  return response.data.venue;
+};
+
+export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number }) => {
+  const params = new URLSearchParams();
+  if (filters?.city) params.append('city', filters.city);
+  if (filters?.venueType) params.append('venueType', filters.venueType);
+  if (filters?.minCapacity) params.append('minCapacity', filters.minCapacity.toString());
+  const query = params.toString();
+  const response = await api.get(`/venues${query ? `?${query}` : ''}`);
+  return response.data.venues;
+};
+
+export const getVenue = async (venueId: string) => {
+  const response = await api.get(`/venues/${venueId}`);
+  return response.data.venue;
+};
+
+export const updateVenue = async (venueId: string, data: Partial<{
+  name: string;
+  description: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  pricePerEvent: number;
+  venueType: string;
+  equipment: string[];
+  isActive: boolean;
+  photos: string[];
+}>) => {
+  const response = await api.put(`/venues/${venueId}`, data);
+  return response.data.venue;
+};
+
+export const deleteVenue = async (venueId: string) => {
+  const response = await api.delete(`/venues/${venueId}`);
+  return response.data;
+};
+
+// ===== Réservations de salles (Venue Bookings) =====
+
+export const createBooking = async (venueId: string, data: {
+  requestedDate: string;
+  startTime: string;
+  endTime: string;
+  message?: string;
+}) => {
+  const response = await api.post(`/venues/${venueId}/bookings`, data);
+  return response.data;
+};
+
+export const listVenueBookings = async (venueId: string) => {
+  const response = await api.get(`/venues/${venueId}/bookings`);
+  return response.data.bookings;
+};
+
+export const myBookings = async () => {
+  const response = await api.get('/venues/bookings/mine');
+  return response.data.bookings;
+};
+
+export const updateBookingStatus = async (bookingId: string, status: 'ACCEPTED' | 'REFUSED', ownerResponse?: string) => {
+  const response = await api.patch(`/venues/bookings/${bookingId}`, { status, ownerResponse });
+  return response.data;
+};
+
+export const cancelBooking = async (bookingId: string) => {
+  const response = await api.delete(`/venues/bookings/${bookingId}`);
+  return response.data;
+};
+
+export const cancelBookingByOwner = async (bookingId: string) => {
+  const response = await api.patch(`/venues/bookings/${bookingId}/cancel`);
+  return response.data;
+};
+
+// ===== Dates bloquées =====
+
+export const blockDate = async (venueId: string, data: {
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+}) => {
+  const response = await api.post(`/venues/${venueId}/blocked-dates`, data);
+  return response.data;
+};
+
+export const listBlockedDates = async (venueId: string) => {
+  const response = await api.get(`/venues/${venueId}/blocked-dates`);
+  return response.data.blockedDates;
+};
+
+export const unblockDate = async (venueId: string, blockedDateId: string) => {
+  const response = await api.delete(`/venues/${venueId}/blocked-dates/${blockedDateId}`);
+  return response.data;
+};
+
+// ===== Géocodage =====
+
+export async function geocodeAddress(
+  address: string,
+  city: string,
+  postalCode: string,
+  _country: string
+): Promise<{ lat: number; lng: number } | null> {
+  const banFetch = async (query: string, type?: string) => {
+    const params = new URLSearchParams({ q: query, limit: '1', ...(type && { type }) });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?${params}`, {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          console.warn('geocodeAddress: timeout atteint (5s)', { query });
+        } else {
+          console.warn('geocodeAddress: erreur réseau ou réponse invalide', err, { query });
+        }
+      }
+      return null;
+    }
+  };
+
+  const streetOnly = address.replace(/^\d+\s*(bis|ter|quater)?\s+/i, '').trim();
+
+  let data = await banFetch(`${address} ${postalCode} ${city}`, 'housenumber');
+  if (!data?.features?.length)
+    data = await banFetch(`${streetOnly} ${postalCode} ${city}`, 'street');
+  if (!data?.features?.length)
+    data = await banFetch(`${address} ${postalCode} ${city}`);
+
+  const feature = data?.features?.[0];
+  if (!feature) {
+    console.warn('geocodeAddress: aucun résultat pour toutes les stratégies', { address, city, postalCode });
+    return null;
+  }
+  const coordinates = feature?.geometry?.coordinates;
+  if (!coordinates) return null;
+  const [lng, lat] = coordinates;
+  return { lat, lng };
+}
+
 export default api;

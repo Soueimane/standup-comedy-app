@@ -1,0 +1,235 @@
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { listVenues } from '../services/api';
+import VenueCard from '../components/VenueCard';
+import Navbar from '../components/Navbar';
+import VenuesTabs from '../components/VenuesTabs';
+import type { IVenue } from '../types/venue';
+
+const VENUE_TYPES = [
+  { value: '', label: 'Tous les types' },
+  { value: 'bar', label: 'Bar' },
+  { value: 'theatre', label: 'Théâtre' },
+  { value: 'salle_des_fetes', label: 'Salle des fêtes' },
+  { value: 'autre', label: 'Autre' },
+];
+
+const VenuesPage: React.FC = () => {
+  const [filters, setFilters] = useState({ city: '', venueType: '', minCapacity: '' });
+  const [activeFilters, setActiveFilters] = useState({ city: '', venueType: '', minCapacity: '' });
+
+  const { data, isLoading, error } = useQuery<IVenue[]>({
+    queryKey: ['venues', activeFilters],
+    queryFn: () =>
+      listVenues({
+        city: activeFilters.city || undefined,
+        venueType: activeFilters.venueType || undefined,
+        minCapacity: activeFilters.minCapacity ? parseInt(activeFilters.minCapacity) : undefined,
+      }),
+  });
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActiveFilters({ ...filters });
+  };
+
+  const handleReset = () => {
+    const empty = { city: '', venueType: '', minCapacity: '' };
+    setFilters(empty);
+    setActiveFilters(empty);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: 'rgba(0,0,0,0.4)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    padding: '12px 16px',
+    color: '#fff',
+    fontSize: 14,
+    outline: 'none',
+    flex: 1,
+    minWidth: 140,
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .venues-page-title { font-size: 1.8em !important; }
+          .venues-search-form { flex-direction: column; }
+          .venues-search-form input,
+          .venues-search-form select { min-width: 0 !important; width: 100%; }
+          .venues-search-form button { width: 100%; }
+        }
+      `}</style>
+      <Navbar />
+
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <h1 className="venues-page-title" style={{ margin: '0 0 8px 0', fontSize: '2.5em', fontWeight: 800, color: '#ff416c' }}>
+            Salles
+          </h1>
+          <p style={{ margin: '0 0 20px 0', fontSize: '1.1em', color: '#aaa' }}>
+            Réservez des salles pour vos soirées stand-up, spectacles et événements.
+          </p>
+
+        </div>
+
+        <VenuesTabs />
+
+        {/* Barre de recherche */}
+        <form
+          className="venues-search-form"
+          onSubmit={handleSearch}
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 12,
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,65,108,0.2)',
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 32,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="🏙️ Ville"
+            value={filters.city}
+            onChange={(e) => setFilters((p) => ({ ...p, city: e.target.value }))}
+            style={inputStyle}
+          />
+          <select
+            value={filters.venueType}
+            onChange={(e) => setFilters((p) => ({ ...p, venueType: e.target.value }))}
+            style={inputStyle}
+          >
+            {VENUE_TYPES.map((t) => (
+              <option key={t.value} value={t.value} style={{ background: '#1a1a2e' }}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            placeholder="👥 Capacité min."
+            value={filters.minCapacity}
+            onChange={(e) => setFilters((p) => ({ ...p, minCapacity: e.target.value }))}
+            min={1}
+            style={{ ...inputStyle, maxWidth: 160 }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: '12px 28px',
+              background: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Rechercher
+          </button>
+          {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity) && (
+            <button
+              type="button"
+              onClick={handleReset}
+              style={{
+                padding: '12px 20px',
+                background: 'transparent',
+                color: '#888',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 12,
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              Réinitialiser
+            </button>
+          )}
+        </form>
+
+        {/* Contenu */}
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                border: '4px solid rgba(255,65,108,0.2)',
+                borderTop: '4px solid #ff416c',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 16px',
+              }}
+            />
+            <p style={{ color: '#888', fontSize: 15 }}>Chargement des salles...</p>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <p style={{ color: '#ef4444', fontSize: 15 }}>Impossible de charger les salles.</p>
+          </div>
+        ) : !data || data.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '64px 24px',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 20,
+            }}
+          >
+            <div style={{ fontSize: 56, marginBottom: 16 }}>🏛️</div>
+            <h3 style={{ color: '#fff', fontSize: 20, marginBottom: 8 }}>Aucune salle disponible</h3>
+            <p style={{ color: '#888', fontSize: 15, marginBottom: 24 }}>
+              {activeFilters.city || activeFilters.venueType || activeFilters.minCapacity
+                ? "Essayez d'autres critères de recherche."
+                : "Aucune salle n'a encore été ajoutée."}
+            </p>
+            {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity) && (
+              <button
+                onClick={handleReset}
+                style={{
+                  padding: '10px 24px',
+                  background: 'rgba(255,65,108,0.15)',
+                  color: '#ff416c',
+                  border: '1px solid rgba(255,65,108,0.4)',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <p style={{ color: '#888', fontSize: 14, marginBottom: 24 }}>
+              {data.length} salle{data.length > 1 ? 's' : ''} disponible{data.length > 1 ? 's' : ''}
+            </p>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: 24,
+              }}
+            >
+              {data.map((venue) => (
+                <VenueCard key={venue._id} venue={venue} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default VenuesPage;

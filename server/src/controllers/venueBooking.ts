@@ -47,6 +47,11 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     const { requestedDate, startTime, endTime, message } = req.body;
     const date = new Date(requestedDate);
 
+    if (isNaN(date.getTime())) {
+      res.status(400).json({ message: 'Date de réservation invalide' });
+      return;
+    }
+
     // Vérifier que la date/créneau n'est pas bloqué par le propriétaire
     const dayStart = new Date(date);
     dayStart.setHours(0, 0, 0, 0);
@@ -80,14 +85,18 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       status: 'PENDING',
     });
 
-    // Notifier le propriétaire de la salle
-    await NotificationModel.create({
-      user: venue.owner,
-      type: 'venue_booking_request',
-      title: 'Nouvelle demande de réservation',
-      message: `Une demande de réservation a été faite pour votre salle "${venue.name}".`,
-      read: false,
-    });
+    // Notifier le propriétaire de la salle (découplé)
+    try {
+      await NotificationModel.create({
+        user: venue.owner,
+        type: 'venue_booking_request',
+        title: 'Nouvelle demande de réservation',
+        message: `Une demande de réservation a été faite pour votre salle "${venue.name}".`,
+        read: false,
+      });
+    } catch (notifError) {
+      console.error('Erreur création notification createBooking:', notifError, { venueId });
+    }
 
     res.status(201).json({ booking });
   } catch (error) {
@@ -102,6 +111,11 @@ export const listVenueBookings = async (req: AuthRequest, res: Response): Promis
   try {
     const ownerId = req.user?.id;
     const { venueId } = req.params;
+
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
 
     if (!mongoose.Types.ObjectId.isValid(venueId)) {
       res.status(400).json({ message: 'ID de salle invalide' });
@@ -159,6 +173,11 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
     const { bookingId } = req.params;
     const { status, ownerResponse } = req.body as { status: 'ACCEPTED' | 'REFUSED'; ownerResponse?: string };
 
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
       res.status(400).json({ message: 'ID de réservation invalide' });
       return;
@@ -208,19 +227,23 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
     if (ownerResponse) booking.ownerResponse = ownerResponse;
     await booking.save();
 
-    // Notifier le demandeur
+    // Notifier le demandeur (découplé : un échec de notif ne doit pas faire échouer la réponse)
     const notifMessage =
       status === 'ACCEPTED'
         ? `Votre demande de réservation pour "${booking.venue.name}" a été acceptée.`
         : `Votre demande de réservation pour "${booking.venue.name}" a été refusée.`;
 
-    await NotificationModel.create({
-      user: booking.requester,
-      type: 'venue_booking_response',
-      title: status === 'ACCEPTED' ? 'Réservation acceptée' : 'Réservation refusée',
-      message: notifMessage,
-      read: false,
-    });
+    try {
+      await NotificationModel.create({
+        user: booking.requester,
+        type: 'venue_booking_response',
+        title: status === 'ACCEPTED' ? 'Réservation acceptée' : 'Réservation refusée',
+        message: notifMessage,
+        read: false,
+      });
+    } catch (notifError) {
+      console.error('Erreur création notification updateBookingStatus:', notifError, { bookingId, status });
+    }
 
     res.status(200).json({ booking });
   } catch (error) {
@@ -235,6 +258,11 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
   try {
     const requesterId = req.user?.id;
     const { bookingId } = req.params;
+
+    if (!requesterId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
 
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
       res.status(400).json({ message: 'ID de réservation invalide' });
@@ -275,6 +303,11 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
     const { bookingId } = req.params;
     const { reason } = req.body as { reason?: string };
 
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
       res.status(400).json({ message: 'ID de réservation invalide' });
       return;
@@ -304,15 +337,19 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
     if (reason) booking.ownerResponse = reason;
     await booking.save();
 
-    await NotificationModel.create({
-      user: booking.requester,
-      type: 'venue_booking_cancelled_by_owner',
-      title: 'Réservation annulée par le propriétaire',
-      message: reason
-        ? `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire. Motif : ${reason}`
-        : `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire.`,
-      read: false,
-    });
+    try {
+      await NotificationModel.create({
+        user: booking.requester,
+        type: 'venue_booking_cancelled_by_owner',
+        title: 'Réservation annulée par le propriétaire',
+        message: reason
+          ? `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire. Motif : ${reason}`
+          : `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire.`,
+        read: false,
+      });
+    } catch (notifError) {
+      console.error('Erreur création notification cancelBookingByOwner:', notifError, { bookingId });
+    }
 
     res.status(200).json({ booking });
   } catch (error) {
@@ -328,6 +365,11 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     const ownerId = req.user?.id;
     const { venueId } = req.params;
     const { date, startTime, endTime, reason } = req.body;
+
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
 
     if (!mongoose.Types.ObjectId.isValid(venueId)) {
       res.status(400).json({ message: 'ID de salle invalide' });
@@ -345,18 +387,24 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      res.status(400).json({ message: 'Date invalide' });
+      return;
+    }
+
     const blockedDate = await VenueBlockedDateModel.create({
       venue: venueId,
-      date: new Date(date),
+      date: parsedDate,
       startTime,
       endTime,
       reason,
     });
 
     // Trouver les réservations impactées sur cette date
-    const dayStart = new Date(date);
+    const dayStart = new Date(parsedDate);
     dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
+    const dayEnd = new Date(parsedDate);
     dayEnd.setHours(23, 59, 59, 999);
 
     const impactedBookings = await VenueBookingModel.find({
@@ -370,15 +418,31 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
       ? impactedBookings.filter((b) => timesOverlap(startTime, endTime, b.startTime, b.endTime))
       : impactedBookings;
 
-    // Annuler et notifier chaque réservation impactée
-    await Promise.all(
+    // Annuler chaque réservation impactée — les échecs de sauvegarde sont loggés
+    const saveResults = await Promise.allSettled(
       toCancel.map(async (booking) => {
         booking.status = 'CANCELLED_BY_OWNER';
         booking.ownerResponse = reason
           ? `Salle indisponible ce jour-là. Motif : ${reason}`
           : 'Salle indisponible ce jour-là.';
         await booking.save();
+        return booking;
+      })
+    );
 
+    const saveFailures = saveResults.filter((r) => r.status === 'rejected');
+    if (saveFailures.length > 0) {
+      console.error('blockDate — échecs partiels lors des annulations:', saveFailures.map((f) => (f as PromiseRejectedResult).reason), { venueId });
+    }
+
+    const cancelledCount = toCancel.length - saveFailures.length;
+    const savedBookings = saveResults
+      .filter((r): r is PromiseFulfilledResult<(typeof toCancel)[number]> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    // Notifications découplées — un échec de notif n'affecte pas le compteur
+    for (const booking of savedBookings) {
+      try {
         await NotificationModel.create({
           user: booking.requester,
           type: 'venue_date_blocked',
@@ -388,10 +452,12 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
             : `Votre réservation pour "${venue.name}" a été annulée car la salle est indisponible ce jour-là.`,
           read: false,
         });
-      })
-    );
+      } catch (notifError) {
+        console.error('blockDate — échec notification:', notifError, { bookingId: booking._id });
+      }
+    }
 
-    res.status(201).json({ blockedDate, cancelledBookings: toCancel.length });
+    res.status(201).json({ blockedDate, cancelledBookings: cancelledCount });
   } catch (error) {
     console.error('Erreur blockDate:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });

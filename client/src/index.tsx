@@ -36,6 +36,11 @@ import LegalMentionsPage from './pages/LegalMentionsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import AboutPage from './pages/AboutPage';
+import VenuesPage from './pages/VenuesPage';
+import VenueDetailPage from './pages/VenueDetailPage';
+import CreateVenuePage from './pages/CreateVenuePage';
+import MyVenuesPage from './pages/MyVenuesPage';
+import MyBookingsPage from './pages/MyBookingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +54,13 @@ const queryClient = new QueryClient({
 const RedirectSpectatorEvents: React.FC = () => {
   const { search } = useLocation();
   return <Navigate to={`/spectateur/events${search}`} replace />;
+};
+
+const OrganizerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (user?.role !== 'ORGANIZER') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 };
 
 const ScrollToTop: React.FC = () => {
@@ -95,6 +107,11 @@ const AppRouter: React.FC = () => {
       <Route path="/politique-confidentialite" element={<PrivacyPolicyPage />} />
       <Route path="/cgu" element={<TermsOfServicePage />} />
       <Route path="/a-propos" element={<AboutPage />} />
+      <Route path="/venues" element={<OrganizerRoute><VenuesPage /></OrganizerRoute>} />
+      <Route path="/venues/new" element={<OrganizerRoute><CreateVenuePage /></OrganizerRoute>} />
+      <Route path="/venues/:venueId" element={<OrganizerRoute><VenueDetailPage /></OrganizerRoute>} />
+      <Route path="/my-venues" element={<OrganizerRoute><MyVenuesPage /></OrganizerRoute>} />
+      <Route path="/my-bookings" element={<OrganizerRoute><MyBookingsPage /></OrganizerRoute>} />
     </Routes>
     </>
   );

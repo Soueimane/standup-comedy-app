@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import { VenueModel } from '../models/Venue';
 import { VenueBookingModel } from '../models/VenueBooking';
+import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 // ─── CRUD Venues ─────────────────────────────────────────────────────────────
 
 export const createVenue = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -16,6 +17,10 @@ export const createVenue = async (req: AuthRequest, res: Response): Promise<void
     const venue = await VenueModel.create({ ...req.body, owner: ownerId });
     res.status(201).json({ venue });
   } catch (error) {
+    if (error instanceof mongoose.Error.ValidationError) {
+      res.status(400).json({ message: Object.values(error.errors).map((e) => e.message).join(', ') });
+      return;
+    }
     console.error('Erreur createVenue:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
   }
@@ -26,9 +31,19 @@ export const listVenues = async (req: AuthRequest, res: Response): Promise<void>
     const { city, venueType, minCapacity, page = '1', limit = '20' } = req.query as Record<string, string>;
 
     const filter: Record<string, unknown> = { isActive: true };
-    if (city) filter.city = new RegExp(city, 'i');
+    if (city) {
+      const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.city = new RegExp(escaped, 'i');
+    }
     if (venueType) filter.venueType = venueType;
-    if (minCapacity) filter.capacity = { $gte: parseInt(minCapacity) };
+    if (minCapacity) {
+      const capacityNum = parseInt(minCapacity);
+      if (isNaN(capacityNum)) {
+        res.status(400).json({ message: 'minCapacity doit être un entier valide' });
+        return;
+      }
+      filter.capacity = { $gte: capacityNum };
+    }
 
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
@@ -84,6 +99,11 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
     const ownerId = req.user?.id;
     const { venueId } = req.params;
 
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
     if (!mongoose.Types.ObjectId.isValid(venueId)) {
       res.status(400).json({ message: 'ID de salle invalide' });
       return;
@@ -100,9 +120,22 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const updated = await VenueModel.findByIdAndUpdate(venueId, req.body, { new: true });
+    const { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude } = req.body;
+    const updated = await VenueModel.findByIdAndUpdate(
+      venueId,
+      { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude },
+      { new: true, runValidators: true }
+    );
+    if (!updated) {
+      res.status(404).json({ message: 'Salle introuvable' });
+      return;
+    }
     res.status(200).json({ venue: updated });
   } catch (error) {
+    if (error instanceof mongoose.Error.ValidationError) {
+      res.status(400).json({ message: Object.values(error.errors).map((e) => e.message).join(', ') });
+      return;
+    }
     console.error('Erreur updateVenue:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
   }
@@ -129,8 +162,11 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    await Promise.all([
+      VenueBookingModel.deleteMany({ venue: venueId }),
+      VenueBlockedDateModel.deleteMany({ venue: venueId }),
+    ]);
     await VenueModel.findByIdAndDelete(venueId);
-    await VenueBookingModel.deleteMany({ venue: venueId });
 
     res.status(204).send();
   } catch (error) {

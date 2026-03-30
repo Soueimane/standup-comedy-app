@@ -520,8 +520,10 @@ export const updateVenueSchema = createVenueSchema.partial();
 export const createBookingSchema = z.object({
   requestedDate: z.string().refine((str) => {
     const date = new Date(str);
-    return !isNaN(date.getTime()) && date > new Date();
-  }, { message: 'La date doit être dans le futur' }),
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return !isNaN(date.getTime()) && date >= today;
+  }, { message: 'La date doit être aujourd\'hui ou dans le futur' }),
   startTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
   endTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
   message: z.string().max(500).optional(),
