@@ -109,25 +109,16 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const venue = await VenueModel.findById(venueId);
-    if (!venue) {
-      res.status(404).json({ message: 'Salle introuvable' });
-      return;
-    }
-
-    if (venue.owner.toString() !== ownerId) {
-      res.status(403).json({ message: 'Non autorisé à modifier cette salle' });
-      return;
-    }
-
     const { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude } = req.body;
-    const updated = await VenueModel.findByIdAndUpdate(
-      venueId,
+    const updated = await VenueModel.findOneAndUpdate(
+      { _id: venueId, owner: ownerId },
       { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude },
       { new: true, runValidators: true }
     );
+
     if (!updated) {
-      res.status(404).json({ message: 'Salle introuvable' });
+      const exists = await VenueModel.exists({ _id: venueId });
+      res.status(exists ? 403 : 404).json({ message: exists ? 'Non autorisé à modifier cette salle' : 'Salle introuvable' });
       return;
     }
     res.status(200).json({ venue: updated });

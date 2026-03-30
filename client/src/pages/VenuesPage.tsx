@@ -5,18 +5,18 @@ import VenueCard from '../components/VenueCard';
 import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
 import type { IVenue } from '../types/venue';
+import { VENUE_TYPES } from '../types/venue';
 
-const VENUE_TYPES = [
+const VENUE_TYPES_WITH_ALL = [
   { value: '', label: 'Tous les types' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'theatre', label: 'Théâtre' },
-  { value: 'salle_des_fetes', label: 'Salle des fêtes' },
-  { value: 'autre', label: 'Autre' },
+  ...VENUE_TYPES,
 ];
 
+const EMPTY_FILTERS = { city: '', venueType: '', minCapacity: '' };
+
 const VenuesPage: React.FC = () => {
-  const [filters, setFilters] = useState({ city: '', venueType: '', minCapacity: '' });
-  const [activeFilters, setActiveFilters] = useState({ city: '', venueType: '', minCapacity: '' });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [activeFilters, setActiveFilters] = useState(EMPTY_FILTERS);
 
   const { data, isLoading, error } = useQuery<IVenue[]>({
     queryKey: ['venues', activeFilters],
@@ -34,9 +34,8 @@ const VenuesPage: React.FC = () => {
   };
 
   const handleReset = () => {
-    const empty = { city: '', venueType: '', minCapacity: '' };
-    setFilters(empty);
-    setActiveFilters(empty);
+    setFilters(EMPTY_FILTERS);
+    setActiveFilters(EMPTY_FILTERS);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -105,7 +104,7 @@ const VenuesPage: React.FC = () => {
             onChange={(e) => setFilters((p) => ({ ...p, venueType: e.target.value }))}
             style={inputStyle}
           >
-            {VENUE_TYPES.map((t) => (
+            {VENUE_TYPES_WITH_ALL.map((t) => (
               <option key={t.value} value={t.value} style={{ background: '#1a1a2e' }}>
                 {t.label}
               </option>

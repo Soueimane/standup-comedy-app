@@ -441,9 +441,9 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
       .map((r) => r.value);
 
     // Notifications découplées — un échec de notif n'affecte pas le compteur
-    for (const booking of savedBookings) {
-      try {
-        await NotificationModel.create({
+    await Promise.allSettled(
+      savedBookings.map((booking) =>
+        NotificationModel.create({
           user: booking.requester,
           type: 'venue_date_blocked',
           title: 'Réservation annulée — salle indisponible',
@@ -451,11 +451,11 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
             ? `Votre réservation pour "${venue.name}" a été annulée car la salle est indisponible ce jour-là. Motif : ${reason}`
             : `Votre réservation pour "${venue.name}" a été annulée car la salle est indisponible ce jour-là.`,
           read: false,
-        });
-      } catch (notifError) {
-        console.error('blockDate — échec notification:', notifError, { bookingId: booking._id });
-      }
-    }
+        }).catch((notifError) => {
+          console.error('blockDate — échec notification:', notifError, { bookingId: booking._id });
+        })
+      )
+    );
 
     res.status(201).json({ blockedDate, cancelledBookings: cancelledCount });
   } catch (error) {

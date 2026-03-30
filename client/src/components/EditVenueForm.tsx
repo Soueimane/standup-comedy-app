@@ -3,23 +3,13 @@ import { updateVenue, geocodeAddress } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import type { IVenue } from '../types/venue';
+import { VENUE_TYPES, EQUIPMENT_OPTIONS } from '../types/venue';
 import LocationPickerMap from './LocationPickerMap';
 
 interface EditVenueFormProps {
   venue: IVenue;
   onUpdated: (updatedVenue: IVenue) => void;
 }
-
-const VENUE_TYPES = [
-  { value: 'bar', label: 'Bar' },
-  { value: 'theatre', label: 'Théâtre' },
-  { value: 'salle_des_fetes', label: 'Salle des fêtes' },
-  { value: 'autre', label: 'Autre' },
-];
-
-const EQUIPMENT_OPTIONS = [
-  'Scène', 'Sono', 'Micro', 'Éclairage', 'Projecteur', 'Bar', 'Vestiaires', 'Parking', 'Accès PMR', 'Loges',
-];
 
 const EditVenueForm: React.FC<EditVenueFormProps> = ({ venue, onUpdated }) => {
   const { showSuccess, showError } = useAlert();

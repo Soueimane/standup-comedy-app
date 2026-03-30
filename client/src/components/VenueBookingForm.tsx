@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { fr } from 'date-fns/locale';
 import 'react-day-picker/dist/style.css';
@@ -88,8 +88,11 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
 
   const errorStyle: React.CSSProperties = { color: '#ef4444', fontSize: 12, marginTop: 4 };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   return (
     <div

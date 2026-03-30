@@ -1,17 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { IVenue } from '../types/venue';
+import { VENUE_TYPE_LABELS } from '../types/venue';
 
 interface VenueCardProps {
   venue: IVenue;
 }
-
-const VENUE_TYPE_LABELS: Record<string, string> = {
-  bar: 'Bar',
-  theatre: 'Théâtre',
-  salle_des_fetes: 'Salle des fêtes',
-  autre: 'Autre',
-};
 
 const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
   const navigate = useNavigate();
@@ -38,7 +32,7 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
       }}
     >
       {/* Photo */}
-      <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' /* 16:9 */ }}>
+      <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
         {coverPhoto ? (
           <img
             src={coverPhoto}

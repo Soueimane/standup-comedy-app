@@ -5,17 +5,7 @@ import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/sys
 import { useAlert } from '../hooks/useAlert';
 import Navbar from '../components/Navbar';
 import LocationPickerMap from '../components/LocationPickerMap';
-
-const VENUE_TYPES = [
-  { value: 'bar', label: 'Bar' },
-  { value: 'theatre', label: 'Théâtre' },
-  { value: 'salle_des_fetes', label: 'Salle des fêtes' },
-  { value: 'autre', label: 'Autre' },
-];
-
-const EQUIPMENT_OPTIONS = [
-  'Scène', 'Sono', 'Micro', 'Éclairage', 'Projecteur', 'Bar', 'Vestiaires', 'Parking', 'Accès PMR', 'Loges',
-];
+import { VENUE_TYPES, EQUIPMENT_OPTIONS } from '../types/venue';
 
 const CreateVenuePage: React.FC = () => {
   const navigate = useNavigate();

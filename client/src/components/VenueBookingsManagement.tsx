@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listVenueBookings, updateBookingStatus, cancelBookingByOwner } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
@@ -74,6 +74,19 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
     }
   };
 
+  const bookings = data || [];
+  const filtered = statusFilter === 'ALL'
+    ? bookings
+    : bookings.filter((b) => b.status === statusFilter);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: bookings.length };
+    for (const b of bookings) {
+      counts[b.status] = (counts[b.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [bookings]);
+
   if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
@@ -89,11 +102,6 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
       </div>
     );
   }
-
-  const bookings = data || [];
-  const filtered = statusFilter === 'ALL'
-    ? bookings
-    : bookings.filter((b) => b.status === statusFilter);
 
   if (bookings.length === 0) {
     return (
@@ -124,9 +132,7 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
       {/* Filtre par statut */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         {STATUS_FILTERS.map(({ key, label }) => {
-          const count = key === 'ALL'
-            ? bookings.length
-            : bookings.filter((b) => b.status === key).length;
+          const count = statusCounts[key] ?? 0;
           const isActive = statusFilter === key;
           return (
             <button

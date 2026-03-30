@@ -1,5 +1,23 @@
 import type { IUserData } from './user';
 
+export const VENUE_TYPES = [
+  { value: 'bar', label: 'Bar' },
+  { value: 'theatre', label: 'Théâtre' },
+  { value: 'salle_des_fetes', label: 'Salle des fêtes' },
+  { value: 'autre', label: 'Autre' },
+] as const;
+
+export const VENUE_TYPE_LABELS: Record<string, string> = {
+  bar: 'Bar',
+  theatre: 'Théâtre',
+  salle_des_fetes: 'Salle des fêtes',
+  autre: 'Autre',
+};
+
+export const EQUIPMENT_OPTIONS = [
+  'Scène', 'Sono', 'Micro', 'Éclairage', 'Projecteur', 'Bar', 'Vestiaires', 'Parking', 'Accès PMR', 'Loges',
+] as const;
+
 export interface IVenue {
   _id: string;
   name: string;

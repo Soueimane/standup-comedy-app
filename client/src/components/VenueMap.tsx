@@ -17,7 +17,6 @@ const VenueMap: React.FC<VenueMapProps> = ({ lat, lng, name }) => {
       </h3>
       <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', height: 220 }}>
         <MapContainer center={[lat, lng]} zoom={15} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false} attributionControl={false}>
-          {/* TODO: dark theme — CartoDB Dark Matter: https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png */}
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <Marker position={[lat, lng]} icon={venueMarkerIcon as any}>
             <Popup>{name}</Popup>

@@ -12,15 +12,9 @@ import EditVenueForm from '../components/EditVenueForm';
 import VenueMap from '../components/VenueMap';
 import Navbar from '../components/Navbar';
 import type { IVenue, IVenueBlockedDate } from '../types/venue';
+import { VENUE_TYPE_LABELS } from '../types/venue';
 
 type OwnerTab = 'info' | 'bookings' | 'blocked' | 'settings';
-
-const VENUE_TYPE_LABELS: Record<string, string> = {
-  bar: 'Bar',
-  theatre: 'Théâtre',
-  salle_des_fetes: 'Salle des fêtes',
-  autre: 'Autre',
-};
 
 const VenueDetailPage: React.FC = () => {
   const { venueId } = useParams<{ venueId: string }>();
@@ -40,7 +34,7 @@ const VenueDetailPage: React.FC = () => {
   });
 
   const { data: blockedDatesData } = useQuery<IVenueBlockedDate[]>({
-    queryKey: ['venue-blocked-dates', venueId],
+    queryKey: ['blocked-dates', venueId],
     queryFn: () => listBlockedDates(venueId!),
     enabled: !!venueId,
   });
