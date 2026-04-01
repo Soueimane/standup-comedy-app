@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { fr } from 'date-fns/locale';
 import 'react-day-picker/dist/style.css';
-import { createBooking } from '../services/api';
+import { createBooking, getTakenSlots } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 
@@ -24,6 +24,56 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   const [formData, setFormData] = useState({ startTime: '', endTime: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [takenSlots, setTakenSlots] = useState<{ startTime: string; endTime: string }[]>([]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setTakenSlots([]);
+      return;
+    }
+    const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+    getTakenSlots(venueId, dateStr)
+      .then(setTakenSlots)
+      .catch((err) => {
+        console.error('Impossible de charger les créneaux pris:', err);
+        setTakenSlots([]);
+      });
+  }, [selectedDate, venueId]);
+
+  const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+  // Une heure de début est invalide si elle tombe dans un créneau déjà réservé
+  const isStartHourDisabled = (hour: string): boolean =>
+    takenSlots.some(slot => toMin(hour) >= toMin(slot.startTime) && toMin(hour) < toMin(slot.endTime));
+
+  // Une heure de fin est invalide si la plage [startTime, hour] chevauche un créneau réservé
+  // Condition de chevauchement : startTime < slot.endTime AND slot.startTime < hour
+  const isEndHourDisabled = (hour: string): boolean => {
+    if (!formData.startTime) return false;
+    return takenSlots.some(slot =>
+      toMin(formData.startTime) < toMin(slot.endTime) && toMin(slot.startTime) < toMin(hour)
+    );
+  };
+
+  const hourOptions = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => {
+      const h = i.toString().padStart(2, '0');
+      return { value: `${h}:00`, label: `${h}h00` };
+    });
+  }, []);
+
+  const isToday = useMemo(() => {
+    if (!selectedDate) return false;
+    const now = new Date();
+    return selectedDate.getFullYear() === now.getFullYear() &&
+      selectedDate.getMonth() === now.getMonth() &&
+      selectedDate.getDate() === now.getDate();
+  }, [selectedDate]);
+
+  const minStartHour = useMemo(() => {
+    if (!isToday) return 0;
+    return new Date().getHours() + 1;
+  }, [isToday]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -46,7 +96,8 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
     setErrors({});
     setIsSubmitting(true);
     try {
-      const requestedDate = selectedDate!.toISOString().split('T')[0];
+      const d = selectedDate!;
+      const requestedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       await createBooking(venueId, {
         requestedDate,
         startTime: formData.startTime,
@@ -56,6 +107,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
       showSuccess(SuccessMessages.BOOKING_CREATED);
       setSelectedDate(undefined);
       setFormData({ startTime: '', endTime: '', message: '' });
+
       onBookingCreated?.();
     } catch (err) {
       showError(getErrorMessage(err, ErrorMessages.BOOKING_CREATE_FAILED));
@@ -153,7 +205,10 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
             <DayPicker
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+                setFormData((p) => ({ ...p, startTime: '', endTime: '' }));
+              }}
               locale={fr}
               disabled={[{ before: today }, ...blockedDates]}
               showOutsideDays={false}
@@ -170,22 +225,34 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         <div className="booking-time-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Heure de début</label>
-            <input
-              type="time"
+            <select
               value={formData.startTime}
-              onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value }))}
-              style={inputStyle}
-            />
+              onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value, endTime: '' }))}
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="">--</option>
+              {hourOptions.filter((opt) => parseInt(opt.value) >= minStartHour).map((opt) => (
+                <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }} disabled={isStartHourDisabled(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             {errors.startTime && <p style={errorStyle}>{errors.startTime}</p>}
           </div>
           <div>
             <label style={labelStyle}>Heure de fin</label>
-            <input
-              type="time"
+            <select
               value={formData.endTime}
               onChange={(e) => setFormData((p) => ({ ...p, endTime: e.target.value }))}
-              style={inputStyle}
-            />
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="">--</option>
+              {hourOptions.filter((opt) => !formData.startTime || opt.value > formData.startTime).map((opt) => (
+                <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }} disabled={isEndHourDisabled(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             {errors.endTime && <p style={errorStyle}>{errors.endTime}</p>}
           </div>
         </div>

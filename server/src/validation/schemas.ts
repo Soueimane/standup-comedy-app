@@ -531,7 +531,13 @@ export const createBookingSchema = z.object({
   const [sh, sm] = data.startTime.split(':').map(Number);
   const [eh, em] = data.endTime.split(':').map(Number);
   return eh * 60 + em > sh * 60 + sm;
-}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] });
+}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] }).refine((data) => {
+  const [, sm] = data.startTime.split(':').map(Number);
+  return sm === 0;
+}, { message: "L'heure de début doit être un créneau entier (ex: 09:00, 10:00)", path: ['startTime'] }).refine((data) => {
+  const [, em] = data.endTime.split(':').map(Number);
+  return em === 0;
+}, { message: "L'heure de fin doit être un créneau entier (ex: 09:00, 10:00)", path: ['endTime'] });
 
 export const updateBookingStatusSchema = z.object({
   status: z.enum(['ACCEPTED', 'REFUSED']),

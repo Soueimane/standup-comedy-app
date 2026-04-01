@@ -2,11 +2,12 @@ import { type CSSProperties, useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useAlert } from '../hooks/useAlert';
 import api, { markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } from '../services/api';
 
 interface Notification {
   _id: string;
-  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'new_event';
+  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'new_event' | 'venue_booking_request' | 'venue_booking_response' | 'venue_booking_cancelled_by_owner' | 'venue_date_blocked';
   title: string;
   message: string;
   relatedEvent?: {
@@ -23,6 +24,10 @@ interface Notification {
     firstName: string;
     lastName: string;
   };
+  relatedVenue?: {
+    _id: string;
+    name: string;
+  };
   read: boolean;
   readAt?: string;
   createdAt: string;
@@ -30,6 +35,7 @@ interface Notification {
 
 const NotificationDropdown = () => {
   const { user } = useAuth();
+  const { showError } = useAlert();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
@@ -40,7 +46,7 @@ const NotificationDropdown = () => {
   const shouldShowNotifications = isOrganizer || isComedian || isSpectator;
 
   // Récupérer les notifications
-  const { data: notificationsData, refetch } = useQuery({
+  const { data: notificationsData, isError: isNotifError } = useQuery({
     queryKey: ['notifications', user?._id],
     queryFn: async () => {
       const response = await api.get('/notifications?read=false&limit=10');
@@ -50,8 +56,8 @@ const NotificationDropdown = () => {
     refetchInterval: 30000, // Rafraîchir toutes les 30 secondes
   });
 
-  const notifications: Notification[] = notificationsData?.notifications || [];
-  const unreadCount = notificationsData?.unreadCount || 0;
+  const notifications: Notification[] = isNotifError ? [] : (notificationsData?.notifications || []);
+  const unreadCount = isNotifError ? 0 : (notificationsData?.unreadCount || 0);
 
   // Fermer le dropdown si on clique en dehors
   useEffect(() => {
@@ -78,6 +84,7 @@ const NotificationDropdown = () => {
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       } catch (error) {
         console.error('Erreur lors du marquage de la notification:', error);
+        showError('Impossible de marquer la notification comme lue');
       }
     }
 
@@ -87,6 +94,25 @@ const NotificationDropdown = () => {
       setIsOpen(false);
       return;
     }
+
+    // Notifications de réservation de salle
+    if (notification.type === 'venue_booking_request' && notification.relatedVenue?._id) {
+      // Le propriétaire est redirigé vers l'onglet réservations de sa salle
+      navigate(`/venues/${notification.relatedVenue._id}?tab=bookings`);
+      setIsOpen(false);
+      return;
+    }
+    if (
+      notification.type === 'venue_booking_response' ||
+      notification.type === 'venue_booking_cancelled_by_owner' ||
+      notification.type === 'venue_date_blocked'
+    ) {
+      // Le demandeur est redirigé vers ses réservations envoyées
+      navigate('/my-bookings');
+      setIsOpen(false);
+      return;
+    }
+
     if (notification.relatedEvent?._id) {
       if (notification.type === 'new_application' || notification.relatedApplication) {
         navigate(`/applications?eventId=${notification.relatedEvent._id}`);
@@ -106,6 +132,7 @@ const NotificationDropdown = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     } catch (error) {
       console.error('Erreur lors du marquage de toutes les notifications:', error);
+      showError('Impossible de marquer toutes les notifications comme lues');
     }
   };
 
@@ -116,6 +143,7 @@ const NotificationDropdown = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     } catch (error) {
       console.error('Erreur lors de la suppression de la notification:', error);
+      showError('Impossible de supprimer la notification');
     }
   };
 
@@ -135,6 +163,14 @@ const NotificationDropdown = () => {
         return '🛑';
       case 'new_event':
         return '📅';
+      case 'venue_booking_request':
+        return '🏛️';
+      case 'venue_booking_response':
+        return '🏛️';
+      case 'venue_booking_cancelled_by_owner':
+        return '🏛️';
+      case 'venue_date_blocked':
+        return '🔒';
       default:
         return '🔔';
     }
@@ -290,7 +326,9 @@ const NotificationDropdown = () => {
                 textAlign: 'center',
                 color: '#aaa',
               }}>
-                <p style={{ margin: 0, fontSize: '0.9em' }}>Aucune notification</p>
+                <p style={{ margin: 0, fontSize: '0.9em' }}>
+                  {isNotifError ? 'Impossible de charger les notifications' : 'Aucune notification'}
+                </p>
               </div>
             ) : (
               notifications.map((notification) => (

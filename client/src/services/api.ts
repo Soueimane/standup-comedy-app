@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { IVenue, IVenueBooking, IVenueBlockedDate } from '../types/venue';
 
 // Configuration automatique de l'URL de base selon l'environnement
 const baseURL =
@@ -361,28 +362,28 @@ export const createVenue = async (data: {
   country: string;
   capacity: number;
   pricePerEvent: number;
-  venueType: string;
+  venueType: IVenue['venueType'];
   equipment?: string[];
   latitude?: number;
   longitude?: number;
   photos?: string[];
-}) => {
-  const response = await api.post('/venues', data);
+}): Promise<IVenue> => {
+  const response = await api.post<{ venue: IVenue }>('/venues', data);
   return response.data.venue;
 };
 
-export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number }) => {
+export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number }): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
   if (filters?.venueType) params.append('venueType', filters.venueType);
   if (filters?.minCapacity) params.append('minCapacity', filters.minCapacity.toString());
   const query = params.toString();
-  const response = await api.get(`/venues${query ? `?${query}` : ''}`);
-  return response.data.venues;
+  const response = await api.get<{ venues: IVenue[]; total: number; page: number; limit: number }>(`/venues${query ? `?${query}` : ''}`);
+  return response.data;
 };
 
-export const getVenue = async (venueId: string) => {
-  const response = await api.get(`/venues/${venueId}`);
+export const getVenue = async (venueId: string): Promise<IVenue> => {
+  const response = await api.get<{ venue: IVenue }>(`/venues/${venueId}`);
   return response.data.venue;
 };
 
@@ -401,14 +402,13 @@ export const updateVenue = async (venueId: string, data: Partial<{
   equipment: string[];
   isActive: boolean;
   photos: string[];
-}>) => {
-  const response = await api.put(`/venues/${venueId}`, data);
+}>): Promise<IVenue> => {
+  const response = await api.put<{ venue: IVenue }>(`/venues/${venueId}`, data);
   return response.data.venue;
 };
 
-export const deleteVenue = async (venueId: string) => {
-  const response = await api.delete(`/venues/${venueId}`);
-  return response.data;
+export const deleteVenue = async (venueId: string): Promise<void> => {
+  await api.delete(`/venues/${venueId}`);
 };
 
 // ===== Réservations de salles (Venue Bookings) =====
@@ -418,34 +418,32 @@ export const createBooking = async (venueId: string, data: {
   startTime: string;
   endTime: string;
   message?: string;
-}) => {
-  const response = await api.post(`/venues/${venueId}/bookings`, data);
+}): Promise<{ booking: IVenueBooking }> => {
+  const response = await api.post<{ booking: IVenueBooking }>(`/venues/${venueId}/bookings`, data);
   return response.data;
 };
 
-export const listVenueBookings = async (venueId: string) => {
-  const response = await api.get(`/venues/${venueId}/bookings`);
+export const listVenueBookings = async (venueId: string): Promise<IVenueBooking[]> => {
+  const response = await api.get<{ bookings: IVenueBooking[] }>(`/venues/${venueId}/bookings`);
   return response.data.bookings;
 };
 
-export const myBookings = async () => {
-  const response = await api.get('/venues/bookings/mine');
+export const myBookings = async (): Promise<IVenueBooking[]> => {
+  const response = await api.get<{ bookings: IVenueBooking[] }>('/venues/bookings/mine');
   return response.data.bookings;
 };
 
-export const updateBookingStatus = async (bookingId: string, status: 'ACCEPTED' | 'REFUSED', ownerResponse?: string) => {
-  const response = await api.patch(`/venues/bookings/${bookingId}`, { status, ownerResponse });
+export const updateBookingStatus = async (bookingId: string, status: 'ACCEPTED' | 'REFUSED', ownerResponse?: string): Promise<{ booking: IVenueBooking }> => {
+  const response = await api.patch<{ booking: IVenueBooking }>(`/venues/bookings/${bookingId}`, { status, ownerResponse });
   return response.data;
 };
 
-export const cancelBooking = async (bookingId: string) => {
-  const response = await api.delete(`/venues/bookings/${bookingId}`);
-  return response.data;
+export const cancelBooking = async (bookingId: string): Promise<void> => {
+  await api.delete(`/venues/bookings/${bookingId}`);
 };
 
-export const cancelBookingByOwner = async (bookingId: string) => {
-  const response = await api.patch(`/venues/bookings/${bookingId}/cancel`);
-  return response.data;
+export const cancelBookingByOwner = async (bookingId: string): Promise<void> => {
+  await api.patch(`/venues/bookings/${bookingId}/cancel`);
 };
 
 // ===== Dates bloquées =====
@@ -455,29 +453,36 @@ export const blockDate = async (venueId: string, data: {
   startTime?: string;
   endTime?: string;
   reason?: string;
-}) => {
-  const response = await api.post(`/venues/${venueId}/blocked-dates`, data);
+}): Promise<{ blockedDate: IVenueBlockedDate; cancelledBookings: number; failedCancellations: number }> => {
+  const response = await api.post<{ blockedDate: IVenueBlockedDate; cancelledBookings: number; failedCancellations: number }>(`/venues/${venueId}/blocked-dates`, data);
   return response.data;
 };
 
-export const listBlockedDates = async (venueId: string) => {
-  const response = await api.get(`/venues/${venueId}/blocked-dates`);
+export const listBlockedDates = async (venueId: string): Promise<IVenueBlockedDate[]> => {
+  const response = await api.get<{ blockedDates: IVenueBlockedDate[] }>(`/venues/${venueId}/blocked-dates`);
   return response.data.blockedDates;
 };
 
-export const unblockDate = async (venueId: string, blockedDateId: string) => {
-  const response = await api.delete(`/venues/${venueId}/blocked-dates/${blockedDateId}`);
-  return response.data;
+export const getTakenSlots = async (venueId: string, date: string): Promise<{ startTime: string; endTime: string }[]> => {
+  const response = await api.get(`/venues/${venueId}/taken-slots`, { params: { date } });
+  return response.data.slots;
+};
+
+export const unblockDate = async (venueId: string, blockedDateId: string): Promise<void> => {
+  await api.delete(`/venues/${venueId}/blocked-dates/${blockedDateId}`);
 };
 
 // ===== Géocodage =====
+
+export type GeocodeFailureReason = 'no_results' | 'network_error';
+export type GeocodeResult = { lat: number; lng: number } | { error: GeocodeFailureReason };
 
 export async function geocodeAddress(
   address: string,
   city: string,
   postalCode: string,
   _country: string
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<GeocodeResult> {
   const banFetch = async (query: string, type?: string) => {
     const params = new URLSearchParams({ q: query, limit: '1', ...(type && { type }) });
     const controller = new AbortController();
@@ -488,8 +493,8 @@ export async function geocodeAddress(
         cache: 'no-store',
       });
       clearTimeout(timeout);
-      if (!res.ok) return null;
-      return await res.json();
+      if (!res.ok) return { status: 'error' as const, data: null };
+      return { status: 'success' as const, data: await res.json() };
     } catch (err) {
       clearTimeout(timeout);
       if (err instanceof Error) {
@@ -499,25 +504,29 @@ export async function geocodeAddress(
           console.warn('geocodeAddress: erreur réseau ou réponse invalide', err, { query });
         }
       }
-      return null;
+      return { status: 'error' as const, data: null };
     }
   };
 
   const streetOnly = address.replace(/^\d+\s*(bis|ter|quater)?\s+/i, '').trim();
 
-  let data = await banFetch(`${address} ${postalCode} ${city}`, 'housenumber');
-  if (!data?.features?.length)
-    data = await banFetch(`${streetOnly} ${postalCode} ${city}`, 'street');
-  if (!data?.features?.length)
-    data = await banFetch(`${address} ${postalCode} ${city}`);
+  let result = await banFetch(`${address} ${postalCode} ${city}`, 'housenumber');
+  if (!result.data?.features?.length)
+    result = await banFetch(`${streetOnly} ${postalCode} ${city}`, 'street');
+  if (!result.data?.features?.length)
+    result = await banFetch(`${address} ${postalCode} ${city}`);
 
+  const data = result.data;
   const feature = data?.features?.[0];
   if (!feature) {
     console.warn('geocodeAddress: aucun résultat pour toutes les stratégies', { address, city, postalCode });
-    return null;
+    return { error: 'no_results' };
+  }
+  if (result.status === 'error') {
+    return { error: 'network_error' };
   }
   const coordinates = feature?.geometry?.coordinates;
-  if (!coordinates) return null;
+  if (!coordinates) return { error: 'no_results' };
   const [lng, lat] = coordinates;
   return { lat, lng };
 }

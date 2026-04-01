@@ -75,6 +75,22 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    // Vérifier qu'il n'y a pas de réservation ACCEPTED qui chevauche le créneau demandé
+    const acceptedBookings = await VenueBookingModel.find({
+      venue: venueId,
+      status: 'ACCEPTED',
+      requestedDate: { $gte: dayStart, $lte: dayEnd },
+    });
+
+    const hasConflict = acceptedBookings.some((b) =>
+      timesOverlap(b.startTime, b.endTime, startTime, endTime)
+    );
+
+    if (hasConflict) {
+      res.status(409).json({ message: 'La salle est déjà réservée sur ce créneau' });
+      return;
+    }
+
     const booking = await VenueBookingModel.create({
       venue: venueId,
       requester: requesterId,
@@ -92,6 +108,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
         type: 'venue_booking_request',
         title: 'Nouvelle demande de réservation',
         message: `Une demande de réservation a été faite pour votre salle "${venue.name}".`,
+        relatedVenue: venue._id,
         read: false,
       });
     } catch (notifError) {
@@ -239,6 +256,7 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
         type: 'venue_booking_response',
         title: status === 'ACCEPTED' ? 'Réservation acceptée' : 'Réservation refusée',
         message: notifMessage,
+        relatedVenue: booking.venue._id,
         read: false,
       });
     } catch (notifError) {
@@ -345,6 +363,7 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
         message: reason
           ? `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire. Motif : ${reason}`
           : `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire.`,
+        relatedVenue: booking.venue._id,
         read: false,
       });
     } catch (notifError) {
@@ -450,6 +469,7 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
           message: reason
             ? `Votre réservation pour "${venue.name}" a été annulée car la salle est indisponible ce jour-là. Motif : ${reason}`
             : `Votre réservation pour "${venue.name}" a été annulée car la salle est indisponible ce jour-là.`,
+          relatedVenue: venue._id,
           read: false,
         }).catch((notifError) => {
           console.error('blockDate — échec notification:', notifError, { bookingId: booking._id });
@@ -457,7 +477,7 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
       )
     );
 
-    res.status(201).json({ blockedDate, cancelledBookings: cancelledCount });
+    res.status(201).json({ blockedDate, cancelledBookings: cancelledCount, failedCancellations: saveFailures.length });
   } catch (error) {
     console.error('Erreur blockDate:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
@@ -494,6 +514,11 @@ export const unblockDate = async (req: AuthRequest, res: Response): Promise<void
     const ownerId = req.user?.id;
     const { venueId, blockedDateId } = req.params;
 
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
     if (!mongoose.Types.ObjectId.isValid(venueId) || !mongoose.Types.ObjectId.isValid(blockedDateId)) {
       res.status(400).json({ message: 'ID invalide' });
       return;
@@ -523,6 +548,47 @@ export const unblockDate = async (req: AuthRequest, res: Response): Promise<void
     res.status(204).send();
   } catch (error) {
     console.error('Erreur unblockDate:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur' });
+  }
+};
+
+// ─── Créneaux déjà pris sur une date (pour le formulaire de réservation) ──────
+
+export const takenSlots = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { venueId } = req.params;
+    const { date } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(venueId)) {
+      res.status(400).json({ message: 'ID de salle invalide' });
+      return;
+    }
+
+    if (!date || typeof date !== 'string') {
+      res.status(400).json({ message: 'Paramètre date requis (YYYY-MM-DD)' });
+      return;
+    }
+
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) {
+      res.status(400).json({ message: 'Date invalide' });
+      return;
+    }
+
+    const dayStart = new Date(parsed);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(parsed);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const accepted = await VenueBookingModel.find({
+      venue: venueId,
+      status: 'ACCEPTED',
+      requestedDate: { $gte: dayStart, $lte: dayEnd },
+    }).select('startTime endTime');
+
+    res.status(200).json({ slots: accepted.map((b) => ({ startTime: b.startTime, endTime: b.endTime })) });
+  } catch (error) {
+    console.error('Erreur takenSlots:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
   }
 };

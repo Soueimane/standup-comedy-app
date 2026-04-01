@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createVenue, geocodeAddress } from '../services/api';
+import { createVenue, geocodeAddress, type GeocodeResult } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import Navbar from '../components/Navbar';
 import LocationPickerMap from '../components/LocationPickerMap';
+import type { IVenue } from '../types/venue';
 import { VENUE_TYPES, EQUIPMENT_OPTIONS } from '../types/venue';
 
 const CreateVenuePage: React.FC = () => {
@@ -37,15 +38,19 @@ const CreateVenuePage: React.FC = () => {
     setGeocodeError('');
     try {
       const result = await geocodeAddress(formData.address, formData.city, formData.postalCode, formData.country);
-      if (result) {
+      if ('error' in result) {
+        const messages: Record<string, string> = {
+          no_results: 'Adresse introuvable. Vérifiez les champs ou saisissez les coordonnées manuellement.',
+          network_error: 'Erreur réseau lors de la détection. Réessayez ou saisissez manuellement.',
+        };
+        setGeocodeError(messages[result.error] ?? 'Erreur lors de la détection.');
+        setShowManualCoords(true);
+      } else {
         setFormData((p) => ({ ...p, latitude: result.lat, longitude: result.lng }));
         setShowManualCoords(false);
-      } else {
-        setGeocodeError('Adresse introuvable. Vérifiez les champs ou saisissez les coordonnées manuellement.');
-        setShowManualCoords(true);
       }
     } catch {
-      setGeocodeError('Erreur lors de la détection. Saisissez les coordonnées manuellement.');
+      setGeocodeError('Erreur inattendue lors de la détection. Saisissez les coordonnées manuellement.');
       setShowManualCoords(true);
     } finally {
       setIsGeocoding(false);
@@ -112,7 +117,7 @@ const CreateVenuePage: React.FC = () => {
         longitude: formData.longitude !== '' ? parseFloat(formData.longitude as string) : undefined,
         capacity: parseInt(formData.capacity as string),
         pricePerEvent: parseFloat(formData.pricePerEvent as string),
-        venueType: formData.venueType,
+        venueType: formData.venueType as IVenue['venueType'],
         equipment: formData.equipment,
         photos,
       });

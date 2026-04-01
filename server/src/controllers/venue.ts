@@ -30,35 +30,47 @@ export const listVenues = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const { city, venueType, minCapacity, page = '1', limit = '20' } = req.query as Record<string, string>;
 
-    const filter: Record<string, unknown> = { isActive: true };
-    if (city) {
-      const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.city = new RegExp(escaped, 'i');
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    if (isNaN(pageNum) || pageNum < 1) {
+      res.status(400).json({ message: 'page doit être un entier valide (≥ 1)' });
+      return;
     }
+    if (isNaN(limitNum) || limitNum < 1) {
+      res.status(400).json({ message: 'limit doit être un entier valide (≥ 1)' });
+      return;
+    }
+    const safeLimit = Math.min(limitNum, 50);
+
+    const filter: Record<string, unknown> = { isActive: true };
     if (venueType) filter.venueType = venueType;
     if (minCapacity) {
-      const capacityNum = parseInt(minCapacity);
+      const capacityNum = parseInt(minCapacity, 10);
       if (isNaN(capacityNum)) {
         res.status(400).json({ message: 'minCapacity doit être un entier valide' });
         return;
       }
       filter.capacity = { $gte: capacityNum };
     }
+    if (city) {
+      const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.city = new RegExp(escaped, 'i');
+    }
 
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
-    const skip = (pageNum - 1) * limitNum;
+    const skip = (pageNum - 1) * safeLimit;
+    const collation = { locale: 'fr', strength: 1 };
 
     const [venues, total] = await Promise.all([
       VenueModel.find(filter)
+        .collation(collation)
         .populate('owner', 'firstName lastName organizerProfile.companyName')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limitNum),
-      VenueModel.countDocuments(filter),
+        .limit(safeLimit),
+      VenueModel.countDocuments(filter).collation(collation),
     ]);
 
-    res.status(200).json({ venues, total, page: pageNum, limit: limitNum });
+    res.status(200).json({ venues, total, page: pageNum, limit: safeLimit });
   } catch (error) {
     console.error('Erreur listVenues:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
@@ -153,13 +165,22 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    await Promise.all([
-      VenueBookingModel.deleteMany({ venue: venueId }),
-      VenueBlockedDateModel.deleteMany({ venue: venueId }),
-    ]);
-    await VenueModel.findByIdAndDelete(venueId);
-
-    res.status(204).send();
+    // Atomic deletion with transaction to prevent orphaned documents
+    // Requires MongoDB replica set (always true on Atlas, not on standalone local dev)
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await VenueBookingModel.deleteMany({ venue: venueId }, { session });
+      await VenueBlockedDateModel.deleteMany({ venue: venueId }, { session });
+      await VenueModel.findByIdAndDelete(venueId, { session });
+      await session.commitTransaction();
+      res.status(204).send();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   } catch (error) {
     console.error('Erreur deleteVenue:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });

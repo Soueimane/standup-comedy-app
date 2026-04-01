@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVenue, deleteVenue, listBlockedDates } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
@@ -19,10 +19,14 @@ type OwnerTab = 'info' | 'bookings' | 'blocked' | 'settings';
 const VenueDetailPage: React.FC = () => {
   const { venueId } = useParams<{ venueId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<OwnerTab>('info');
+  const validTabs: OwnerTab[] = ['info', 'bookings', 'blocked', 'settings'];
+  const tabParam = searchParams.get('tab');
+  const initialTab: OwnerTab = validTabs.includes(tabParam as OwnerTab) ? (tabParam as OwnerTab) : 'info';
+  const [activeTab, setActiveTab] = useState<OwnerTab>(initialTab);
   const [activePhoto, setActivePhoto] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -33,13 +37,13 @@ const VenueDetailPage: React.FC = () => {
     enabled: !!venueId,
   });
 
-  const { data: blockedDatesData } = useQuery<IVenueBlockedDate[]>({
+  const { data: blockedDatesData, isError: isBlockedDatesError } = useQuery<IVenueBlockedDate[]>({
     queryKey: ['blocked-dates', venueId],
     queryFn: () => listBlockedDates(venueId!),
     enabled: !!venueId,
   });
 
-  const blockedDates: Date[] = (blockedDatesData ?? []).map(
+  const blockedDates: Date[] = isBlockedDatesError ? [] : (blockedDatesData ?? []).map(
     (d) => new Date(d.date)
   );
 
@@ -597,6 +601,11 @@ const VenueDetailPage: React.FC = () => {
             {/* Colonne droite : réserver (visiteur) */}
             {!isOwner && (
               <div className="venue-detail-sticky" style={{ position: 'sticky', top: 24 }}>
+                {isBlockedDatesError && (
+                  <p style={{ color: '#f87171', fontSize: '0.85em', marginBottom: 8 }}>
+                    Impossible de charger les dates indisponibles. Certains créneaux peuvent être déjà pris.
+                  </p>
+                )}
                 <VenueBookingForm
                   venueId={venue._id}
                   venueName={venue.name}

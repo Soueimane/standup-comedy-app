@@ -12,10 +12,12 @@ const MyVenuesPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { data: allVenues, isLoading, error } = useQuery<IVenue[]>({
+  const { data: venuesResponse, isLoading, error } = useQuery({
     queryKey: ['venues'],
     queryFn: () => listVenues(),
   });
+
+  const allVenues = venuesResponse?.venues;
 
   // Filtrer les salles appartenant à l'utilisateur connecté
   const myVenues = allVenues?.filter(

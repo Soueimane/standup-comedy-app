@@ -18,7 +18,7 @@ const VenuesPage: React.FC = () => {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [activeFilters, setActiveFilters] = useState(EMPTY_FILTERS);
 
-  const { data, isLoading, error } = useQuery<IVenue[]>({
+  const { data: venuesResponse, isLoading, error } = useQuery({
     queryKey: ['venues', activeFilters],
     queryFn: () =>
       listVenues({
@@ -27,6 +27,8 @@ const VenuesPage: React.FC = () => {
         minCapacity: activeFilters.minCapacity ? parseInt(activeFilters.minCapacity) : undefined,
       }),
   });
+
+  const data = venuesResponse?.venues;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

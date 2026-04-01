@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { updateVenue, geocodeAddress } from '../services/api';
+import { updateVenue, geocodeAddress, type GeocodeResult } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import type { IVenue } from '../types/venue';
@@ -42,15 +42,19 @@ const EditVenueForm: React.FC<EditVenueFormProps> = ({ venue, onUpdated }) => {
     setGeocodeError('');
     try {
       const result = await geocodeAddress(formData.address, formData.city, formData.postalCode, formData.country);
-      if (result) {
+      if ('error' in result) {
+        const messages: Record<string, string> = {
+          no_results: 'Adresse introuvable. Vérifiez les champs ou saisissez les coordonnées manuellement.',
+          network_error: 'Erreur réseau lors de la détection. Réessayez ou saisissez manuellement.',
+        };
+        setGeocodeError(messages[result.error] ?? 'Erreur lors de la détection.');
+        setShowManualCoords(true);
+      } else {
         setFormData((p) => ({ ...p, latitude: result.lat, longitude: result.lng }));
         setShowManualCoords(false);
-      } else {
-        setGeocodeError('Adresse introuvable. Vérifiez les champs ou saisissez les coordonnées manuellement.');
-        setShowManualCoords(true);
       }
     } catch {
-      setGeocodeError('Erreur lors de la détection. Saisissez les coordonnées manuellement.');
+      setGeocodeError('Erreur inattendue lors de la détection. Saisissez les coordonnées manuellement.');
       setShowManualCoords(true);
     } finally {
       setIsGeocoding(false);

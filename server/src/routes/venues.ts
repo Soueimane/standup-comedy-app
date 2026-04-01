@@ -11,11 +11,11 @@ import {
   blockDateSchema,
 } from '../validation/schemas';
 import { createVenue, listVenues, getVenue, updateVenue, deleteVenue } from '../controllers/venue';
-import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate } from '../controllers/venueBooking';
+import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots } from '../controllers/venueBooking';
 
 const router = express.Router();
 
-const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => unknown) => (req: Request, res: Response, next: NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
@@ -49,6 +49,8 @@ router.patch('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER')
 router.delete('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, asyncHandler(cancelBooking));
 // Annulation d'une réservation ACCEPTED par le propriétaire
 router.patch('/bookings/:bookingId/cancel', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, validate(cancelBookingByOwnerSchema), asyncHandler(cancelBookingByOwner));
+
+router.get('/:venueId/taken-slots', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(takenSlots));
 
 // ── Dates bloquées ────────────────────────────────────────────────────────────
 router.post('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(blockDateSchema), asyncHandler(blockDate));
