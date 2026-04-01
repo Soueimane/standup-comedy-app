@@ -76,6 +76,9 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Vérifier qu'il n'y a pas de réservation ACCEPTED qui chevauche le créneau demandé
+    // NOTE: cette vérification n'est pas atomique avec le create() ci-dessous.
+    // En haute concurrence, deux requêtes simultanées peuvent passer ce check et créer un conflit.
+    // Mitigation possible : transaction MongoDB (nécessite replica set).
     const acceptedBookings = await VenueBookingModel.find({
       venue: venueId,
       status: 'ACCEPTED',
@@ -217,6 +220,9 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
     }
 
     // Vérifier les conflits uniquement si on accepte
+    // NOTE: cette vérification n'est pas atomique avec le booking.save() ci-dessous.
+    // En haute concurrence, deux acceptations simultanées peuvent passer ce check et créer un conflit.
+    // Mitigation possible : transaction MongoDB (nécessite replica set).
     if (status === 'ACCEPTED') {
       const dateStart = new Date(booking.requestedDate);
       dateStart.setHours(0, 0, 0, 0);
@@ -412,14 +418,6 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
-    const blockedDate = await VenueBlockedDateModel.create({
-      venue: venueId,
-      date: parsedDate,
-      startTime,
-      endTime,
-      reason,
-    });
-
     // Trouver les réservations impactées sur cette date
     const dayStart = new Date(parsedDate);
     dayStart.setHours(0, 0, 0, 0);
@@ -458,6 +456,15 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     const savedBookings = saveResults
       .filter((r): r is PromiseFulfilledResult<(typeof toCancel)[number]> => r.status === 'fulfilled')
       .map((r) => r.value);
+
+    // Créer le blocage après les annulations pour éviter un état incohérent
+    const blockedDate = await VenueBlockedDateModel.create({
+      venue: venueId,
+      date: parsedDate,
+      startTime,
+      endTime,
+      reason,
+    });
 
     // Notifications découplées — un échec de notif n'affecte pas le compteur
     await Promise.allSettled(

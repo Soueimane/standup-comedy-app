@@ -93,10 +93,12 @@ export const getVenue = async (req: AuthRequest, res: Response): Promise<void> =
     }
 
     // Récupérer les réservations ACCEPTED pour le calendrier de disponibilité
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
     const acceptedBookings = await VenueBookingModel.find({
       venue: venueId,
       status: 'ACCEPTED',
-      requestedDate: { $gte: new Date() },
+      requestedDate: { $gte: todayMidnight },
     }).select('requestedDate startTime endTime');
 
     res.status(200).json({ venue, acceptedBookings });
