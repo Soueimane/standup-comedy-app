@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { myBookings, cancelBooking } from '../services/api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { myBookings, cancelBooking, createVenueCheckoutSession, confirmVenuePayment } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import BookingStatusBadge from '../components/BookingStatusBadge';
@@ -13,8 +13,44 @@ const MyBookingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  // useRef guard prevents double-fire in React Strict Mode
+  const paymentHandledRef = useRef(false);
+
+  // Gestion du retour Stripe
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    const sessionId = searchParams.get('session_id');
+
+    if (payment === 'success' && sessionId && !paymentHandledRef.current) {
+      paymentHandledRef.current = true;
+      // Clear URL params immediately to prevent re-triggering
+      setSearchParams({}, { replace: true });
+
+      confirmVenuePayment(sessionId)
+        .then(() => {
+          showSuccess(SuccessMessages.BOOKING_PAYMENT_SUCCESS);
+          queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
+        })
+        .catch((err: unknown) => {
+          queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
+          // Differentiate "already confirmed" (200/409) from real errors
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 200 || status === 409) {
+            // Webhook already handled it — no error shown
+          } else {
+            showError('Le paiement a été reçu mais la confirmation a échoué. Veuillez réessayer.');
+          }
+        });
+    } else if (payment === 'cancelled') {
+      showError('Paiement annulé.');
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const { data, isLoading, error } = useQuery<IVenueBooking[]>({
     queryKey: ['my-bookings'],
@@ -32,6 +68,22 @@ const MyBookingsPage: React.FC = () => {
       showError(getErrorMessage(err, ErrorMessages.BOOKING_CANCEL_FAILED));
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handlePay = async (bookingId: string) => {
+    setPayingId(bookingId);
+    try {
+      const data = await createVenueCheckoutSession(bookingId);
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        showError('Impossible de lancer le paiement. Veuillez réessayer.');
+        setPayingId(null);
+      }
+    } catch (err) {
+      showError(getErrorMessage(err, ErrorMessages.BOOKING_PAYMENT_FAILED));
+      setPayingId(null);
     }
   };
 
@@ -255,7 +307,28 @@ const MyBookingsPage: React.FC = () => {
                   >
                     Voir la salle
                   </button>
-                  {booking.status === 'PENDING' && (
+                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && (
+                    <button
+                      onClick={() => handlePay(booking._id)}
+                      disabled={payingId === booking._id}
+                      style={{
+                        padding: '8px 18px',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: payingId === booking._id ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        opacity: payingId === booking._id ? 0.6 : 1,
+                      }}
+                    >
+                      {payingId === booking._id
+                        ? 'Redirection...'
+                        : `Payer ${((booking.venue as any)?.pricePerEvent ?? 0).toLocaleString('fr-FR')} €`}
+                    </button>
+                  )}
+                  {(booking.status === 'PENDING' || booking.status === 'ACCEPTED') && (
                     <button
                       onClick={() => handleCancel(booking._id)}
                       disabled={cancellingId === booking._id}

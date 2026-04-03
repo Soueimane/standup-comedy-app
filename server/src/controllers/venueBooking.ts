@@ -5,6 +5,7 @@ import { VenueModel } from '../models/Venue';
 import { VenueBookingModel } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 import { NotificationModel } from '../models/Notification';
+import { stripe } from './stripe';
 
 // Vérifie si deux plages horaires se chevauchent (même date)
 function timesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
@@ -75,13 +76,13 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Vérifier qu'il n'y a pas de réservation ACCEPTED qui chevauche le créneau demandé
+    // Vérifier qu'il n'y a pas de réservation ACCEPTED/CONFIRMED qui chevauche le créneau demandé
     // NOTE: cette vérification n'est pas atomique avec le create() ci-dessous.
     // En haute concurrence, deux requêtes simultanées peuvent passer ce check et créer un conflit.
     // Mitigation possible : transaction MongoDB (nécessite replica set).
     const acceptedBookings = await VenueBookingModel.find({
       venue: venueId,
-      status: 'ACCEPTED',
+      status: { $in: ['ACCEPTED', 'CONFIRMED'] },
       requestedDate: { $gte: dayStart, $lte: dayEnd },
     });
 
@@ -175,7 +176,7 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const bookings = await VenueBookingModel.find({ requester: requesterId })
-      .populate('venue', 'name city address venueType')
+      .populate('venue', 'name city address venueType pricePerEvent')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ bookings });
@@ -231,7 +232,7 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
 
       const existingAccepted = await VenueBookingModel.find({
         venue: booking.venue._id,
-        status: 'ACCEPTED',
+        status: { $in: ['ACCEPTED', 'CONFIRMED'] },
         requestedDate: { $gte: dateStart, $lte: dateEnd },
         _id: { $ne: bookingId },
       });
@@ -246,25 +247,56 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
       }
     }
 
-    booking.status = status;
     if (ownerResponse) booking.ownerResponse = ownerResponse;
+
+    // Si acceptation : vérifier si le paiement est nécessaire
+    if (status === 'ACCEPTED') {
+      const venueDoc = await VenueModel.findById(booking.venue._id);
+      if (venueDoc && venueDoc.pricePerEvent === 0) {
+        // Salle gratuite → confirmer directement
+        booking.status = 'CONFIRMED';
+      } else {
+        booking.status = 'ACCEPTED';
+      }
+    } else {
+      booking.status = status;
+    }
     await booking.save();
 
     // Notifier le demandeur (découplé : un échec de notif ne doit pas faire échouer la réponse)
-    const notifMessage =
-      status === 'ACCEPTED'
-        ? `Votre demande de réservation pour "${booking.venue.name}" a été acceptée.`
-        : `Votre demande de réservation pour "${booking.venue.name}" a été refusée.`;
-
     try {
-      await NotificationModel.create({
-        user: booking.requester,
-        type: 'venue_booking_response',
-        title: status === 'ACCEPTED' ? 'Réservation acceptée' : 'Réservation refusée',
-        message: notifMessage,
-        relatedVenue: booking.venue._id,
-        read: false,
-      });
+      if (status === 'REFUSED') {
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_response',
+          title: 'Réservation refusée',
+          message: `Votre demande de réservation pour "${booking.venue.name}" a été refusée.`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+      } else if (booking.status === 'CONFIRMED') {
+        // Salle gratuite → notification de confirmation
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_confirmed',
+          title: 'Réservation confirmée',
+          message: `Votre réservation pour "${booking.venue.name}" a été confirmée (salle gratuite).`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+      } else {
+        // Salle payante → notification demandant le paiement
+        const venueDoc = await VenueModel.findById(booking.venue._id);
+        const price = venueDoc?.pricePerEvent ?? 0;
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_payment_required',
+          title: 'Réservation acceptée — paiement requis',
+          message: `Votre réservation pour "${booking.venue.name}" a été acceptée. Veuillez procéder au paiement de ${price} €.`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+      }
     } catch (notifError) {
       console.error('Erreur création notification updateBookingStatus:', notifError, { bookingId, status });
     }
@@ -304,9 +336,19 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    if (booking.status !== 'PENDING') {
-      res.status(400).json({ message: 'Seules les réservations en attente peuvent être annulées' });
+    if (!['PENDING', 'ACCEPTED'].includes(booking.status)) {
+      res.status(400).json({ message: 'Seules les réservations en attente ou acceptées (non payées) peuvent être annulées' });
       return;
+    }
+
+    // Expire the Stripe checkout session if one exists (prevents paying a cancelled booking)
+    if (booking.stripeSessionId && booking.paymentStatus === 'pending' && stripe) {
+      try {
+        await stripe.checkout.sessions.expire(booking.stripeSessionId);
+        console.log('[Venue] Session Stripe expirée:', booking.stripeSessionId);
+      } catch (stripeErr) {
+        console.error('[Venue] Erreur expiration session Stripe:', stripeErr, { bookingId });
+      }
     }
 
     booking.status = 'CANCELLED_BY_REQUESTER';
@@ -352,9 +394,15 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    if (booking.status !== 'ACCEPTED') {
-      res.status(400).json({ message: 'Seules les réservations acceptées peuvent être annulées par le propriétaire' });
+    if (!['ACCEPTED', 'CONFIRMED'].includes(booking.status)) {
+      res.status(400).json({ message: 'Seules les réservations acceptées ou confirmées peuvent être annulées par le propriétaire' });
       return;
+    }
+
+    // Si le booking a été payé, marquer comme remboursement en attente (remboursement via Stripe Dashboard ou API)
+    if (booking.paymentStatus === 'paid') {
+      booking.paymentStatus = 'refund_pending';
+      console.log('[Venue] Réservation payée annulée par propriétaire — remboursement requis:', booking._id);
     }
 
     booking.status = 'CANCELLED_BY_OWNER';
@@ -427,7 +475,7 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     const impactedBookings = await VenueBookingModel.find({
       venue: venueId,
       requestedDate: { $gte: dayStart, $lte: dayEnd },
-      status: { $in: ['PENDING', 'ACCEPTED'] },
+      status: { $in: ['PENDING', 'ACCEPTED', 'CONFIRMED'] },
     });
 
     // Filtrer celles qui chevauchent le créneau bloqué (si créneau partiel)
@@ -438,6 +486,10 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     // Annuler chaque réservation impactée — les échecs de sauvegarde sont loggés
     const saveResults = await Promise.allSettled(
       toCancel.map(async (booking) => {
+        if (booking.paymentStatus === 'paid') {
+          booking.paymentStatus = 'refund_pending';
+          console.log('[Venue] Réservation payée annulée par blocage de date — remboursement requis:', booking._id);
+        }
         booking.status = 'CANCELLED_BY_OWNER';
         booking.ownerResponse = reason
           ? `Salle indisponible ce jour-là. Motif : ${reason}`
@@ -589,7 +641,7 @@ export const takenSlots = async (req: AuthRequest, res: Response): Promise<void>
 
     const accepted = await VenueBookingModel.find({
       venue: venueId,
-      status: 'ACCEPTED',
+      status: { $in: ['ACCEPTED', 'CONFIRMED'] },
       requestedDate: { $gte: dayStart, $lte: dayEnd },
     }).select('startTime endTime');
 

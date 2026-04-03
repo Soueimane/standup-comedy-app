@@ -1,6 +1,8 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type VenueBookingStatus = 'PENDING' | 'ACCEPTED' | 'REFUSED' | 'CANCELLED_BY_OWNER' | 'CANCELLED_BY_REQUESTER';
+export type VenueBookingStatus = 'PENDING' | 'ACCEPTED' | 'REFUSED' | 'CONFIRMED' | 'CANCELLED_BY_OWNER' | 'CANCELLED_BY_REQUESTER';
+
+export type VenueBookingPaymentStatus = 'none' | 'pending' | 'paid' | 'refund_pending' | 'refunded';
 
 export interface VenueBookingDocument extends Document {
   venue: Types.ObjectId;
@@ -11,6 +13,10 @@ export interface VenueBookingDocument extends Document {
   message?: string;
   status: VenueBookingStatus;
   ownerResponse?: string;
+  paymentStatus: VenueBookingPaymentStatus;
+  stripeSessionId?: string;
+  paidAmount?: number;
+  paidAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,11 +31,19 @@ const venueBookingSchema = new Schema<VenueBookingDocument>(
     message: { type: String, maxlength: 500 },
     status: {
       type: String,
-      enum: ['PENDING', 'ACCEPTED', 'REFUSED', 'CANCELLED_BY_OWNER', 'CANCELLED_BY_REQUESTER'],
+      enum: ['PENDING', 'ACCEPTED', 'REFUSED', 'CONFIRMED', 'CANCELLED_BY_OWNER', 'CANCELLED_BY_REQUESTER'],
       default: 'PENDING',
       index: true,
     },
     ownerResponse: { type: String, maxlength: 500 },
+    paymentStatus: {
+      type: String,
+      enum: ['none', 'pending', 'paid', 'refund_pending', 'refunded'],
+      default: 'none',
+    },
+    stripeSessionId: { type: String },
+    paidAmount: { type: Number, min: 0 },
+    paidAt: { type: Date },
   },
   { timestamps: true }
 );

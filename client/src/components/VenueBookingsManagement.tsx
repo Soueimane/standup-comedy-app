@@ -14,6 +14,7 @@ const STATUS_FILTERS = [
   { key: 'ALL', label: 'Tous' },
   { key: 'PENDING', label: 'En attente' },
   { key: 'ACCEPTED', label: 'Acceptées' },
+  { key: 'CONFIRMED', label: 'Confirmées' },
   { key: 'REFUSED', label: 'Refusées' },
 ] as const;
 
@@ -312,8 +313,23 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
             </div>
           )}
 
-          {/* Annuler si ACCEPTED */}
+          {/* Info paiement pour ACCEPTED */}
           {booking.status === 'ACCEPTED' && (
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#f59e0b', fontStyle: 'italic' }}>
+              En attente de paiement par le demandeur
+            </p>
+          )}
+
+          {/* Info paiement pour CONFIRMED */}
+          {booking.status === 'CONFIRMED' && booking.paidAt && (
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#3b82f6' }}>
+              Payé le {new Date(booking.paidAt).toLocaleDateString('fr-FR')}
+              {booking.paidAmount != null && ` — ${booking.paidAmount.toLocaleString('fr-FR')} €`}
+            </p>
+          )}
+
+          {/* Annuler si ACCEPTED ou CONFIRMED */}
+          {(booking.status === 'ACCEPTED' || booking.status === 'CONFIRMED') && (
             <button
               onClick={() => handleCancelByOwner(booking._id)}
               disabled={actionLoading === booking._id}
@@ -328,7 +344,9 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
                 fontSize: 13,
               }}
             >
-              Annuler cette réservation
+              {booking.status === 'CONFIRMED' && booking.paymentStatus === 'paid'
+                ? 'Annuler (remboursement nécessaire)'
+                : 'Annuler cette réservation'}
             </button>
           )}
         </div>

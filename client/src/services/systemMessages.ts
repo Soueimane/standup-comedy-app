@@ -48,6 +48,7 @@ export const SuccessMessages = {
   BOOKING_CANCELLED: 'Réservation annulée avec succès.',
   BOOKING_ACCEPTED: 'Réservation acceptée avec succès.',
   BOOKING_REFUSED: 'Réservation refusée.',
+  BOOKING_PAYMENT_SUCCESS: 'Paiement effectué ! Votre réservation est confirmée.',
 
   // Dates bloquées
   DATE_BLOCKED: 'Date bloquée avec succès.',
@@ -104,6 +105,7 @@ export const ErrorMessages = {
   BOOKING_CREATE_FAILED: "Impossible d'envoyer la demande de réservation.",
   BOOKING_CANCEL_FAILED: "Impossible d'annuler la réservation.",
   BOOKING_UPDATE_FAILED: "Impossible de mettre à jour la réservation.",
+  BOOKING_PAYMENT_FAILED: "Erreur lors du paiement de la réservation.",
 
   // Dates bloquées
   DATE_BLOCK_FAILED: "Impossible de bloquer cette date.",

@@ -90,6 +90,18 @@ export const confirmStripeRegistration = async (sessionId: string) => {
   return response.data;
 };
 
+/** Crée une session Stripe Checkout pour le paiement d'une réservation de salle. */
+export const createVenueCheckoutSession = async (bookingId: string): Promise<{ url: string }> => {
+  const response = await api.post<{ url: string }>('/stripe/create-venue-checkout', { bookingId });
+  return response.data;
+};
+
+/** Confirme le paiement d'une réservation de salle après retour de Stripe. */
+export const confirmVenuePayment = async (sessionId: string) => {
+  const response = await api.get('/stripe/confirm-venue-payment', { params: { session_id: sessionId } });
+  return response.data;
+};
+
 /** Upload photo de l'événement (organisateur). JPG, PNG, GIF max 5MB. Retourne { imageUrl }. */
 export const uploadEventImage = async (file: File): Promise<{ imageUrl: string }> => {
   const formData = new FormData();

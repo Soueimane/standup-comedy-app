@@ -3,9 +3,13 @@ import Stripe from 'stripe';
 import { AuthRequest } from '../middleware/auth';
 import { config } from '../config/env';
 import { EventModel } from '../models/Event';
+import { VenueBookingModel } from '../models/VenueBooking';
+import { NotificationModel } from '../models/Notification';
 import mongoose from 'mongoose';
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null;
+
+export { stripe };
 
 /**
  * Crée une session Stripe Checkout pour l'achat d'une place à 1€.
@@ -92,7 +96,7 @@ export const createCheckoutSession = async (req: AuthRequest, res: Response): Pr
     res.status(200).json({ url: session.url });
   } catch (error: any) {
     console.error('Stripe createCheckoutSession error:', error);
-    res.status(500).json({ message: error?.message || 'Erreur lors de la création du paiement' });
+    res.status(500).json({ message: 'Erreur lors de la création du paiement' });
   }
 };
 
@@ -129,36 +133,122 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    const eventId = session.metadata?.eventId;
-    const userId = session.metadata?.userId;
 
-    if (!eventId || !userId) {
-      console.error('[Stripe] Metadata manquant dans checkout.session.completed', session.metadata);
-      res.status(200).send('OK');
-      return;
-    }
+    // Routage par type de paiement via metadata
+    if (session.metadata?.type === 'venue_booking') {
+      // ── Paiement réservation de salle ──
+      const bookingId = session.metadata?.bookingId;
+      const userId = session.metadata?.userId;
 
-    try {
-      const eventDoc = await EventModel.findById(eventId);
-      if (!eventDoc) {
-        console.error('[Stripe] Événement non trouvé:', eventId);
+      if (!bookingId || !userId) {
+        console.error('[Stripe] Metadata venue_booking manquant:', session.metadata);
         res.status(200).send('OK');
         return;
       }
 
-      const spectatorRegistrations = eventDoc.spectatorRegistrations || [];
-      if (spectatorRegistrations.some((id) => id.toString() === userId)) {
-        console.log('[Stripe] Spectateur déjà inscrit, skip:', userId);
+      try {
+        // Populate venue for notification messages
+        const tempBooking = await VenueBookingModel.findById(bookingId);
+        if (!tempBooking) {
+          console.error('[Stripe] Réservation non trouvée:', bookingId);
+          res.status(200).send('OK');
+          return;
+        }
+
+        // Only ACCEPTED bookings can be confirmed — prevents resurrecting cancelled/refused bookings
+        if (tempBooking.status !== 'ACCEPTED') {
+          if (tempBooking.status === 'CONFIRMED') {
+            console.log('[Stripe] Réservation déjà confirmée, skip:', bookingId);
+          } else {
+            console.warn('[Stripe] Réservation non ACCEPTED, skip confirmation:', bookingId, tempBooking.status);
+          }
+          res.status(200).send('OK');
+          return;
+        }
+
+        // Atomic update — prevents race condition with confirmVenueBookingPayment
+        const paidAmount = session.amount_total != null ? session.amount_total / 100 : undefined;
+        const booking = await VenueBookingModel.findOneAndUpdate(
+          { _id: bookingId, status: 'ACCEPTED' },
+          {
+            status: 'CONFIRMED',
+            paymentStatus: 'paid',
+            paidAmount,
+            paidAt: new Date(),
+          },
+          { new: true }
+        ).populate<{ venue: { _id: mongoose.Types.ObjectId; name: string; owner: mongoose.Types.ObjectId } }>('venue', 'name owner');
+
+        if (!booking) {
+          console.log('[Stripe] Réservation déjà traitée par un autre handler, skip:', bookingId);
+          res.status(200).send('OK');
+          return;
+        }
+
+        // Notifications pour les deux parties
+        try {
+          await NotificationModel.create([
+            {
+              user: booking.requester,
+              type: 'venue_booking_confirmed',
+              title: 'Réservation confirmée',
+              message: `Votre paiement pour "${booking.venue.name}" a été reçu. Réservation confirmée !`,
+              relatedVenue: booking.venue._id,
+              read: false,
+            },
+            {
+              user: booking.venue.owner,
+              type: 'venue_booking_confirmed',
+              title: 'Paiement reçu',
+              message: `Le paiement pour la réservation de "${booking.venue.name}" a été reçu. Réservation confirmée !`,
+              relatedVenue: booking.venue._id,
+              read: false,
+            },
+          ]);
+        } catch (notifError) {
+          console.error('[Stripe] Erreur notification webhook venue_booking:', notifError, { bookingId, userId });
+        }
+
+        console.log('[Stripe] Réservation confirmée après paiement (webhook):', userId, '→ booking', bookingId);
+      } catch (e) {
+        // Return 500 so Stripe retries the webhook instead of silently losing the confirmation
+        console.error('[Stripe] Erreur confirmation réservation après webhook:', e);
+        res.status(500).send('Internal error');
+        return;
+      }
+    } else {
+      // ── Paiement ticket spectateur (flow existant) ──
+      const eventId = session.metadata?.eventId;
+      const userId = session.metadata?.userId;
+
+      if (!eventId || !userId) {
+        console.error('[Stripe] Metadata manquant dans checkout.session.completed', session.metadata);
         res.status(200).send('OK');
         return;
       }
 
-      await EventModel.findByIdAndUpdate(eventId, {
-        $addToSet: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
-      });
-      console.log('[Stripe] Spectateur inscrit après paiement:', userId, '→ événement', eventId);
-    } catch (e) {
-      console.error('[Stripe] Erreur inscription spectateur après webhook:', e);
+      try {
+        const eventDoc = await EventModel.findById(eventId);
+        if (!eventDoc) {
+          console.error('[Stripe] Événement non trouvé:', eventId);
+          res.status(200).send('OK');
+          return;
+        }
+
+        const spectatorRegistrations = eventDoc.spectatorRegistrations || [];
+        if (spectatorRegistrations.some((id) => id.toString() === userId)) {
+          console.log('[Stripe] Spectateur déjà inscrit, skip:', userId);
+          res.status(200).send('OK');
+          return;
+        }
+
+        await EventModel.findByIdAndUpdate(eventId, {
+          $addToSet: { spectatorRegistrations: new mongoose.Types.ObjectId(userId) },
+        });
+        console.log('[Stripe] Spectateur inscrit après paiement:', userId, '→ événement', eventId);
+      } catch (e) {
+        console.error('[Stripe] Erreur inscription spectateur après webhook:', e);
+      }
     }
   }
 
@@ -225,6 +315,212 @@ export const confirmRegistrationAfterPayment = async (req: AuthRequest, res: Res
     res.status(200).json({ message: 'Inscription enregistrée', eventId });
   } catch (error: any) {
     console.error('Stripe confirmRegistrationAfterPayment error:', error);
-    res.status(500).json({ message: error?.message || 'Erreur lors de la confirmation' });
+    res.status(500).json({ message: 'Erreur lors de la confirmation' });
+  }
+};
+
+/**
+ * Crée une session Stripe Checkout pour le paiement d'une réservation de salle.
+ * Appelé par le requester après que le propriétaire a accepté la réservation.
+ */
+export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!stripe) {
+      res.status(503).json({ message: 'Paiement non configuré' });
+      return;
+    }
+
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || userRole !== 'ORGANIZER') {
+      res.status(403).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    const { bookingId } = req.body;
+    if (!bookingId || !mongoose.Types.ObjectId.isValid(bookingId)) {
+      res.status(400).json({ message: 'ID de réservation invalide' });
+      return;
+    }
+
+    const booking = await VenueBookingModel.findById(bookingId).populate<{
+      venue: { _id: mongoose.Types.ObjectId; name: string; pricePerEvent: number; owner: mongoose.Types.ObjectId };
+    }>('venue', 'name pricePerEvent owner');
+
+    if (!booking) {
+      res.status(404).json({ message: 'Réservation introuvable' });
+      return;
+    }
+
+    if (booking.requester.toString() !== userId) {
+      res.status(403).json({ message: 'Cette réservation ne vous appartient pas' });
+      return;
+    }
+
+    if (booking.status !== 'ACCEPTED') {
+      res.status(400).json({ message: 'Cette réservation n\'est pas en attente de paiement' });
+      return;
+    }
+
+    if (booking.paymentStatus === 'paid') {
+      res.status(409).json({ message: 'Cette réservation a déjà été payée' });
+      return;
+    }
+
+    const venue = booking.venue;
+    if (!venue || venue.pricePerEvent <= 0) {
+      res.status(400).json({ message: 'Cette salle ne nécessite pas de paiement' });
+      return;
+    }
+
+    const baseUrl = config.frontend.url.replace(/\/$/, '');
+    const successUrl = `${baseUrl}/bookings?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/bookings?payment=cancelled`;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: `Réservation - ${venue.name}`,
+            },
+            unit_amount: Math.round(venue.pricePerEvent * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      metadata: {
+        type: 'venue_booking',
+        bookingId: bookingId.toString(),
+        userId,
+        venueId: venue._id.toString(),
+      },
+    });
+
+    booking.paymentStatus = 'pending';
+    booking.stripeSessionId = session.id;
+    await booking.save();
+
+    res.status(200).json({ url: session.url });
+  } catch (error: any) {
+    console.error('Stripe createVenueBookingCheckoutSession error:', error);
+    res.status(500).json({ message: 'Erreur lors de la création du paiement' });
+  }
+};
+
+/**
+ * Confirme le paiement d'une réservation de salle après retour de Stripe.
+ * Fallback si le webhook est lent ou non configuré.
+ */
+export const confirmVenueBookingPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!stripe) {
+      res.status(503).json({ message: 'Paiement non configuré' });
+      return;
+    }
+
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    if (!userId || userRole !== 'ORGANIZER') {
+      res.status(403).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    const sessionId = (req.query.session_id || req.body?.session_id) as string;
+    if (!sessionId) {
+      res.status(400).json({ message: 'session_id manquant' });
+      return;
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== 'paid') {
+      res.status(422).json({ message: 'Paiement non reçu' });
+      return;
+    }
+    if (session.metadata?.userId !== userId) {
+      res.status(403).json({ message: 'Session ne correspond pas à l\'utilisateur' });
+      return;
+    }
+    if (session.metadata?.type !== 'venue_booking') {
+      res.status(400).json({ message: 'Type de session invalide' });
+      return;
+    }
+
+    const bookingId = session.metadata?.bookingId;
+    if (!bookingId) {
+      res.status(400).json({ message: 'Données de session invalides' });
+      return;
+    }
+
+    const existingBooking = await VenueBookingModel.findById(bookingId);
+    if (!existingBooking) {
+      res.status(404).json({ message: 'Réservation introuvable' });
+      return;
+    }
+
+    // Only ACCEPTED bookings can be confirmed — prevents resurrecting cancelled/refused bookings
+    if (existingBooking.status !== 'ACCEPTED') {
+      if (existingBooking.status === 'CONFIRMED') {
+        res.status(200).json({ message: 'Déjà confirmée', bookingId });
+      } else {
+        res.status(400).json({ message: 'Cette réservation ne peut pas être confirmée' });
+      }
+      return;
+    }
+
+    // Atomic update — prevents race condition with webhook handler
+    const paidAmount = session.amount_total != null ? session.amount_total / 100 : undefined;
+    const booking = await VenueBookingModel.findOneAndUpdate(
+      { _id: bookingId, status: 'ACCEPTED' },
+      {
+        status: 'CONFIRMED',
+        paymentStatus: 'paid',
+        paidAmount,
+        paidAt: new Date(),
+      },
+      { new: true }
+    ).populate<{ venue: { _id: mongoose.Types.ObjectId; name: string; owner: mongoose.Types.ObjectId } }>('venue', 'name owner');
+
+    if (!booking) {
+      res.status(200).json({ message: 'Déjà confirmée', bookingId });
+      return;
+    }
+
+    // Notifications pour les deux parties
+    try {
+      await NotificationModel.create([
+        {
+          user: booking.requester,
+          type: 'venue_booking_confirmed',
+          title: 'Réservation confirmée',
+          message: `Votre paiement pour "${booking.venue.name}" a été reçu. Réservation confirmée !`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        },
+        {
+          user: booking.venue.owner,
+          type: 'venue_booking_confirmed',
+          title: 'Paiement reçu',
+          message: `Le paiement pour la réservation de "${booking.venue.name}" a été reçu. Réservation confirmée !`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        },
+      ]);
+    } catch (notifError) {
+      console.error('Erreur notification confirmVenueBookingPayment:', notifError, { bookingId, userId });
+    }
+
+    console.log('[Stripe] Réservation confirmée après paiement:', userId, '→ booking', bookingId);
+    res.status(200).json({ message: 'Réservation confirmée', bookingId });
+  } catch (error: any) {
+    console.error('Stripe confirmVenueBookingPayment error:', error);
+    res.status(500).json({ message: 'Erreur lors de la confirmation du paiement' });
   }
 };

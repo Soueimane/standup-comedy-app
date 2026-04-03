@@ -43,6 +43,7 @@ export type VenueBookingStatus =
   | 'PENDING'
   | 'ACCEPTED'
   | 'REFUSED'
+  | 'CONFIRMED'
   | 'CANCELLED_BY_OWNER'
   | 'CANCELLED_BY_REQUESTER';
 
@@ -56,6 +57,9 @@ export interface IVenueBooking {
   message?: string;
   status: VenueBookingStatus;
   ownerResponse?: string;
+  paymentStatus: 'none' | 'pending' | 'paid' | 'refund_pending' | 'refunded';
+  paidAmount?: number;
+  paidAt?: string;
   createdAt: string;
   updatedAt: string;
 }
