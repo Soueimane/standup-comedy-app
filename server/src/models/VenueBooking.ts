@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type VenueBookingStatus = 'PENDING' | 'ACCEPTED' | 'REFUSED' | 'CONFIRMED' | 'CANCELLED_BY_OWNER' | 'CANCELLED_BY_REQUESTER';
+export type VenueBookingStatus = 'PENDING' | 'ACCEPTED' | 'REFUSED' | 'CONFIRMED' | 'CANCELLED_BY_OWNER' | 'CANCELLED_BY_REQUESTER' | 'EXPIRED';
 
 export type VenueBookingPaymentStatus = 'none' | 'pending' | 'paid' | 'refund_pending' | 'refunded';
 
@@ -17,6 +17,8 @@ export interface VenueBookingDocument extends Document {
   stripeSessionId?: string;
   paidAmount?: number;
   paidAt?: Date;
+  paymentDeadlineAt?: Date;
+  paymentReminderSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +33,7 @@ const venueBookingSchema = new Schema<VenueBookingDocument>(
     message: { type: String, maxlength: 500 },
     status: {
       type: String,
-      enum: ['PENDING', 'ACCEPTED', 'REFUSED', 'CONFIRMED', 'CANCELLED_BY_OWNER', 'CANCELLED_BY_REQUESTER'],
+      enum: ['PENDING', 'ACCEPTED', 'REFUSED', 'CONFIRMED', 'CANCELLED_BY_OWNER', 'CANCELLED_BY_REQUESTER', 'EXPIRED'],
       default: 'PENDING',
       index: true,
     },
@@ -44,10 +46,13 @@ const venueBookingSchema = new Schema<VenueBookingDocument>(
     stripeSessionId: { type: String },
     paidAmount: { type: Number, min: 0 },
     paidAt: { type: Date },
+    paymentDeadlineAt: { type: Date },
+    paymentReminderSentAt: { type: Date },
   },
   { timestamps: true }
 );
 
 venueBookingSchema.index({ venue: 1, requestedDate: 1, status: 1 });
+venueBookingSchema.index({ status: 1, paymentDeadlineAt: 1 });
 
 export const VenueBookingModel = mongoose.model<VenueBookingDocument>('VenueBooking', venueBookingSchema);

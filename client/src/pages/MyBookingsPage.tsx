@@ -9,6 +9,12 @@ import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
 import type { IVenueBooking } from '../types/venue';
 
+const isDatePast = (dateStr: string): boolean => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) < today;
+};
+
 const MyBookingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useAlert();
@@ -17,6 +23,11 @@ const MyBookingsPage: React.FC = () => {
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'status' | 'date-asc' | 'date-desc' | 'created-desc'>('status');
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 10;
 
   // useRef guard prevents double-fire in React Strict Mode
   const paymentHandledRef = useRef(false);
@@ -86,6 +97,43 @@ const MyBookingsPage: React.FC = () => {
       setPayingId(null);
     }
   };
+
+  const isArchived = (b: IVenueBooking) =>
+    isDatePast(b.requestedDate) ||
+    ['EXPIRED', 'REFUSED', 'CANCELLED_BY_OWNER', 'CANCELLED_BY_REQUESTER'].includes(b.status);
+
+  const statusPriority = (booking: IVenueBooking) => {
+    if (booking.status === 'ACCEPTED' && !isDatePast(booking.requestedDate)) return 0;
+    if (booking.status === 'PENDING' && !isDatePast(booking.requestedDate)) return 1;
+    if (booking.status === 'CONFIRMED' && !isDatePast(booking.requestedDate)) return 2;
+    return 3;
+  };
+
+  const matchesSearch = (b: IVenueBooking) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      b.venue?.name?.toLowerCase().includes(q) ||
+      b.venue?.city?.toLowerCase().includes(q) ||
+      b.venue?.address?.toLowerCase().includes(q)
+    );
+  };
+
+  const sortFn = (a: IVenueBooking, b: IVenueBooking) => {
+    if (sortBy === 'status') return statusPriority(a) - statusPriority(b);
+    if (sortBy === 'date-asc') return new Date(a.requestedDate).getTime() - new Date(b.requestedDate).getTime();
+    if (sortBy === 'date-desc') return new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime();
+    if (sortBy === 'created-desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return 0;
+  };
+
+  const activeBookings = (data ?? []).filter((b) => !isArchived(b) && matchesSearch(b)).sort(sortFn);
+  const archivedBookings = (data ?? []).filter((b) => isArchived(b) && matchesSearch(b))
+    .sort((a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime());
+
+  const filtered = [...activeBookings, ...archivedBookings];
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
@@ -162,16 +210,72 @@ const MyBookingsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {data.map((booking) => (
+            <div>
+              {/* Barre de recherche + tri */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Rechercher par salle, ville..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  style={{
+                    flex: 1,
+                    minWidth: 200,
+                    padding: '10px 14px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 14,
+                    outline: 'none',
+                  }}
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value as typeof sortBy); setPage(1); }}
+                  style={{
+                    padding: '10px 14px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="status" style={{ background: '#1a1a2e' }}>Trier par statut</option>
+                  <option value="date-desc" style={{ background: '#1a1a2e' }}>Date ↓ (récente)</option>
+                  <option value="date-asc" style={{ background: '#1a1a2e' }}>Date ↑ (ancienne)</option>
+                  <option value="created-desc" style={{ background: '#1a1a2e' }}>Demande récente</option>
+                </select>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 24px', color: '#888' }}>
+                  Aucune réservation ne correspond à votre recherche.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {paginated.map((booking) => {
+                      const past = isDatePast(booking.requestedDate);
+                      const archived = isArchived(booking);
+                      const deadlineMs = booking.paymentDeadlineAt
+                        ? new Date(booking.paymentDeadlineAt).getTime() - Date.now()
+                        : null;
+                      const isUrgent = booking.status === 'ACCEPTED' && deadlineMs !== null && deadlineMs < 24 * 3600 * 1000 && deadlineMs > 0;
+
+                      return (
               <div
                 key={booking._id}
                 style={{
                   background: '#1a1a2e',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: `1px solid ${isUrgent ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.1)'}`,
                   borderRadius: 16,
                   padding: 24,
                   transition: 'border-color 0.2s',
+                  opacity: archived ? 0.65 : 1,
                 }}
               >
                 <div
@@ -212,7 +316,11 @@ const MyBookingsPage: React.FC = () => {
                       📍 {booking.venue?.city} · {booking.venue?.address}
                     </p>
                   </div>
-                  <BookingStatusBadge status={booking.status} />
+                  <BookingStatusBadge
+                      status={booking.status}
+                      isPast={past}
+                      paymentDeadlineAt={booking.paymentDeadlineAt}
+                    />
                 </div>
 
                 {/* Détails de la réservation */}
@@ -291,6 +399,91 @@ const MyBookingsPage: React.FC = () => {
                   </p>
                 )}
 
+                {/* Bandeaux contextuels selon le statut */}
+                {booking.status === 'ACCEPTED' && !past && booking.paymentDeadlineAt && (
+                  <div
+                    style={{
+                      margin: '0 0 14px 0',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: isUrgent ? 'rgba(249,115,22,0.08)' : 'rgba(16,185,129,0.06)',
+                      borderLeft: `3px solid ${isUrgent ? '#f97316' : '#10b981'}`,
+                      fontSize: 13,
+                      color: isUrgent ? '#f97316' : '#10b981',
+                    }}
+                  >
+                    Paiement requis avant le{' '}
+                    <strong>
+                      {new Date(booking.paymentDeadlineAt).toLocaleDateString('fr-FR', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </strong>
+                  </div>
+                )}
+
+                {booking.status === 'EXPIRED' && (
+                  <div
+                    style={{
+                      margin: '0 0 14px 0',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: 'rgba(107,114,128,0.08)',
+                      borderLeft: '3px solid #6b7280',
+                      fontSize: 13,
+                      color: '#9ca3af',
+                    }}
+                  >
+                    Le délai de paiement de 72h a expiré.{' '}
+                    {booking.paymentDeadlineAt && (
+                      <>Deadline : <strong>{new Date(booking.paymentDeadlineAt).toLocaleDateString('fr-FR')}</strong>.</>
+                    )}{' '}
+                    Vous pouvez faire une nouvelle demande pour cette salle.
+                  </div>
+                )}
+
+                {booking.status === 'PENDING' && !past && (() => {
+                  const daysSince = Math.floor((Date.now() - new Date(booking.createdAt).getTime()) / (1000 * 3600 * 24));
+                  return daysSince >= 7 ? (
+                    <div
+                      style={{
+                        margin: '0 0 14px 0',
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        background: 'rgba(245,158,11,0.06)',
+                        borderLeft: '3px solid #f59e0b',
+                        fontSize: 13,
+                        color: '#f59e0b',
+                      }}
+                    >
+                      Pas de réponse depuis {daysSince} jours. Vous pouvez annuler et essayer une autre salle.
+                    </div>
+                  ) : null;
+                })()}
+
+                {booking.status === 'CONFIRMED' && booking.paidAmount !== undefined && (
+                  <div
+                    style={{
+                      margin: '0 0 14px 0',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: 'rgba(59,130,246,0.06)',
+                      borderLeft: '3px solid #3b82f6',
+                      fontSize: 13,
+                      color: '#93c5fd',
+                    }}
+                  >
+                    Paiement de <strong>{booking.paidAmount.toLocaleString('fr-FR')} €</strong> reçu
+                    {booking.paidAt && (
+                      <> le <strong>{new Date(booking.paidAt).toLocaleDateString('fr-FR')}</strong></>
+                    )}
+                    .
+                  </div>
+                )}
+
                 <div className="booking-card-actions" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <button
                     onClick={() => navigate(`/venues/${booking.venue?._id}`)}
@@ -307,20 +500,23 @@ const MyBookingsPage: React.FC = () => {
                   >
                     Voir la salle
                   </button>
-                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && (
+                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && !past && (
                     <button
                       onClick={() => handlePay(booking._id)}
                       disabled={payingId === booking._id}
                       style={{
-                        padding: '8px 18px',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        padding: '10px 22px',
+                        background: isUrgent
+                          ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+                          : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                         color: '#fff',
                         border: 'none',
                         borderRadius: 8,
                         cursor: payingId === booking._id ? 'not-allowed' : 'pointer',
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 700,
                         opacity: payingId === booking._id ? 0.6 : 1,
+                        boxShadow: isUrgent ? '0 0 12px rgba(249,115,22,0.4)' : 'none',
                       }}
                     >
                       {payingId === booking._id
@@ -328,7 +524,24 @@ const MyBookingsPage: React.FC = () => {
                         : `Payer ${((booking.venue as any)?.pricePerEvent ?? 0).toLocaleString('fr-FR')} €`}
                     </button>
                   )}
-                  {(booking.status === 'PENDING' || booking.status === 'ACCEPTED') && (
+                  {booking.status === 'EXPIRED' && (
+                    <button
+                      onClick={() => navigate(`/venues/${booking.venue?._id}`)}
+                      style={{
+                        padding: '8px 18px',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#ccc',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Faire une nouvelle demande
+                    </button>
+                  )}
+                  {(booking.status === 'PENDING' || booking.status === 'ACCEPTED') && !past && (
                     <button
                       onClick={() => handleCancel(booking._id)}
                       disabled={cancellingId === booking._id}
@@ -349,8 +562,54 @@ const MyBookingsPage: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 24 }}>
+                      <button
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        style={{
+                          padding: '8px 16px',
+                          background: page === 1 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
+                          color: page === 1 ? '#555' : '#ccc',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 8,
+                          cursor: page === 1 ? 'default' : 'pointer',
+                          fontSize: 14,
+                        }}
+                      >
+                        ← Précédent
+                      </button>
+
+                      <span style={{ color: '#888', fontSize: 13, padding: '0 8px' }}>
+                        Page {page} / {totalPages}
+                        <span style={{ color: '#555', marginLeft: 8 }}>({filtered.length} résultats)</span>
+                      </span>
+
+                      <button
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        style={{
+                          padding: '8px 16px',
+                          background: page === totalPages ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
+                          color: page === totalPages ? '#555' : '#ccc',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 8,
+                          cursor: page === totalPages ? 'default' : 'pointer',
+                          fontSize: 14,
+                        }}
+                      >
+                        Suivant →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
         )}
       </div>
     </div>

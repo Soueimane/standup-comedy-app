@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import { VenueModel } from '../models/Venue';
@@ -6,6 +6,11 @@ import { VenueBookingModel } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 import { NotificationModel } from '../models/Notification';
 import { stripe } from './stripe';
+import { config } from '../config/env';
+import {
+  emitVenueBookingStatusChanged,
+  emitVenueBookingPaymentUpdated,
+} from '../services/eventEmitter';
 
 // Vérifie si deux plages horaires se chevauchent (même date)
 function timesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
@@ -104,6 +109,13 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       message,
       status: 'PENDING',
     });
+
+    emitVenueBookingStatusChanged(
+      booking._id.toString(),
+      venueId,
+      booking.status,
+      booking.paymentStatus
+    );
 
     // Notifier le propriétaire de la salle (découplé)
     try {
@@ -257,11 +269,24 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
         booking.status = 'CONFIRMED';
       } else {
         booking.status = 'ACCEPTED';
+        const [startHour, startMinute] = booking.startTime.split(':').map(Number);
+        const eventStart = new Date(booking.requestedDate);
+        eventStart.setUTCHours(startHour, startMinute, 0, 0);
+        const deadlineBeforeEvent = new Date(eventStart.getTime() - 6 * 60 * 60 * 1000);
+        const deadline72h = new Date(Date.now() + 72 * 60 * 60 * 1000);
+        booking.paymentDeadlineAt = deadline72h < deadlineBeforeEvent ? deadline72h : deadlineBeforeEvent;
       }
     } else {
       booking.status = status;
     }
     await booking.save();
+
+    emitVenueBookingStatusChanged(
+      booking._id.toString(),
+      (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+      booking.status,
+      booking.paymentStatus
+    );
 
     // Notifier le demandeur (découplé : un échec de notif ne doit pas faire échouer la réponse)
     try {
@@ -292,7 +317,7 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
           user: booking.requester,
           type: 'venue_booking_payment_required',
           title: 'Réservation acceptée — paiement requis',
-          message: `Votre réservation pour "${booking.venue.name}" a été acceptée. Veuillez procéder au paiement de ${price} €.`,
+          message: `Votre réservation pour "${booking.venue.name}" a été acceptée. Prix : ${price}€. Vous avez 72h pour effectuer le paiement.`,
           relatedVenue: booking.venue._id,
           read: false,
         });
@@ -354,6 +379,13 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
     booking.status = 'CANCELLED_BY_REQUESTER';
     await booking.save();
 
+    emitVenueBookingStatusChanged(
+      booking._id.toString(),
+      booking.venue.toString(),
+      booking.status,
+      booking.paymentStatus
+    );
+
     res.status(200).json({ message: 'Réservation annulée', booking });
   } catch (error) {
     console.error('Erreur cancelBooking:', error);
@@ -408,6 +440,13 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
     booking.status = 'CANCELLED_BY_OWNER';
     if (reason) booking.ownerResponse = reason;
     await booking.save();
+
+    emitVenueBookingStatusChanged(
+      booking._id.toString(),
+      (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+      booking.status,
+      booking.paymentStatus
+    );
 
     try {
       await NotificationModel.create({
@@ -508,6 +547,15 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     const savedBookings = saveResults
       .filter((r): r is PromiseFulfilledResult<(typeof toCancel)[number]> => r.status === 'fulfilled')
       .map((r) => r.value);
+
+    savedBookings.forEach((b) => {
+      emitVenueBookingStatusChanged(
+        b._id.toString(),
+        venueId,
+        b.status,
+        b.paymentStatus
+      );
+    });
 
     // Créer le blocage après les annulations pour éviter un état incohérent
     const blockedDate = await VenueBlockedDateModel.create({
@@ -648,6 +696,125 @@ export const takenSlots = async (req: AuthRequest, res: Response): Promise<void>
     res.status(200).json({ slots: accepted.map((b) => ({ startTime: b.startTime, endTime: b.endTime })) });
   } catch (error) {
     console.error('Erreur takenSlots:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur' });
+  }
+};
+
+// ─── Cron job : vérifier les paiements non effectués ─────────────────────────
+
+export const checkPaymentTimeouts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cronKey = req.header('X-CRON-KEY');
+    if (!cronKey || cronKey !== config.cron.secret) {
+      console.error('❌ Tentative d\'accès non autorisée à l\'endpoint cron check-payment-timeouts');
+      res.status(401).json({ message: 'Non autorisé' });
+      return;
+    }
+
+    console.log('🔔 Démarrage du job cron: check-payment-timeouts');
+    const now = new Date();
+    let expiredCount = 0;
+    let reminderCount = 0;
+
+    // Step A — Expire overdue bookings
+    const overdueBookings = await VenueBookingModel.find({
+      status: 'ACCEPTED',
+      paymentDeadlineAt: { $lte: now },
+    }).populate<{ venue: { _id: mongoose.Types.ObjectId; owner: mongoose.Types.ObjectId; name: string } }>('venue', 'owner name');
+
+    for (const booking of overdueBookings) {
+      // Expire Stripe session if pending
+      if (booking.stripeSessionId && booking.paymentStatus === 'pending' && stripe) {
+        try {
+          await stripe.checkout.sessions.expire(booking.stripeSessionId);
+          console.log('[PaymentTimeout] Session Stripe expirée:', booking.stripeSessionId);
+        } catch (stripeErr) {
+          console.error('[PaymentTimeout] Erreur expiration session Stripe:', stripeErr, { bookingId: booking._id });
+        }
+      }
+
+      booking.status = 'EXPIRED';
+      await booking.save();
+      expiredCount++;
+
+      emitVenueBookingPaymentUpdated(
+        booking._id.toString(),
+        (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+        booking.status,
+        booking.paymentStatus
+      );
+
+      // Format date for notifications
+      const eventDate = booking.requestedDate.toLocaleDateString('fr-FR');
+
+      // Notify requester
+      try {
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_payment_expired',
+          title: 'Réservation expirée',
+          message: `Votre réservation pour "${booking.venue.name}" le ${eventDate} a expiré car le paiement n'a pas été effectué dans les 72h.`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+      } catch (notifError) {
+        console.error('[PaymentTimeout] Erreur notification requester:', notifError, { bookingId: booking._id });
+      }
+
+      // Notify owner
+      try {
+        await NotificationModel.create({
+          user: booking.venue.owner,
+          type: 'venue_booking_payment_expired',
+          title: 'Réservation expirée — créneau disponible',
+          message: `La réservation de "${booking.requester}" pour "${booking.venue.name}" le ${eventDate} a expiré faute de paiement. Le créneau est de nouveau disponible.`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+      } catch (notifError) {
+        console.error('[PaymentTimeout] Erreur notification owner:', notifError, { bookingId: booking._id });
+      }
+    }
+
+    // Step B — Send 24h reminders
+    const reminderDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const reminderBookings = await VenueBookingModel.find({
+      status: 'ACCEPTED',
+      paymentDeadlineAt: { $lte: reminderDeadline, $gt: now },
+      paymentReminderSentAt: null,
+    }).populate<{ venue: { _id: mongoose.Types.ObjectId; owner: mongoose.Types.ObjectId; name: string } }>('venue', 'owner name');
+
+    for (const booking of reminderBookings) {
+      const eventDate = booking.requestedDate.toLocaleDateString('fr-FR');
+
+      try {
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_payment_reminder',
+          title: 'Rappel — paiement requis',
+          message: `Rappel : votre réservation pour "${booking.venue.name}" le ${eventDate} expire dans 24h. Effectuez le paiement pour confirmer.`,
+          relatedVenue: booking.venue._id,
+          read: false,
+        });
+        booking.paymentReminderSentAt = new Date();
+        await booking.save();
+        reminderCount++;
+
+        emitVenueBookingPaymentUpdated(
+          booking._id.toString(),
+          (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+          booking.status,
+          booking.paymentStatus
+        );
+      } catch (notifError) {
+        console.error('[PaymentTimeout] Erreur notification rappel:', notifError, { bookingId: booking._id });
+      }
+    }
+
+    console.log(`✅ check-payment-timeouts terminé — ${expiredCount} expiré(s), ${reminderCount} rappel(s)`);
+    res.status(200).json({ expired: expiredCount, reminded: reminderCount });
+  } catch (error) {
+    console.error('Erreur checkPaymentTimeouts:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
   }
 };

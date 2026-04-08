@@ -35,6 +35,7 @@ export const config = {
     presenceAlertSchedule: process.env.CRON_PRESENCE_ALERT_SCHEDULE || '0 9 * * *', // Tous les jours à 9h du matin
     accountCleanupSchedule: process.env.CRON_ACCOUNT_CLEANUP_SCHEDULE || '0 3 * * *', // Tous les jours à 3h du matin
     dailySpectatorRecapSchedule: process.env.CRON_DAILY_SPECTATOR_RECAP_SCHEDULE || '0 8 * * *', // Tous les jours à 8h
+    paymentTimeoutSchedule: process.env.CRON_PAYMENT_TIMEOUT_SCHEDULE || '0 * * * *', // Toutes les heures
   },
 
   frontend: {

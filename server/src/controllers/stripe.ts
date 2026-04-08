@@ -6,6 +6,7 @@ import { EventModel } from '../models/Event';
 import { VenueBookingModel } from '../models/VenueBooking';
 import { NotificationModel } from '../models/Notification';
 import mongoose from 'mongoose';
+import { emitVenueBookingPaymentUpdated } from '../services/eventEmitter';
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null;
 
@@ -207,6 +208,15 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
           ]);
         } catch (notifError) {
           console.error('[Stripe] Erreur notification webhook venue_booking:', notifError, { bookingId, userId });
+        }
+
+        if (booking) {
+          emitVenueBookingPaymentUpdated(
+            booking._id.toString(),
+            (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+            booking.status,
+            booking.paymentStatus
+          );
         }
 
         console.log('[Stripe] Réservation confirmée après paiement (webhook):', userId, '→ booking', bookingId);
@@ -515,6 +525,15 @@ export const confirmVenueBookingPayment = async (req: AuthRequest, res: Response
       ]);
     } catch (notifError) {
       console.error('Erreur notification confirmVenueBookingPayment:', notifError, { bookingId, userId });
+    }
+
+    if (booking) {
+      emitVenueBookingPaymentUpdated(
+        booking._id.toString(),
+        (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+        booking.status,
+        booking.paymentStatus
+      );
     }
 
     console.log('[Stripe] Réservation confirmée après paiement:', userId, '→ booking', bookingId);

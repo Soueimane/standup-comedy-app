@@ -45,7 +45,8 @@ export type VenueBookingStatus =
   | 'REFUSED'
   | 'CONFIRMED'
   | 'CANCELLED_BY_OWNER'
-  | 'CANCELLED_BY_REQUESTER';
+  | 'CANCELLED_BY_REQUESTER'
+  | 'EXPIRED';
 
 export interface IVenueBooking {
   _id: string;
@@ -60,6 +61,7 @@ export interface IVenueBooking {
   paymentStatus: 'none' | 'pending' | 'paid' | 'refund_pending' | 'refunded';
   paidAmount?: number;
   paidAt?: string;
+  paymentDeadlineAt?: string;
   createdAt: string;
   updatedAt: string;
 }

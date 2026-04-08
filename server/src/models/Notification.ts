@@ -15,7 +15,9 @@ export type NotificationType =
   | 'venue_booking_cancelled_by_owner'
   | 'venue_date_blocked'
   | 'venue_booking_payment_required'
-  | 'venue_booking_confirmed';
+  | 'venue_booking_confirmed'
+  | 'venue_booking_payment_reminder'
+  | 'venue_booking_payment_expired';
 
 export interface NotificationDocument extends Document {
   user: Types.ObjectId; // Utilisateur destinataire (organisateur ou humoriste)
@@ -41,7 +43,7 @@ const notificationSchema = new Schema<NotificationDocument>({
   },
   type: {
     type: String,
-    enum: ['new_application', 'application_accepted', 'application_rejected', 'event_updated', 'absence_marked', 'event_cancelled', 'late_cancellation_organizer', 'late_cancellation_comedian', 'new_event', 'venue_booking_request', 'venue_booking_response', 'venue_booking_cancelled_by_owner', 'venue_date_blocked', 'venue_booking_payment_required', 'venue_booking_confirmed'] satisfies NotificationType[],
+    enum: ['new_application', 'application_accepted', 'application_rejected', 'event_updated', 'absence_marked', 'event_cancelled', 'late_cancellation_organizer', 'late_cancellation_comedian', 'new_event', 'venue_booking_request', 'venue_booking_response', 'venue_booking_cancelled_by_owner', 'venue_date_blocked', 'venue_booking_payment_required', 'venue_booking_confirmed', 'venue_booking_payment_reminder', 'venue_booking_payment_expired'] satisfies NotificationType[],
     required: true,
     index: true
   },

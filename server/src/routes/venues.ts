@@ -11,7 +11,7 @@ import {
   blockDateSchema,
 } from '../validation/schemas';
 import { createVenue, listVenues, getVenue, updateVenue, deleteVenue } from '../controllers/venue';
-import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots } from '../controllers/venueBooking';
+import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots, checkPaymentTimeouts } from '../controllers/venueBooking';
 
 const router = express.Router();
 
@@ -56,5 +56,8 @@ router.get('/:venueId/taken-slots', authMiddleware, authorizeRoles('ORGANIZER'),
 router.post('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(blockDateSchema), asyncHandler(blockDate));
 router.get('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(listBlockedDates));
 router.delete('/:venueId/blocked-dates/:blockedDateId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(unblockDate));
+
+// ── Cron jobs ────────────────────────────────────────────────────────────────────
+router.post('/jobs/check-payment-timeouts', asyncHandler(checkPaymentTimeouts));
 
 export default router;
