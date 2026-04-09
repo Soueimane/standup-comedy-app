@@ -385,8 +385,8 @@ export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: R
     }
 
     const baseUrl = config.frontend.url.replace(/\/$/, '');
-    const successUrl = `${baseUrl}/bookings?payment=success&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/bookings?payment=cancelled`;
+    const successUrl = `${baseUrl}/my-bookings?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/my-bookings?payment=cancelled`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],

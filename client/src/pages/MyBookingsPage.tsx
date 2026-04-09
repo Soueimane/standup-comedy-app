@@ -52,7 +52,8 @@ const MyBookingsPage: React.FC = () => {
           // Differentiate "already confirmed" (200/409) from real errors
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 200 || status === 409) {
-            // Webhook already handled it — no error shown
+            // Webhook already handled it — show success anyway
+            showSuccess(SuccessMessages.BOOKING_PAYMENT_SUCCESS);
           } else {
             showError('Le paiement a été reçu mais la confirmation a échoué. Veuillez réessayer.');
           }

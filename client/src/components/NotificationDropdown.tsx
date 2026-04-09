@@ -7,7 +7,7 @@ import api, { markNotificationAsRead, markAllNotificationsAsRead, deleteNotifica
 
 interface Notification {
   _id: string;
-  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'new_event' | 'venue_booking_request' | 'venue_booking_response' | 'venue_booking_cancelled_by_owner' | 'venue_date_blocked';
+  type: 'new_application' | 'application_accepted' | 'application_rejected' | 'event_updated' | 'absence_marked' | 'event_cancelled' | 'new_event' | 'venue_booking_request' | 'venue_booking_response' | 'venue_booking_cancelled_by_owner' | 'venue_date_blocked' | 'venue_booking_payment_required' | 'venue_booking_confirmed' | 'venue_booking_payment_reminder' | 'venue_booking_payment_expired';
   title: string;
   message: string;
   relatedEvent?: {
@@ -105,7 +105,11 @@ const NotificationDropdown = () => {
     if (
       notification.type === 'venue_booking_response' ||
       notification.type === 'venue_booking_cancelled_by_owner' ||
-      notification.type === 'venue_date_blocked'
+      notification.type === 'venue_date_blocked' ||
+      notification.type === 'venue_booking_payment_required' ||
+      notification.type === 'venue_booking_confirmed' ||
+      notification.type === 'venue_booking_payment_reminder' ||
+      notification.type === 'venue_booking_payment_expired'
     ) {
       // Le demandeur est redirigé vers ses réservations envoyées
       navigate('/my-bookings');
@@ -171,6 +175,14 @@ const NotificationDropdown = () => {
         return '🏛️';
       case 'venue_date_blocked':
         return '🔒';
+      case 'venue_booking_payment_required':
+        return '💳';
+      case 'venue_booking_confirmed':
+        return '✅';
+      case 'venue_booking_payment_reminder':
+        return '⏰';
+      case 'venue_booking_payment_expired':
+        return '⏳';
       default:
         return '🔔';
     }
