@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { fr } from 'date-fns/locale';
 import 'react-day-picker/dist/style.css';
+import { useNavigate } from 'react-router-dom';
 import { createBooking, getTakenSlots } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
@@ -20,6 +21,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   onBookingCreated,
 }) => {
   const { showSuccess, showError } = useAlert();
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [formData, setFormData] = useState({ startTime: '', endTime: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -107,8 +109,8 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
       showSuccess(SuccessMessages.BOOKING_CREATED);
       setSelectedDate(undefined);
       setFormData({ startTime: '', endTime: '', message: '' });
-
       onBookingCreated?.();
+      navigate('/my-bookings');
     } catch (err) {
       showError(getErrorMessage(err, ErrorMessages.BOOKING_CREATE_FAILED));
     } finally {

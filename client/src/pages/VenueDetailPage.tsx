@@ -27,6 +27,11 @@ const VenueDetailPage: React.FC = () => {
   const tabParam = searchParams.get('tab');
   const initialTab: OwnerTab = validTabs.includes(tabParam as OwnerTab) ? (tabParam as OwnerTab) : 'info';
   const [activeTab, setActiveTab] = useState<OwnerTab>(initialTab);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    setActiveTab(validTabs.includes(tab as OwnerTab) ? (tab as OwnerTab) : 'info');
+  }, [searchParams]);
   const [activePhoto, setActivePhoto] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
