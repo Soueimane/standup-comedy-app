@@ -12,7 +12,7 @@ import EditVenueForm from '../components/EditVenueForm';
 import VenueMap from '../components/VenueMap';
 import Navbar from '../components/Navbar';
 import type { IVenue, IVenueBlockedDate } from '../types/venue';
-import { VENUE_TYPE_LABELS } from '../types/venue';
+import { VENUE_TYPE_LABELS, CANCELLATION_POLICY_LABELS, CANCELLATION_POLICY_DESCRIPTIONS } from '../types/venue';
 
 type OwnerTab = 'info' | 'bookings' | 'blocked' | 'settings';
 
@@ -593,6 +593,29 @@ const VenueDetailPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Politique d'annulation */}
+              {venue.cancellationPolicy && (
+                <div style={{ marginBottom: 24, padding: '20px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff416c' }} />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                      Politique d'annulation
+                    </h3>
+                  </div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: 13, fontWeight: 700, color: '#ffb0c2' }}>
+                    {CANCELLATION_POLICY_LABELS[venue.cancellationPolicy]}
+                  </p>
+                  <div style={{ display: 'grid', gap: 10, padding: '14px', background: 'rgba(255,65,108,0.08)', borderRadius: 14, border: '1px solid rgba(255,65,108,0.12)' }}>
+                    <p style={{ margin: 0, fontSize: 14, color: '#e5e7eb', lineHeight: 1.8 }}>
+                      {CANCELLATION_POLICY_DESCRIPTIONS[venue.cancellationPolicy]}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 13, color: '#d1d5db', lineHeight: 1.75 }}>
+                      <strong style={{ color: '#fff' }}>Période de grâce :</strong> remboursement intégral si vous annulez dans les 24h suivant votre réservation et à 7 jours ou plus de l'événement.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Carte de localisation */}
               {venue.latitude && venue.longitude && (
                 <VenueMap
@@ -614,6 +637,7 @@ const VenueDetailPage: React.FC = () => {
                 <VenueBookingForm
                   venueId={venue._id}
                   venueName={venue.name}
+                  cancellationPolicy={venue.cancellationPolicy}
                   blockedDates={blockedDates}
                   onBookingCreated={() => {}}
                 />

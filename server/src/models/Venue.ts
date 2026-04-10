@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+export type CancellationPolicy = 'flexible' | 'moderate' | 'firm';
+
 export interface VenueDocument extends Document {
   name: string;
   owner: Types.ObjectId;
@@ -15,6 +17,7 @@ export interface VenueDocument extends Document {
   capacity: number;
   pricePerEvent: number;
   venueType: 'bar' | 'theatre' | 'salle_des_fetes' | 'autre';
+  cancellationPolicy: CancellationPolicy;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +42,11 @@ const venueSchema = new Schema<VenueDocument>(
       type: String,
       enum: ['bar', 'theatre', 'salle_des_fetes', 'autre'],
       required: true,
+    },
+    cancellationPolicy: {
+      type: String,
+      enum: ['flexible', 'moderate', 'firm'],
+      default: 'moderate',
     },
     isActive: { type: Boolean, default: true },
   },

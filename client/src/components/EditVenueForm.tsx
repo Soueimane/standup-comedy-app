@@ -3,7 +3,7 @@ import { updateVenue, geocodeAddress, type GeocodeResult } from '../services/api
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import type { IVenue } from '../types/venue';
-import { VENUE_TYPES, EQUIPMENT_OPTIONS } from '../types/venue';
+import { VENUE_TYPES, EQUIPMENT_OPTIONS, CANCELLATION_POLICIES, CANCELLATION_POLICY_DESCRIPTIONS } from '../types/venue';
 import LocationPickerMap from './LocationPickerMap';
 
 interface EditVenueFormProps {
@@ -25,6 +25,7 @@ const EditVenueForm: React.FC<EditVenueFormProps> = ({ venue, onUpdated }) => {
     capacity: venue.capacity,
     pricePerEvent: venue.pricePerEvent,
     venueType: venue.venueType,
+    cancellationPolicy: venue.cancellationPolicy ?? 'moderate' as IVenue['cancellationPolicy'],
     equipment: venue.equipment || [],
     isActive: venue.isActive,
   });
@@ -289,6 +290,26 @@ const EditVenueForm: React.FC<EditVenueFormProps> = ({ venue, onUpdated }) => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Politique d'annulation */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>Politique d'annulation *</label>
+        <select
+          value={formData.cancellationPolicy}
+          onChange={(e) => setFormData((p) => ({ ...p, cancellationPolicy: e.target.value as IVenue['cancellationPolicy'] }))}
+          style={inputStyle}
+        >
+          {CANCELLATION_POLICIES.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: '#888' }}>
+          {CANCELLATION_POLICY_DESCRIPTIONS[formData.cancellationPolicy]}
+        </p>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666' }}>
+          Période de grâce universelle : remboursement intégral si annulation dans les 24h suivant la réservation et à ≥ 7 jours de l'événement.
+        </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>

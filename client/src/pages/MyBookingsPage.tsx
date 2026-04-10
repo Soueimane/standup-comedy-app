@@ -8,6 +8,7 @@ import BookingStatusBadge from '../components/BookingStatusBadge';
 import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
 import type { IVenueBooking } from '../types/venue';
+import { calculateRefundEstimate, formatRefundMessage, formatRefundReason } from '../utils/cancellationPolicy';
 
 const isDatePast = (dateStr: string): boolean => {
   const today = new Date();
@@ -22,6 +23,7 @@ const MyBookingsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelConfirmBooking, setCancelConfirmBooking] = useState<IVenueBooking | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'status' | 'date-asc' | 'date-desc' | 'created-desc'>('status');
@@ -69,8 +71,14 @@ const MyBookingsPage: React.FC = () => {
     queryFn: myBookings,
   });
 
-  const handleCancel = async (bookingId: string) => {
-    if (!window.confirm('Annuler cette demande de réservation ?')) return;
+  const handleCancelClick = (booking: IVenueBooking) => {
+    setCancelConfirmBooking(booking);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!cancelConfirmBooking) return;
+    const bookingId = cancelConfirmBooking._id;
+    setCancelConfirmBooking(null);
     setCancellingId(bookingId);
     try {
       await cancelBooking(bookingId);
@@ -136,8 +144,83 @@ const MyBookingsPage: React.FC = () => {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Calcul de l'estimation de remboursement pour le modal
+  const refundEstimate = (() => {
+    const b = cancelConfirmBooking;
+    if (!b || b.paymentStatus !== 'paid' || !b.paidAmount) return null;
+    const venue = b.venue as any;
+    const policy = venue?.cancellationPolicy ?? 'moderate';
+    const eventDatetime = new Date(b.requestedDate);
+    const [h, m] = b.startTime.split(':').map(Number);
+    eventDatetime.setUTCHours(h, m, 0, 0);
+    return calculateRefundEstimate(b.paidAmount, policy, eventDatetime, new Date(b.createdAt));
+  })();
+
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
+      {/* Modal de confirmation d'annulation */}
+      {cancelConfirmBooking && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1e1b2e, #2a1f3d)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16, padding: 28, maxWidth: 440, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: '#fff' }}>
+              Confirmer l'annulation
+            </h3>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#888' }}>
+              {cancelConfirmBooking.venue?.name} — {new Date(cancelConfirmBooking.requestedDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+
+            {/* Infos remboursement si booking payé */}
+            {refundEstimate && cancelConfirmBooking.paidAmount ? (
+              <div style={{ marginBottom: 20, padding: '14px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
+                <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: refundEstimate.refundPercent === 0 ? '#ef4444' : refundEstimate.refundPercent === 50 ? '#f59e0b' : '#10b981' }}>
+                  {formatRefundMessage(refundEstimate, cancelConfirmBooking.paidAmount)}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
+                  {formatRefundReason(refundEstimate.reason)}
+                </p>
+              </div>
+            ) : cancelConfirmBooking.paymentStatus === 'paid' ? null : (
+              <p style={{ marginBottom: 20, fontSize: 13, color: '#ccc' }}>
+                Cette réservation n'a pas encore été payée. Aucun remboursement ne sera effectué.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setCancelConfirmBooking(null)}
+                style={{
+                  flex: 1, padding: '12px', background: 'rgba(255,255,255,0.06)',
+                  color: '#ccc', border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Garder la réservation
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                style={{
+                  flex: 1, padding: '12px',
+                  background: 'rgba(239,68,68,0.15)',
+                  color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Confirmer l'annulation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media (max-width: 640px) {
           .my-bookings-header h1 { font-size: 1.8em !important; }
@@ -544,7 +627,7 @@ const MyBookingsPage: React.FC = () => {
                   )}
                   {(booking.status === 'PENDING' || booking.status === 'ACCEPTED') && !past && (
                     <button
-                      onClick={() => handleCancel(booking._id)}
+                      onClick={() => handleCancelClick(booking)}
                       disabled={cancellingId === booking._id}
                       style={{
                         padding: '8px 18px',
@@ -559,6 +642,25 @@ const MyBookingsPage: React.FC = () => {
                       }}
                     >
                       {cancellingId === booking._id ? 'Annulation...' : 'Annuler la demande'}
+                    </button>
+                  )}
+                  {booking.status === 'CONFIRMED' && !past && (
+                    <button
+                      onClick={() => handleCancelClick(booking)}
+                      disabled={cancellingId === booking._id}
+                      style={{
+                        padding: '8px 18px',
+                        background: 'rgba(239,68,68,0.08)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: 8,
+                        cursor: cancellingId === booking._id ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        opacity: cancellingId === booking._id ? 0.6 : 1,
+                      }}
+                    >
+                      {cancellingId === booking._id ? 'Annulation...' : 'Annuler la réservation'}
                     </button>
                   )}
                 </div>

@@ -6,10 +6,13 @@ import { useNavigate } from 'react-router-dom';
 import { createBooking, getTakenSlots } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
+import type { CancellationPolicy } from '../types/venue';
+import { CANCELLATION_POLICY_LABELS, CANCELLATION_POLICY_DESCRIPTIONS } from '../types/venue';
 
 interface VenueBookingFormProps {
   venueId: string;
   venueName: string;
+  cancellationPolicy?: CancellationPolicy;
   blockedDates?: Date[];
   onBookingCreated?: () => void;
 }
@@ -17,6 +20,7 @@ interface VenueBookingFormProps {
 const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   venueId,
   venueName,
+  cancellationPolicy,
   blockedDates = [],
   onBookingCreated,
 }) => {
@@ -163,7 +167,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
           .booking-time-grid { grid-template-columns: 1fr !important; }
         }
         .rdp {
-          --rdp-cell-size: 36px;
+          --rdp-cell-size: 38px;
           --rdp-accent-color: #ff416c;
           --rdp-background-color: rgba(255,65,108,0.15);
           --rdp-accent-color-dark: #ff416c;
@@ -176,13 +180,67 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         }
         .rdp-months { justify-content: center; }
         .rdp-month { width: 100%; }
-        .rdp-table { width: 100%; }
-        .rdp-head_cell { color: #666; font-size: 11px; font-weight: 600; }
-        .rdp-button:hover:not([disabled]) { background: rgba(255,65,108,0.2); color: #fff; }
-        .rdp-button[disabled] { color: #ef4444; text-decoration: line-through; opacity: 0.7; cursor: not-allowed; }
-        .rdp-day_selected { background: #ff416c !important; color: #fff !important; border-radius: 8px; }
-        .rdp-nav_button { color: #888; }
-        .rdp-caption_label { color: #fff; font-weight: 700; font-size: 13px; }
+        .rdp-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .rdp-caption {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.85rem 1rem;
+          background: rgba(255,65,108,0.18);
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 14px;
+          margin-bottom: 10px;
+        }
+        .rdp-caption_label {
+          color: #fff;
+          font-weight: 700;
+          font-size: 14px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          margin-left: 0.25rem;
+        }
+        .rdp-nav_button {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          color: #fff;
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+        .rdp-button:hover:not([disabled]) { background: rgba(255,65,108,0.25); color: #fff; }
+        .rdp-head_cell {
+          color: #d7d7d7;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+        }
+        .rdp-day {
+          color: #f6f6f8;
+          font-weight: 600;
+          border-radius: 10px;
+          transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+        }
+        .rdp-day:hover:not(.rdp-day_selected):not([disabled]) {
+          background: rgba(255,65,108,0.22);
+          color: #fff;
+          transform: translateY(-1px);
+        }
+        .rdp-day_selected {
+          background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%) !important;
+          color: #fff !important;
+          border-radius: 12px;
+          box-shadow: 0 0 0 3px rgba(255,65,108,0.18);
+        }
+        .rdp-day_today {
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+        }
+        .rdp-day_disabled {
+          color: #999;
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
         .rdp-day_outside { opacity: 0.3; }
       `}</style>
 
@@ -289,6 +347,20 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         >
           {isSubmitting ? 'Envoi en cours...' : 'Envoyer la demande'}
         </button>
+
+        {cancellationPolicy && (
+          <div style={{ marginTop: 18, padding: '16px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)' }}>
+            <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#ffb0c2', letterSpacing: '0.02em' }}>
+              Politique d'annulation : {CANCELLATION_POLICY_LABELS[cancellationPolicy]}
+            </p>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#e5e7eb', lineHeight: 1.75 }}>
+              {CANCELLATION_POLICY_DESCRIPTIONS[cancellationPolicy]}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
+              Période de grâce : remboursement intégral si annulation dans les 24h suivant la réservation et ≥ 7 jours avant l'événement.
+            </p>
+          </div>
+        )}
       </form>
     </div>
   );

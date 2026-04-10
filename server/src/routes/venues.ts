@@ -11,7 +11,7 @@ import {
   blockDateSchema,
 } from '../validation/schemas';
 import { createVenue, listVenues, getVenue, updateVenue, deleteVenue } from '../controllers/venue';
-import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots, checkPaymentTimeouts } from '../controllers/venueBooking';
+import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots, checkPaymentTimeouts, getRefundEstimate } from '../controllers/venueBooking';
 
 const router = express.Router();
 
@@ -49,6 +49,8 @@ router.patch('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER')
 router.delete('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, asyncHandler(cancelBooking));
 // Annulation d'une réservation ACCEPTED par le propriétaire
 router.patch('/bookings/:bookingId/cancel', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, validate(cancelBookingByOwnerSchema), asyncHandler(cancelBookingByOwner));
+// Estimation du remboursement avant annulation (lecture seule)
+router.get('/bookings/:bookingId/refund-estimate', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, asyncHandler(getRefundEstimate));
 
 router.get('/:venueId/taken-slots', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(takenSlots));
 

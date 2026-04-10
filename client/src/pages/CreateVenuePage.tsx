@@ -6,7 +6,7 @@ import { useAlert } from '../hooks/useAlert';
 import Navbar from '../components/Navbar';
 import LocationPickerMap from '../components/LocationPickerMap';
 import type { IVenue } from '../types/venue';
-import { VENUE_TYPES, EQUIPMENT_OPTIONS } from '../types/venue';
+import { VENUE_TYPES, EQUIPMENT_OPTIONS, CANCELLATION_POLICIES, CANCELLATION_POLICY_DESCRIPTIONS } from '../types/venue';
 
 const CreateVenuePage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,6 +23,7 @@ const CreateVenuePage: React.FC = () => {
     capacity: '' as string | number,
     pricePerEvent: '' as string | number,
     venueType: 'bar',
+    cancellationPolicy: 'moderate' as IVenue['cancellationPolicy'],
     equipment: [] as string[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -118,6 +119,7 @@ const CreateVenuePage: React.FC = () => {
         capacity: parseInt(formData.capacity as string),
         pricePerEvent: parseFloat(formData.pricePerEvent as string),
         venueType: formData.venueType as IVenue['venueType'],
+        cancellationPolicy: formData.cancellationPolicy,
         equipment: formData.equipment,
         photos,
       });
@@ -408,6 +410,33 @@ const CreateVenuePage: React.FC = () => {
                 />
                 {errors.pricePerEvent && <p style={errorStyle}>{errors.pricePerEvent}</p>}
               </div>
+            </div>
+          </div>
+
+          {/* Politique d'annulation */}
+          <div style={sectionStyle}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: 16, fontWeight: 700, color: '#ff416c' }}>
+              Politique d'annulation
+            </h2>
+            <div>
+              <label style={labelStyle}>Conditions de remboursement pour les réservants *</label>
+              <select
+                value={formData.cancellationPolicy}
+                onChange={(e) => setFormData((p) => ({ ...p, cancellationPolicy: e.target.value as IVenue['cancellationPolicy'] }))}
+                style={inputStyle}
+              >
+                {CANCELLATION_POLICIES.map((p) => (
+                  <option key={p.value} value={p.value} style={{ background: '#1a1a2e' }}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: '8px 0 4px', fontSize: 13, color: '#ccc' }}>
+                {CANCELLATION_POLICY_DESCRIPTIONS[formData.cancellationPolicy]}
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: '#666' }}>
+                Période de grâce universelle : remboursement intégral si annulation dans les 24h suivant la réservation et à ≥ 7 jours de l'événement.
+              </p>
             </div>
           </div>
 

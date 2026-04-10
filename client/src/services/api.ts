@@ -375,6 +375,7 @@ export const createVenue = async (data: {
   capacity: number;
   pricePerEvent: number;
   venueType: IVenue['venueType'];
+  cancellationPolicy?: IVenue['cancellationPolicy'];
   equipment?: string[];
   latitude?: number;
   longitude?: number;
@@ -411,6 +412,7 @@ export const updateVenue = async (venueId: string, data: Partial<{
   capacity: number;
   pricePerEvent: number;
   venueType: string;
+  cancellationPolicy: IVenue['cancellationPolicy'];
   equipment: string[];
   isActive: boolean;
   photos: string[];
@@ -456,6 +458,11 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 
 export const cancelBookingByOwner = async (bookingId: string): Promise<void> => {
   await api.patch(`/venues/bookings/${bookingId}/cancel`);
+};
+
+export const getRefundEstimate = async (bookingId: string): Promise<{ refundAmount: number; refundPercent: 0 | 50 | 100; reason: string }> => {
+  const response = await api.get(`/venues/bookings/${bookingId}/refund-estimate`);
+  return response.data;
 };
 
 // ===== Dates bloquées =====

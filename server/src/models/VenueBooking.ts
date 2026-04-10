@@ -17,6 +17,10 @@ export interface VenueBookingDocument extends Document {
   stripeSessionId?: string;
   paidAmount?: number;
   paidAt?: Date;
+  stripePaymentIntentId?: string;
+  stripeRefundId?: string;
+  refundedAmount?: number;
+  refundedAt?: Date;
   paymentDeadlineAt?: Date;
   paymentReminderSentAt?: Date;
   createdAt: Date;
@@ -46,6 +50,10 @@ const venueBookingSchema = new Schema<VenueBookingDocument>(
     stripeSessionId: { type: String },
     paidAmount: { type: Number, min: 0 },
     paidAt: { type: Date },
+    stripePaymentIntentId: { type: String },
+    stripeRefundId: { type: String },
+    refundedAmount: { type: Number, min: 0 },
+    refundedAt: { type: Date },
     paymentDeadlineAt: { type: Date },
     paymentReminderSentAt: { type: Date },
   },

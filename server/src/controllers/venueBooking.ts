@@ -1,8 +1,8 @@
 import { Response, Request } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
-import { VenueModel } from '../models/Venue';
-import { VenueBookingModel } from '../models/VenueBooking';
+import { VenueModel, CancellationPolicy } from '../models/Venue';
+import { VenueBookingModel, VenueBookingDocument } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 import { NotificationModel } from '../models/Notification';
 import { stripe } from './stripe';
@@ -19,6 +19,78 @@ function timesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string
     return h * 60 + m;
   };
   return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(bStart) < toMinutes(aEnd);
+}
+
+// ─── Calcul du montant remboursé selon la politique d'annulation ─────────────
+
+interface RefundCalculation {
+  refundAmount: number;
+  refundPercent: 0 | 50 | 100;
+  reason: 'grace_period' | 'full_refund' | 'partial_refund' | 'no_refund';
+}
+
+function calculateRefundAmount(
+  paidAmount: number,
+  policy: CancellationPolicy,
+  eventDatetime: Date,
+  bookingCreatedAt: Date,
+  cancellationTime: Date = new Date()
+): RefundCalculation {
+  const hoursUntilEvent = (eventDatetime.getTime() - cancellationTime.getTime()) / 36e5;
+  const daysUntilEvent = hoursUntilEvent / 24;
+  const hoursSinceBooking = (cancellationTime.getTime() - bookingCreatedAt.getTime()) / 36e5;
+
+  // Période de grâce universelle : < 24h après réservation ET >= 7j avant l'événement
+  if (hoursSinceBooking <= 24 && daysUntilEvent >= 7) {
+    return { refundAmount: paidAmount, refundPercent: 100, reason: 'grace_period' };
+  }
+
+  if (policy === 'flexible') {
+    if (hoursUntilEvent >= 24) return { refundAmount: paidAmount, refundPercent: 100, reason: 'full_refund' };
+    return { refundAmount: 0, refundPercent: 0, reason: 'no_refund' };
+  }
+  if (policy === 'moderate') {
+    if (daysUntilEvent >= 5) return { refundAmount: paidAmount, refundPercent: 100, reason: 'full_refund' };
+    return { refundAmount: 0, refundPercent: 0, reason: 'no_refund' };
+  }
+  if (policy === 'firm') {
+    if (daysUntilEvent >= 30) return { refundAmount: paidAmount, refundPercent: 100, reason: 'full_refund' };
+    if (daysUntilEvent >= 7) return { refundAmount: Math.round(paidAmount * 0.5 * 100) / 100, refundPercent: 50, reason: 'partial_refund' };
+    return { refundAmount: 0, refundPercent: 0, reason: 'no_refund' };
+  }
+  return { refundAmount: 0, refundPercent: 0, reason: 'no_refund' };
+}
+
+// ─── Helper : remboursement Stripe automatique ──────────────────────────────
+
+async function processStripeRefund(
+  booking: Pick<VenueBookingDocument, 'paymentStatus' | 'stripePaymentIntentId' | 'stripeRefundId' | 'refundedAmount' | 'refundedAt' | 'paidAmount' | '_id'>,
+  refundAmountEuros?: number
+): Promise<void> {
+  if (booking.paymentStatus !== 'paid') {
+    return;
+  }
+  if (!booking.stripePaymentIntentId || !stripe) {
+    // Stripe non configuré ou PaymentIntent manquant — remboursement manuel requis
+    booking.paymentStatus = 'refund_pending';
+    return;
+  }
+  try {
+    const amountCents = refundAmountEuros !== undefined
+      ? Math.round(refundAmountEuros * 100)
+      : undefined;
+    const refund = await stripe.refunds.create({
+      payment_intent: booking.stripePaymentIntentId,
+      ...(amountCents !== undefined && { amount: amountCents }),
+    });
+    booking.paymentStatus = 'refund_pending';
+    booking.stripeRefundId = refund.id;
+    booking.refundedAmount = refundAmountEuros ?? booking.paidAmount;
+    // La confirmation finale du remboursement est effectuée par le webhook Stripe charge.refunded
+  } catch (err) {
+    booking.paymentStatus = 'refund_pending';
+    console.error('[Venue] Échec remboursement Stripe automatique:', err, { bookingId: booking._id });
+  }
 }
 
 // ─── Créer une demande de réservation ────────────────────────────────────────
@@ -357,7 +429,8 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const booking = await VenueBookingModel.findById(bookingId);
+    const booking = await VenueBookingModel.findById(bookingId)
+      .populate<{ venue: { _id: mongoose.Types.ObjectId; cancellationPolicy: CancellationPolicy } }>('venue', 'cancellationPolicy');
     if (!booking) {
       res.status(404).json({ message: 'Réservation introuvable' });
       return;
@@ -368,8 +441,8 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    if (!['PENDING', 'ACCEPTED'].includes(booking.status)) {
-      res.status(400).json({ message: 'Seules les réservations en attente ou acceptées (non payées) peuvent être annulées' });
+    if (!['PENDING', 'ACCEPTED', 'CONFIRMED'].includes(booking.status)) {
+      res.status(400).json({ message: 'Seules les réservations en attente, acceptées ou confirmées peuvent être annulées' });
       return;
     }
 
@@ -383,8 +456,45 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
+    // Remboursement si booking confirmé et payé — selon la politique d'annulation de la salle
+    if (booking.status === 'CONFIRMED' && booking.paymentStatus === 'paid') {
+      const eventDatetime = new Date(booking.requestedDate);
+      const [startH, startM] = booking.startTime.split(':').map(Number);
+      eventDatetime.setUTCHours(startH, startM, 0, 0);
+
+      const policy: CancellationPolicy = (booking.venue as { _id: mongoose.Types.ObjectId; cancellationPolicy: CancellationPolicy }).cancellationPolicy ?? 'moderate';
+      const { refundAmount, refundPercent, reason } = calculateRefundAmount(
+        booking.paidAmount!,
+        policy,
+        eventDatetime,
+        booking.createdAt
+      );
+
+      if (refundPercent > 0) {
+        await processStripeRefund(booking, refundAmount);
+        console.log(`[Venue] Remboursement ${refundPercent}% (${reason}):`, booking._id);
+      } else {
+        console.log('[Venue] Annulation sans remboursement (' + reason + '):', booking._id);
+      }
+    }
+
     booking.status = 'CANCELLED_BY_REQUESTER';
     await booking.save();
+
+    // Notification pour le requester en cas d'annulation d'un booking confirmé
+    if (booking.paymentStatus === 'refunded') {
+      try {
+        await NotificationModel.create({
+          user: booking.requester,
+          type: 'venue_booking_cancelled_by_requester',
+          title: 'Réservation annulée — remboursement effectué',
+          message: `Votre réservation a été annulée. Remboursement de ${booking.refundedAmount ?? booking.paidAmount}€ en cours.`,
+          read: false,
+        });
+      } catch (notifError) {
+        console.error('Erreur notification cancelBooking refund:', notifError, { bookingId });
+      }
+    }
 
     emitVenueBookingStatusChanged(
       booking._id.toString(),
@@ -393,7 +503,14 @@ export const cancelBooking = async (req: AuthRequest, res: Response): Promise<vo
       booking.paymentStatus
     );
 
-    res.status(200).json({ message: 'Réservation annulée', booking });
+    res.status(200).json({
+      message: 'Réservation annulée',
+      booking,
+      refund: {
+        refundedAmount: booking.refundedAmount ?? 0,
+        paymentStatus: booking.paymentStatus,
+      },
+    });
   } catch (error) {
     console.error('Erreur cancelBooking:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
@@ -438,10 +555,9 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Si le booking a été payé, marquer comme remboursement en attente (remboursement via Stripe Dashboard ou API)
+    // Remboursement automatique si le booking a été payé
     if (booking.paymentStatus === 'paid') {
-      booking.paymentStatus = 'refund_pending';
-      console.log('[Venue] Réservation payée annulée par propriétaire — remboursement requis:', booking._id);
+      await processStripeRefund(booking);
     }
 
     booking.status = 'CANCELLED_BY_OWNER';
@@ -456,13 +572,18 @@ export const cancelBookingByOwner = async (req: AuthRequest, res: Response): Pro
     );
 
     try {
+      const refundInfo = booking.paymentStatus === 'refunded'
+        ? ` Un remboursement de ${booking.refundedAmount ?? booking.paidAmount}€ a été effectué.`
+        : booking.paymentStatus === 'refund_pending'
+          ? ' Un remboursement est en cours de traitement.'
+          : '';
       await NotificationModel.create({
         user: booking.requester,
         type: 'venue_booking_cancelled_by_owner',
         title: 'Réservation annulée par le propriétaire',
         message: reason
-          ? `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire. Motif : ${reason}`
-          : `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire.`,
+          ? `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire. Motif : ${reason}.${refundInfo}`
+          : `Votre réservation pour "${booking.venue.name}" a été annulée par le propriétaire.${refundInfo}`,
         relatedVenue: booking.venue._id,
         read: false,
       });
@@ -533,8 +654,16 @@ export const blockDate = async (req: AuthRequest, res: Response): Promise<void> 
     const saveResults = await Promise.allSettled(
       toCancel.map(async (booking) => {
         if (booking.paymentStatus === 'paid') {
-          booking.paymentStatus = 'refund_pending';
-          console.log('[Venue] Réservation payée annulée par blocage de date — remboursement requis:', booking._id);
+          await processStripeRefund(booking);
+        }
+        // Expirer la session Stripe si paiement en cours (empêche le paiement d'une réservation annulée)
+        if (booking.stripeSessionId && booking.paymentStatus === 'pending' && stripe) {
+          try {
+            await stripe.checkout.sessions.expire(booking.stripeSessionId);
+            console.log('[Venue] Session Stripe expirée (blocage date):', booking.stripeSessionId);
+          } catch (stripeErr) {
+            console.error('[Venue] Erreur expiration session Stripe (blocage date):', stripeErr, { bookingId: booking._id });
+          }
         }
         booking.status = 'CANCELLED_BY_OWNER';
         booking.ownerResponse = reason
@@ -703,6 +832,50 @@ export const takenSlots = async (req: AuthRequest, res: Response): Promise<void>
     res.status(200).json({ slots: accepted.map((b) => ({ startTime: b.startTime, endTime: b.endTime })) });
   } catch (error) {
     console.error('Erreur takenSlots:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur' });
+  }
+};
+
+// ─── Estimation du remboursement avant annulation (lecture seule) ────────────
+
+export const getRefundEstimate = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!requesterId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      res.status(400).json({ message: 'ID de réservation invalide' });
+      return;
+    }
+
+    const booking = await VenueBookingModel.findById(bookingId)
+      .populate<{ venue: { cancellationPolicy: CancellationPolicy } }>('venue', 'cancellationPolicy');
+
+    if (!booking || booking.requester.toString() !== requesterId) {
+      res.status(404).json({ message: 'Réservation introuvable' });
+      return;
+    }
+
+    if (booking.paymentStatus !== 'paid' || !booking.paidAmount) {
+      res.status(200).json({ refundPercent: 0, refundAmount: 0, reason: 'not_paid' });
+      return;
+    }
+
+    const eventDatetime = new Date(booking.requestedDate);
+    const [h, m] = booking.startTime.split(':').map(Number);
+    eventDatetime.setUTCHours(h, m, 0, 0);
+
+    const policy: CancellationPolicy = (booking.venue as { cancellationPolicy: CancellationPolicy }).cancellationPolicy ?? 'moderate';
+    const result = calculateRefundAmount(booking.paidAmount, policy, eventDatetime, booking.createdAt);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Erreur getRefundEstimate:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
   }
 };

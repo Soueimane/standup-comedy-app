@@ -176,6 +176,7 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
             paymentStatus: 'paid',
             paidAmount,
             paidAt: new Date(),
+            stripePaymentIntentId: session.payment_intent as string,
           },
           { new: true }
         ).populate<{ venue: { _id: mongoose.Types.ObjectId; name: string; owner: mongoose.Types.ObjectId } }>('venue', 'name owner');
@@ -258,6 +259,51 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
         console.log('[Stripe] Spectateur inscrit après paiement:', userId, '→ événement', eventId);
       } catch (e) {
         console.error('[Stripe] Erreur inscription spectateur après webhook:', e);
+      }
+    }
+  }
+
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge;
+    const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+
+    if (paymentIntentId) {
+      try {
+        const booking = await VenueBookingModel.findOne({ stripePaymentIntentId: paymentIntentId })
+          .populate<{ venue: { _id: mongoose.Types.ObjectId; name: string; owner: mongoose.Types.ObjectId } }>('venue', 'name owner');
+
+        if (booking && booking.paymentStatus !== 'refunded') {
+          booking.paymentStatus = 'refunded';
+          booking.refundedAmount = charge.amount_refunded / 100;
+          booking.refundedAt = new Date();
+          await booking.save();
+
+          emitVenueBookingPaymentUpdated(
+            booking._id.toString(),
+            (booking.venue as { _id: mongoose.Types.ObjectId })._id.toString(),
+            booking.status,
+            booking.paymentStatus
+          );
+
+          try {
+            await NotificationModel.create({
+              user: booking.requester,
+              type: 'venue_booking_refunded',
+              title: 'Remboursement effectué',
+              message: `Votre remboursement de ${booking.refundedAmount}€ pour "${booking.venue.name}" a été traité.`,
+              relatedVenue: booking.venue._id,
+              read: false,
+            });
+          } catch (notifError) {
+            console.error('[Stripe] Erreur notification charge.refunded:', notifError, { paymentIntentId });
+          }
+
+          console.log('[Stripe] Remboursement confirmé via webhook:', paymentIntentId);
+        }
+      } catch (e) {
+        console.error('[Stripe] Erreur traitement charge.refunded:', e);
+        res.status(500).send('Internal error');
+        return;
       }
     }
   }
@@ -494,6 +540,7 @@ export const confirmVenueBookingPayment = async (req: AuthRequest, res: Response
         paymentStatus: 'paid',
         paidAmount,
         paidAt: new Date(),
+        stripePaymentIntentId: session.payment_intent as string,
       },
       { new: true }
     ).populate<{ venue: { _id: mongoose.Types.ObjectId; name: string; owner: mongoose.Types.ObjectId } }>('venue', 'name owner');
