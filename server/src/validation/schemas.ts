@@ -513,6 +513,7 @@ export const createVenueSchema = z.object({
   capacity: z.number().int().min(1),
   pricePerEvent: z.number().min(0),
   venueType: z.enum(['bar', 'theatre', 'salle_des_fetes', 'autre']),
+  isActive: z.boolean().optional().default(true),
 });
 
 export const updateVenueSchema = createVenueSchema.partial();

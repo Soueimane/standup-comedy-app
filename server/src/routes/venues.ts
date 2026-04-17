@@ -10,7 +10,7 @@ import {
   cancelBookingByOwnerSchema,
   blockDateSchema,
 } from '../validation/schemas';
-import { createVenue, listVenues, getVenue, updateVenue, deleteVenue } from '../controllers/venue';
+import { createVenue, listVenues, listMyVenues, getVenue, updateVenue, deleteVenue } from '../controllers/venue';
 import { createBooking, listVenueBookings, myBookings, updateBookingStatus, cancelBooking, cancelBookingByOwner, blockDate, listBlockedDates, unblockDate, takenSlots, checkPaymentTimeouts, getRefundEstimate } from '../controllers/venueBooking';
 
 const router = express.Router();
@@ -37,6 +37,7 @@ const validateBookingId = asyncHandler((req: Request, res: Response, next: NextF
 
 router.post('/', authMiddleware, authorizeRoles('ORGANIZER'), validate(createVenueSchema), asyncHandler(createVenue));
 router.get('/', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(listVenues));
+router.get('/mine', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(listMyVenues));
 router.get('/bookings/mine', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(myBookings));
 router.get('/:venueId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(getVenue));
 router.put('/:venueId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(updateVenueSchema), asyncHandler(updateVenue));

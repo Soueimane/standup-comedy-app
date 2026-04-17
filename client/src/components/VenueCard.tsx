@@ -80,7 +80,7 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
             position: 'absolute',
             top: 12,
             left: 12,
-            background: 'rgba(255,65,108,0.9)',
+            background: venue.isActive ? 'rgba(255,65,108,0.9)' : 'rgba(128,128,128,0.9)',
             color: '#fff',
             fontSize: 11,
             fontWeight: 700,
@@ -90,7 +90,7 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
             letterSpacing: '0.05em',
           }}
         >
-          {VENUE_TYPE_LABELS[venue.venueType] || venue.venueType}
+          {venue.isActive ? VENUE_TYPE_LABELS[venue.venueType] || venue.venueType : 'Désactivée'}
         </span>
       </div>
 

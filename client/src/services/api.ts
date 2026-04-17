@@ -395,6 +395,15 @@ export const listVenues = async (filters?: { city?: string; venueType?: string; 
   return response.data;
 };
 
+export const listMyVenues = async (filters?: { page?: number; limit?: number }): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
+  const params = new URLSearchParams();
+  if (filters?.page) params.append('page', filters.page.toString());
+  if (filters?.limit) params.append('limit', filters.limit.toString());
+  const query = params.toString();
+  const response = await api.get<{ venues: IVenue[]; total: number; page: number; limit: number }>(`/venues/mine${query ? `?${query}` : ''}`);
+  return response.data;
+};
+
 export const getVenue = async (venueId: string): Promise<IVenue> => {
   const response = await api.get<{ venue: IVenue }>(`/venues/${venueId}`);
   return response.data.venue;

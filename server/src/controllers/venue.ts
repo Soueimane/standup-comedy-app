@@ -77,6 +77,50 @@ export const listVenues = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+export const listMyVenues = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const ownerId = req.user?.id;
+    if (!ownerId) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
+    }
+
+    const { page = '1', limit = '20' } = req.query as Record<string, string>;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > 1000) {
+      res.status(400).json({ message: 'page doit être un entier valide (≥ 1, ≤ 1000)' });
+      return;
+    }
+    if (isNaN(limitNum) || limitNum < 1) {
+      res.status(400).json({ message: 'limit doit être un entier valide' });
+      return;
+    }
+    const safeLimit = Math.min(limitNum, 50);
+
+    const filter: Record<string, unknown> = { owner: ownerId };
+
+    const skip = (pageNum - 1) * safeLimit;
+    const collation = { locale: 'fr', strength: 1 };
+
+    const [venues, total] = await Promise.all([
+      VenueModel.find(filter)
+        .collation(collation)
+        .populate('owner', 'firstName lastName organizerProfile.companyName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(safeLimit),
+      VenueModel.countDocuments(filter).collation(collation),
+    ]);
+
+    res.status(200).json({ venues, total, page: pageNum, limit: safeLimit });
+  } catch (error) {
+    console.error('Erreur listMyVenues:', error);
+    res.status(500).json({ message: 'Erreur interne du serveur' });
+  }
+};
+
 export const getVenue = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { venueId } = req.params;

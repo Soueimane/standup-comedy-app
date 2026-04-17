@@ -1,8 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { listVenues } from '../services/api';
-import { useAuth } from '../hooks/useAuth';
+import { listMyVenues } from '../services/api';
 import VenueCard from '../components/VenueCard';
 import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
@@ -10,19 +9,13 @@ import type { IVenue } from '../types/venue';
 
 const MyVenuesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const { data: venuesResponse, isLoading, error } = useQuery({
-    queryKey: ['venues'],
-    queryFn: () => listVenues(),
+    queryKey: ['my-venues'],
+    queryFn: () => listMyVenues(),
   });
 
-  const allVenues = venuesResponse?.venues;
-
-  // Filtrer les salles appartenant à l'utilisateur connecté
-  const myVenues = allVenues?.filter(
-    (v) => v.owner?._id === user?._id || v.owner?.id === user?._id || (v.owner as any) === user?._id
-  ) || [];
+  const myVenues = venuesResponse?.venues || [];
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
