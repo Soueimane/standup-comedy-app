@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { VenueModel } from '../models/Venue';
 import { VenueBookingModel } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
+import { refundVenueBookings } from './venueBooking';
 // ─── CRUD Venues ─────────────────────────────────────────────────────────────
 
 export const createVenue = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -211,11 +212,14 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Soft delete: mark venue as deleted and hide it from listings.
-    // Bookings are preserved so requesters can still see them in "mes réservations".
-    // Blocked dates are cleaned up as they serve no purpose without an active venue.
+    // Soft delete first: mark venue as deleted so no new bookings can be created
+    // while refunds are in progress. Bookings are preserved so requesters can
+    // still see them in "mes réservations".
     await VenueModel.findByIdAndUpdate(venueId, { isDeleted: true, isActive: false });
+    // Blocked dates are cleaned up as they serve no purpose without an active venue.
     await VenueBlockedDateModel.deleteMany({ venue: venueId });
+    // Rembourser tous les bookings payés après suppression (salle déjà invisible)
+    await refundVenueBookings(venueId);
     res.status(204).send();
   } catch (error) {
     console.error('Erreur deleteVenue:', error);

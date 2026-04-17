@@ -111,7 +111,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const venue = await VenueModel.findById(venueId);
-    if (!venue || !venue.isActive) {
+    if (!venue || !venue.isActive || venue.isDeleted) {
       res.status(404).json({ message: 'Salle introuvable ou indisponible' });
       return;
     }
@@ -877,6 +877,64 @@ export const getRefundEstimate = async (req: AuthRequest, res: Response): Promis
   } catch (error) {
     console.error('Erreur getRefundEstimate:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });
+  }
+};
+
+// ─── Rembourser tous les bookings payés d'une salle supprimée ────────────────
+
+export const refundVenueBookings = async (venueId: string): Promise<{ refunded: number; failed: number }> => {
+  try {
+    const venue = await VenueModel.findById(venueId);
+    const venueName = venue?.name || 'inconnue';
+
+    const paidBookings = await VenueBookingModel.find({
+      venue: venueId,
+      status: { $in: ['ACCEPTED', 'CONFIRMED'] },
+      paymentStatus: 'paid',
+    }).populate<{ requester: { _id: mongoose.Types.ObjectId; firstName: string; lastName: string } }>('requester', 'firstName lastName');
+
+    let refunded = 0;
+    let failed = 0;
+
+    for (const booking of paidBookings) {
+      try {
+        const refundAmount = booking.paidAmount;
+        await processStripeRefund(booking, refundAmount);
+        booking.status = 'CANCELLED_BY_OWNER';
+        booking.ownerResponse = 'La salle a été supprimée par le propriétaire. Remboursement intégral en cours.';
+        await booking.save();
+        refunded++;
+
+        emitVenueBookingStatusChanged(
+          booking._id.toString(),
+          venueId,
+          booking.status,
+          booking.paymentStatus
+        );
+
+        try {
+          await NotificationModel.create({
+            user: booking.requester,
+            type: 'venue_deleted_refund',
+            title: 'Salle supprimée — remboursement effectué',
+            message: `La salle "${venueName}" a été supprimée. Votre paiement de ${refundAmount}€ sera remboursé intégralement.`,
+            relatedVenue: venueId as any,
+            read: false,
+          });
+        } catch (notifErr) {
+          console.error('[refundVenueBookings] Erreur notification:', notifErr, { bookingId: booking._id });
+        }
+      } catch (bookingErr) {
+        console.error('[refundVenueBookings] Erreur remboursement booking:', bookingErr, { bookingId: booking._id });
+        failed++;
+      }
+    }
+
+    console.log(`[refundVenueBookings] Complété — ${refunded} remboursé(s), ${failed} échoué(s) pour venue ${venueId}`);
+    return { refunded, failed };
+  } catch (error) {
+    console.error('[refundVenueBookings] Erreur globale:', error, { venueId });
+    return { refunded: 0, failed: 0 };
   }
 };
 
