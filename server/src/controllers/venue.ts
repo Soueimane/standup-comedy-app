@@ -99,7 +99,7 @@ export const listMyVenues = async (req: AuthRequest, res: Response): Promise<voi
     }
     const safeLimit = Math.min(limitNum, 50);
 
-    const filter: Record<string, unknown> = { owner: ownerId };
+    const filter: Record<string, unknown> = { owner: ownerId, isDeleted: { $ne: true } };
 
     const skip = (pageNum - 1) * safeLimit;
     const collation = { locale: 'fr', strength: 1 };
@@ -131,7 +131,7 @@ export const getVenue = async (req: AuthRequest, res: Response): Promise<void> =
     }
 
     const venue = await VenueModel.findById(venueId).populate('owner', 'firstName lastName organizerProfile.companyName');
-    if (!venue) {
+    if (!venue || venue.isDeleted) {
       res.status(404).json({ message: 'Salle introuvable' });
       return;
     }
@@ -169,13 +169,13 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
 
     const { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude } = req.body;
     const updated = await VenueModel.findOneAndUpdate(
-      { _id: venueId, owner: ownerId },
+      { _id: venueId, owner: ownerId, isDeleted: { $ne: true } },
       { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude },
       { new: true, runValidators: true }
     );
 
     if (!updated) {
-      const exists = await VenueModel.exists({ _id: venueId });
+      const exists = await VenueModel.exists({ _id: venueId, isDeleted: { $ne: true } });
       res.status(exists ? 403 : 404).json({ message: exists ? 'Non autorisé à modifier cette salle' : 'Salle introuvable' });
       return;
     }
@@ -201,7 +201,7 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
     }
 
     const venue = await VenueModel.findById(venueId);
-    if (!venue) {
+    if (!venue || venue.isDeleted) {
       res.status(404).json({ message: 'Salle introuvable' });
       return;
     }
@@ -211,22 +211,12 @@ export const deleteVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Atomic deletion with transaction to prevent orphaned documents
-    // Requires MongoDB replica set (always true on Atlas, not on standalone local dev)
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      await VenueBookingModel.deleteMany({ venue: venueId }, { session });
-      await VenueBlockedDateModel.deleteMany({ venue: venueId }, { session });
-      await VenueModel.findByIdAndDelete(venueId, { session });
-      await session.commitTransaction();
-      res.status(204).send();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    // Soft delete: mark venue as deleted and hide it from listings.
+    // Bookings are preserved so requesters can still see them in "mes réservations".
+    // Blocked dates are cleaned up as they serve no purpose without an active venue.
+    await VenueModel.findByIdAndUpdate(venueId, { isDeleted: true, isActive: false });
+    await VenueBlockedDateModel.deleteMany({ venue: venueId });
+    res.status(204).send();
   } catch (error) {
     console.error('Erreur deleteVenue:', error);
     res.status(500).json({ message: 'Erreur interne du serveur' });

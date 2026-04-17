@@ -113,9 +113,11 @@ const MyBookingsPage: React.FC = () => {
 
   const statusPriority = (booking: IVenueBooking) => {
     if (booking.status === 'ACCEPTED' && !isDatePast(booking.requestedDate)) return 0;
-    if (booking.status === 'PENDING' && !isDatePast(booking.requestedDate)) return 1;
-    if (booking.status === 'CONFIRMED' && !isDatePast(booking.requestedDate)) return 2;
-    return 3;
+    if (booking.status === 'CONFIRMED' && !isDatePast(booking.requestedDate)) return 1;
+    if (booking.status === 'PENDING' && !isDatePast(booking.requestedDate)) return 2;
+    if (booking.status === 'EXPIRED') return 3;
+    if (booking.status === 'REFUSED') return 4;
+    return 5; // CANCELLED_BY_OWNER, CANCELLED_BY_REQUESTER
   };
 
   const matchesSearch = (b: IVenueBooking) => {
@@ -350,16 +352,19 @@ const MyBookingsPage: React.FC = () => {
                         : null;
                       const isUrgent = booking.status === 'ACCEPTED' && deadlineMs !== null && deadlineMs < 24 * 3600 * 1000 && deadlineMs > 0;
 
+                      const venueDeleted = booking.venue?.isDeleted === true;
+
                       return (
               <div
                 key={booking._id}
                 style={{
                   background: '#1a1a2e',
-                  border: `1px solid ${isUrgent ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                  border: `1px solid ${venueDeleted ? 'rgba(156,163,175,0.2)' : isUrgent ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.1)'}`,
                   borderRadius: 16,
                   padding: 24,
                   transition: 'border-color 0.2s',
-                  opacity: archived ? 0.65 : 1,
+                  opacity: venueDeleted || archived ? 0.55 : 1,
+                  filter: venueDeleted ? 'grayscale(0.5)' : undefined,
                 }}
               >
                 <div
@@ -374,28 +379,49 @@ const MyBookingsPage: React.FC = () => {
                   }}
                 >
                   <div>
-                    <button
-                      onClick={() => navigate(`/venues/${booking.venue?._id}`)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <h3
-                        style={{
-                          margin: '0 0 4px 0',
-                          fontSize: 18,
+                    {venueDeleted ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#9ca3af' }}>
+                          {booking.venue?.name || 'Salle inconnue'}
+                        </h3>
+                        <span style={{
+                          fontSize: 11,
                           fontWeight: 700,
-                          color: '#fff',
-                          textDecoration: 'none',
+                          color: '#6b7280',
+                          background: 'rgba(107,114,128,0.15)',
+                          border: '1px solid rgba(107,114,128,0.3)',
+                          borderRadius: 6,
+                          padding: '2px 8px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}>
+                          Salle supprimée
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/venues/${booking.venue?._id}`)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          textAlign: 'left',
                         }}
                       >
-                        {booking.venue?.name || 'Salle supprimée'}
-                      </h3>
-                    </button>
+                        <h3
+                          style={{
+                            margin: '0 0 4px 0',
+                            fontSize: 18,
+                            fontWeight: 700,
+                            color: '#fff',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          {booking.venue?.name}
+                        </h3>
+                      </button>
+                    )}
                     <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
                       📍 {booking.venue?.city} · {booking.venue?.address}
                     </p>
@@ -569,22 +595,24 @@ const MyBookingsPage: React.FC = () => {
                 )}
 
                 <div className="booking-card-actions" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => navigate(`/venues/${booking.venue?._id}`)}
-                    style={{
-                      padding: '8px 18px',
-                      background: 'rgba(255,255,255,0.06)',
-                      color: '#ccc',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Voir la salle
-                  </button>
-                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && !past && (
+                  {!venueDeleted && (
+                    <button
+                      onClick={() => navigate(`/venues/${booking.venue?._id}`)}
+                      style={{
+                        padding: '8px 18px',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#ccc',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Voir la salle
+                    </button>
+                  )}
+                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && !past && !venueDeleted && (
                     <button
                       onClick={() => handlePay(booking._id)}
                       disabled={payingId === booking._id}

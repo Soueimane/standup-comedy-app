@@ -19,6 +19,7 @@ export interface VenueDocument extends Document {
   venueType: 'bar' | 'theatre' | 'salle_des_fetes' | 'autre';
   cancellationPolicy: CancellationPolicy;
   isActive: boolean;
+  isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +50,7 @@ const venueSchema = new Schema<VenueDocument>(
       default: 'moderate',
     },
     isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

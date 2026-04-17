@@ -260,7 +260,7 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const bookings = await VenueBookingModel.find({ requester: requesterId })
-      .populate('venue', 'name city address venueType pricePerEvent')
+      .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ bookings });

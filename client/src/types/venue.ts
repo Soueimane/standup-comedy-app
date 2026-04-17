@@ -56,6 +56,7 @@ export interface IVenue {
   venueType: 'bar' | 'theatre' | 'salle_des_fetes' | 'autre';
   cancellationPolicy: CancellationPolicy;
   isActive: boolean;
+  isDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
