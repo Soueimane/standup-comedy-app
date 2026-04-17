@@ -11,6 +11,7 @@ import BlockedDatesManager from '../components/BlockedDatesManager';
 import EditVenueForm from '../components/EditVenueForm';
 import VenueMap from '../components/VenueMap';
 import Navbar from '../components/Navbar';
+import ConfirmDialog from '../components/ConfirmDialog';
 import type { IVenue, IVenueBlockedDate } from '../types/venue';
 import { VENUE_TYPE_LABELS, CANCELLATION_POLICY_LABELS, CANCELLATION_POLICY_DESCRIPTIONS } from '../types/venue';
 
@@ -27,6 +28,7 @@ const VenueDetailPage: React.FC = () => {
   const tabParam = searchParams.get('tab');
   const initialTab: OwnerTab = validTabs.includes(tabParam as OwnerTab) ? (tabParam as OwnerTab) : 'info';
   const [activeTab, setActiveTab] = useState<OwnerTab>(initialTab);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -75,11 +77,11 @@ const VenueDetailPage: React.FC = () => {
   }, [photos.length, prevPhoto, nextPhoto]);
 
   const handleDelete = async () => {
-    if (!window.confirm('Supprimer définitivement cette salle ? Cette action est irréversible.')) return;
     try {
       await deleteVenue(venueId!);
+      setShowDeleteModal(false);
       showSuccess(SuccessMessages.VENUE_DELETED);
-      navigate('/dashboard/my-venues');
+      navigate('/my-bookings');
     } catch (err) {
       showError(getErrorMessage(err, ErrorMessages.VENUE_DELETE_FAILED));
     }
@@ -265,7 +267,7 @@ const VenueDetailPage: React.FC = () => {
                 La suppression de cette salle est irréversible et annulera toutes les réservations associées.
               </p>
               <button
-                onClick={handleDelete}
+                onClick={() => setShowDeleteModal(true)}
                 style={{
                   padding: '10px 24px',
                   background: 'rgba(239,68,68,0.2)',
@@ -646,6 +648,17 @@ const VenueDetailPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteModal}
+        title="Supprimer cette salle"
+        message={`Êtes-vous sûr de vouloir supprimer "${venue?.name}" ?\n\nCette action est irréversible et annulera toutes les réservations associées.`}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteModal(false)}
+        confirmText="Supprimer définitivement"
+        cancelText="Annuler"
+        isDangerous
+      />
     </div>
   );
 };
