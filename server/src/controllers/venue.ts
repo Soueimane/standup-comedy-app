@@ -5,6 +5,7 @@ import { VenueModel } from '../models/Venue';
 import { VenueBookingModel } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 import { refundVenueBookings } from './venueBooking';
+import { updateVenueSchema } from '../validation/schemas';
 // ─── CRUD Venues ─────────────────────────────────────────────────────────────
 
 export const createVenue = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -44,6 +45,11 @@ export const listVenues = async (req: AuthRequest, res: Response): Promise<void>
     const safeLimit = Math.min(limitNum, 50);
 
     const filter: Record<string, unknown> = { isActive: true };
+    if (req.query.owner === 'me' && req.user?.id) {
+      filter.owner = req.user.id;
+    } else if (req.user?.role === 'LIEU') {
+      filter.owner = req.user.id;
+    }
     if (venueType) filter.venueType = venueType;
     if (minCapacity) {
       const capacityNum = parseInt(minCapacity, 10);
@@ -125,16 +131,33 @@ export const listMyVenues = async (req: AuthRequest, res: Response): Promise<voi
 export const getVenue = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { venueId } = req.params;
+    const userId = req.user?.id;
 
     if (!mongoose.Types.ObjectId.isValid(venueId)) {
       res.status(400).json({ message: 'ID de salle invalide' });
       return;
     }
 
-    const venue = await VenueModel.findById(venueId).populate('owner', 'firstName lastName organizerProfile.companyName');
+    const populateFields = userId ? 'firstName lastName organizerProfile.companyName' : 'firstName lastName organizerProfile.companyName';
+    let venue = await VenueModel.findById(venueId).populate('owner', populateFields);
     if (!venue || venue.isDeleted) {
       res.status(404).json({ message: 'Salle introuvable' });
       return;
+    }
+
+    // Si l'user est le propriétaire, exposer l'email
+    if (userId && venue.owner?.toString() === userId) {
+      venue = await VenueModel.findById(venueId).populate('owner', 'firstName lastName organizerProfile.companyName email');
+    } else if (userId) {
+      // Sinon, vérifier s'il a un booking ACCEPTED
+      const hasAcceptedBooking = await VenueBookingModel.exists({
+        venue: venueId,
+        requester: userId,
+        status: 'ACCEPTED',
+      });
+      if (hasAcceptedBooking) {
+        venue = await VenueModel.findById(venueId).populate('owner', 'firstName lastName organizerProfile.companyName email');
+      }
     }
 
     // Récupérer les réservations ACCEPTED pour le calendrier de disponibilité
@@ -168,10 +191,10 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude } = req.body;
+    const validatedBody = updateVenueSchema.parse(req.body);
     const updated = await VenueModel.findOneAndUpdate(
       { _id: venueId, owner: ownerId, isDeleted: { $ne: true } },
-      { name, description, address, city, postalCode, country, capacity, pricePerEvent, venueType, equipment, isActive, photos, latitude, longitude },
+      { $set: validatedBody },
       { new: true, runValidators: true }
     );
 

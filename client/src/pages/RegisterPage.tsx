@@ -1,7 +1,7 @@
 import { useState, useEffect, type CSSProperties } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '../hooks/useAlert';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getErrorMessage, ErrorMessages } from '../services/systemMessages';
 import { loginWithKeycloak, translateOAuthError } from '../services/oauth';
 import api, { sendSmsVerification } from '../services/api';
@@ -9,6 +9,9 @@ import api, { sendSmsVerification } from '../services/api';
 function RegisterPage() {
   const { registerMutation } = useAuth();
   const { showError } = useAlert();
+  const [searchParams] = useSearchParams();
+  const urlRole = searchParams.get('role')?.toUpperCase();
+  const isLieuRole = urlRole === 'LIEU';
 
   const [oauthModal, setOauthModal] = useState(false);
   const [pendingCode, setPendingCode] = useState('');
@@ -24,11 +27,12 @@ function RegisterPage() {
     password: '',
     firstName: '',
     lastName: '',
-    role: 'COMEDIAN' as const,
+    role: isLieuRole ? 'LIEU' as const : 'COMEDIAN' as const,
     profile: {
       bio: '',
       experience: '',
     },
+    city: '',
     confirmPassword: '',
   });
 
@@ -79,10 +83,10 @@ function RegisterPage() {
       }
     }
 
-    // Validation du téléphone français et belge (mobiles + fixes) - obligatoire
-    if (!formData.phone.trim()) {
+    // Validation du téléphone français et belge (mobiles + fixes) - obligatoire pour COMEDIAN/ORGANIZER, optionnel pour LIEU
+    if (!isLieuRole && !formData.phone.trim()) {
       newErrors.phone = 'Le numéro de téléphone est requis';
-    } else {
+    } else if (formData.phone.trim()) {
       // Nettoyer le numéro (supprimer espaces, tirets, parenthèses, +)
       const cleanPhone = formData.phone.replace(/[\s\-\(\)\+]/g, '');
 
@@ -97,10 +101,10 @@ function RegisterPage() {
       }
     }
 
-    // Validation du code SMS (obligatoire)
-    if (!formData.smsCode.trim()) {
+    // Validation du code SMS (obligatoire pour COMEDIAN/ORGANIZER, non requis pour LIEU)
+    if (!isLieuRole && !formData.smsCode.trim()) {
       newErrors.smsCode = 'Le code de vérification SMS est requis';
-    } else if (!/^\d{6}$/.test(formData.smsCode.trim())) {
+    } else if (!isLieuRole && formData.smsCode.trim() && !/^\d{6}$/.test(formData.smsCode.trim())) {
       newErrors.smsCode = 'Le code doit contenir 6 chiffres';
     }
 
@@ -136,24 +140,26 @@ function RegisterPage() {
       newErrors.lastName = 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets';
     }
 
-    // Validation de la biographie
-    if (!formData.profile.bio.trim()) {
-      newErrors.bio = 'La biographie est requise';
-    } else if (formData.profile.bio.trim().length < 10) {
-      newErrors.bio = 'La biographie doit contenir au moins 10 caractères';
-    } else if (formData.profile.bio.trim().length > 500) {
-      newErrors.bio = 'La biographie ne peut pas dépasser 500 caractères';
-    }
+    // Validation de la biographie (uniquement pour COMEDIAN)
+    if (!isLieuRole) {
+      if (!formData.profile.bio.trim()) {
+        newErrors.bio = 'La biographie est requise';
+      } else if (formData.profile.bio.trim().length < 10) {
+        newErrors.bio = 'La biographie doit contenir au moins 10 caractères';
+      } else if (formData.profile.bio.trim().length > 500) {
+        newErrors.bio = 'La biographie ne peut pas dépasser 500 caractères';
+      }
 
-    // Validation de l'expérience
-    if (!formData.profile.experience) {
-      newErrors.experience = 'L\'expérience est requise';
-    } else {
-      const experience = parseInt(formData.profile.experience);
-      if (isNaN(experience) || experience < 0) {
-        newErrors.experience = 'L\'expérience doit être un nombre positif';
-      } else if (experience > 50) {
-        newErrors.experience = 'L\'expérience ne peut pas dépasser 50 ans';
+      // Validation de l'expérience (uniquement pour COMEDIAN)
+      if (!formData.profile.experience) {
+        newErrors.experience = 'L\'expérience est requise';
+      } else {
+        const experience = parseInt(formData.profile.experience);
+        if (isNaN(experience) || experience < 0) {
+          newErrors.experience = 'L\'expérience doit être un nombre positif';
+        } else if (experience > 50) {
+          newErrors.experience = 'L\'expérience ne peut pas dépasser 50 ans';
+        }
       }
     }
 
@@ -246,20 +252,28 @@ function RegisterPage() {
       // Préparer les données pour l'API (sans confirmPassword uniquement)
       const { confirmPassword, ...registerData } = formData;
 
-      // Convertir experience en nombre pour correspondre au schéma backend
-      const dataToSend = {
-        ...registerData,
-        profile: {
-          ...registerData.profile,
-          experience: parseInt(registerData.profile.experience) || 0
-        },
-        // Envoyer le consentement RGPD
+      // Pour LIEU, ne pas envoyer profile ni champs inutiles
+      const { profile: _profile, smsCode: _sms, ...baseData } = registerData;
+
+      const dataToSend: Record<string, unknown> = {
+        ...baseData,
         consent: {
           termsAccepted: acceptTerms,
           privacyAccepted: acceptTerms,
-          isAdult: true, // Confirmé par l'acceptation des CGU (âge minimum 18 ans)
+          isAdult: true,
         }
       };
+
+      if (isLieuRole) {
+        // LIEU : pas de phone, smsCode, profile
+        delete dataToSend.phone;
+      } else {
+        dataToSend.smsCode = _sms;
+        dataToSend.profile = {
+          ..._profile,
+          experience: parseInt(_profile.experience) || 0
+        };
+      }
 
       // Envoyer les données avec profile et consentement au backend
       await registerMutation.mutateAsync(dataToSend);
@@ -484,39 +498,43 @@ function RegisterPage() {
             {errors.email && <div style={errorStyle}>{errors.email}</div>}
           </div>
 
-          {/* Téléphone */}
-          <div>
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Téléphone *"
-              value={formData.phone}
-              onChange={handleChangeRegister}
-              style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
-            />
-            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
-          </div>
+          {/* Téléphone - obligatoire pour COMEDIAN/ORGANIZER, optionnel pour LIEU */}
+          {!isLieuRole && (
+            <div>
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Téléphone *"
+                value={formData.phone}
+                onChange={handleChangeRegister}
+                style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
+              />
+              {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
+            </div>
+          )}
 
-          {/* Bouton SMS */}
-          <div>
-            <button
-              type="button"
-              onClick={handleSendSmsCode}
-              disabled={smsLoading || !formData.phone.trim()}
-              style={{
-                ...inputStyle,
-                cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
-                opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1,
-                textAlign: 'center',
-              }}
-            >
-              {smsLoading ? 'Envoi en cours...' : 'Recevoir le code SMS'}
-            </button>
-            {smsCodeSent && <div style={{ fontSize: 12, color: '#28a745', marginTop: 4 }}>✓ Code envoyé</div>}
-          </div>
+          {/* Bouton SMS - uniquement pour COMEDIAN/ORGANIZER */}
+          {!isLieuRole && (
+            <div>
+              <button
+                type="button"
+                onClick={handleSendSmsCode}
+                disabled={smsLoading || !formData.phone.trim()}
+                style={{
+                  ...inputStyle,
+                  cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
+                  opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1,
+                  textAlign: 'center',
+                }}
+              >
+                {smsLoading ? 'Envoi en cours...' : 'Recevoir le code SMS'}
+              </button>
+              {smsCodeSent && <div style={{ fontSize: 12, color: '#28a745', marginTop: 4 }}>✓ Code envoyé</div>}
+            </div>
+          )}
 
-          {/* Code de vérification SMS */}
-          {smsCodeSent && (
+          {/* Code de vérification SMS - uniquement pour COMEDIAN/ORGANIZER */}
+          {!isLieuRole && smsCodeSent && (
             <div>
               <input
                 type="text"
@@ -568,19 +586,23 @@ function RegisterPage() {
             {errors.confirmPassword && <div style={errorStyle}>{errors.confirmPassword}</div>}
           </div>
 
-          {/* Biographie */}
-          <div>
-            <textarea name="bio" placeholder="Biographie * (10-500 caractères)" value={formData.profile.bio} onChange={handleChangeRegister}
-              style={{ ...inputStyle, minHeight: '80px', borderColor: errors.bio ? '#ef4444' : '#444' }} />
-            {errors.bio && <div style={errorStyle}>{errors.bio}</div>}
-          </div>
+          {/* Biographie - uniquement pour COMEDIAN */}
+          {!isLieuRole && (
+            <div>
+              <textarea name="bio" placeholder="Biographie * (10-500 caractères)" value={formData.profile.bio} onChange={handleChangeRegister}
+                style={{ ...inputStyle, minHeight: '80px', borderColor: errors.bio ? '#ef4444' : '#444' }} />
+              {errors.bio && <div style={errorStyle}>{errors.bio}</div>}
+            </div>
+          )}
 
-          {/* Expérience */}
-          <div>
-            <input type="number" name="experience" placeholder="Expérience (années) *" value={formData.profile.experience} onChange={handleChangeRegister}
-              min="0" max="50" style={{ ...inputStyle, borderColor: errors.experience ? '#ef4444' : '#444' }} />
-            {errors.experience && <div style={errorStyle}>{errors.experience}</div>}
-          </div>
+          {/* Expérience - uniquement pour COMEDIAN */}
+          {!isLieuRole && (
+            <div>
+              <input type="number" name="experience" placeholder="Expérience (années) *" value={formData.profile.experience} onChange={handleChangeRegister}
+                min="0" max="50" style={{ ...inputStyle, borderColor: errors.experience ? '#ef4444' : '#444' }} />
+              {errors.experience && <div style={errorStyle}>{errors.experience}</div>}
+            </div>
+          )}
 
           {/* Consentement CGU/RGPD */}
           <div style={{ marginTop: '15px', marginBottom: '10px' }}>

@@ -23,6 +23,11 @@ export const CANCELLATION_POLICY_DESCRIPTIONS: Record<CancellationPolicy, string
 export const VENUE_TYPES = [
   { value: 'bar', label: 'Bar' },
   { value: 'theatre', label: 'Théâtre' },
+  { value: 'cinema', label: 'Cinéma' },
+  { value: 'cafe_theatre', label: 'Café-théâtre' },
+  { value: 'comedy_club', label: 'Comedy Club' },
+  { value: 'salle_municipale', label: 'Salle municipale' },
+  { value: 'salle_polyvalente', label: 'Salle polyvalente' },
   { value: 'salle_des_fetes', label: 'Salle des fêtes' },
   { value: 'autre', label: 'Autre' },
 ] as const;
@@ -30,12 +35,58 @@ export const VENUE_TYPES = [
 export const VENUE_TYPE_LABELS: Record<string, string> = {
   bar: 'Bar',
   theatre: 'Théâtre',
+  cinema: 'Cinéma',
+  cafe_theatre: 'Café-théâtre',
+  comedy_club: 'Comedy Club',
+  salle_municipale: 'Salle municipale',
+  salle_polyvalente: 'Salle polyvalente',
   salle_des_fetes: 'Salle des fêtes',
   autre: 'Autre',
 };
 
 export const EQUIPMENT_OPTIONS = [
-  'Scène', 'Sono', 'Micro', 'Éclairage', 'Projecteur', 'Bar', 'Vestiaires', 'Parking', 'Accès PMR', 'Loges',
+  'Sonorisation', 'Micros', 'Éclairage', 'Projecteur', 'Écran', 'Régie technique', 'Wi-Fi', 'Climatisation', 'Chauffage', 'Piano',
+] as const;
+
+export const CONFIGURATION_TYPES = [
+  { value: 'frontal', label: 'Frontal' },
+  { value: 'gradins', label: 'Gradins' },
+  { value: 'cabaret', label: 'Cabaret' },
+  { value: 'cinema', label: 'Cinéma' },
+  { value: 'modulable', label: 'Modulable' },
+] as const;
+
+export const PRICING_TYPES = [
+  { value: 'heure', label: 'À l\'heure' },
+  { value: 'demi_journee', label: 'Demi-journée' },
+  { value: 'journee', label: 'Journée' },
+  { value: 'soiree', label: 'Soirée' },
+  { value: 'forfait', label: 'Forfait' },
+  { value: 'pourcentage_billetterie', label: '% billetterie' },
+  { value: 'gratuit', label: 'Gratuit' },
+] as const;
+
+export const PRICING_TYPE_LABELS: Record<string, string> = {
+  heure: '/heure',
+  demi_journee: '/demi-journée',
+  journee: '/journée',
+  soiree: '/soirée',
+  forfait: 'forfait',
+  pourcentage_billetterie: '% billetterie',
+  gratuit: 'gratuit',
+};
+
+export function getPricingLabel(pricingType?: string | null): string {
+  return pricingType ? PRICING_TYPE_LABELS[pricingType] || '/soirée' : '/soirée';
+}
+
+export const BOOKING_MODES = [
+  { value: 'manual', label: 'Manuel (validation requise)' },
+  { value: 'automatic', label: 'Automatique' },
+] as const;
+
+export const ACCEPTED_EVENT_TYPES = [
+  'Stand-up', 'One-man-show', 'Théâtre', 'Projection film', 'Répétition', 'Tournage', 'Événement privé',
 ] as const;
 
 export interface IVenue {
@@ -53,12 +104,46 @@ export interface IVenue {
   equipment: string[];
   capacity: number;
   pricePerEvent: number;
-  venueType: 'bar' | 'theatre' | 'salle_des_fetes' | 'autre';
+  venueType: 'bar' | 'theatre' | 'cinema' | 'cafe_theatre' | 'comedy_club' | 'salle_municipale' | 'salle_polyvalente' | 'salle_des_fetes' | 'autre';
   cancellationPolicy: CancellationPolicy;
   isActive: boolean;
   isDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
+  // Étape 1
+  shortDescription?: string;
+  fullDescription?: string;
+  mainPhoto?: string;
+  gallery?: string[];
+  // Étape 2
+  addressComplement?: string;
+  // Étape 3
+  seatedCapacity?: number;
+  standingCapacity?: number;
+  stageArea?: number;
+  configurationType?: 'frontal' | 'gradins' | 'cabaret' | 'cinema' | 'modulable';
+  dressingRooms?: number;
+  accessiblePMR?: boolean;
+  parkingAvailable?: boolean;
+  // Étape 5
+  currency?: string;
+  pricingType?: 'heure' | 'demi_journee' | 'journee' | 'soiree' | 'forfait' | 'pourcentage_billetterie' | 'gratuit';
+  deposit?: number;
+  extraFees?: string;
+  bookingMode?: 'manual' | 'automatic';
+  minBookingDelay?: number;
+  minDuration?: number;
+  maxDuration?: number;
+  acceptedEventTypes?: string[];
+  cancellationConditions?: string;
+  houseRules?: string;
+  // Étape 6
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  legalStatus?: string;
+  siret?: string;
+  invoicingAvailable?: boolean;
 }
 
 export type VenueBookingStatus =

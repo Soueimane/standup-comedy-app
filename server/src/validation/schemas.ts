@@ -45,7 +45,7 @@ export const registerSchema = z.object({
   lastName: z.string()
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'),
-  role: z.enum(['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR']),
+  role: z.enum(['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR', 'LIEU']),
   city: z.string().optional(),
   birthDate: z.string().optional(),
   profile: z.object({
@@ -64,7 +64,14 @@ export const registerSchema = z.object({
         .min(0, 'L\'expérience doit être un nombre positif')
         .max(50, 'L\'expérience ne peut pas dépasser 50 ans')
     )
-  }).optional(),
+  }).optional().refine((data) => {
+    if (!data) return true;
+    if (data.bio && data.bio.length < 10) return false;
+    return true;
+  }, {
+    message: 'La biographie doit contenir au moins 10 caractères',
+    path: ['profile', 'bio']
+  }),
   // Consentement RGPD
   consent: z.object({
     termsAccepted: z.boolean(),
@@ -494,6 +501,13 @@ export const getSmartRecommendationsQuerySchema = z.object({
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const photoArraySchema = z.array(
+  z.string().refine(
+    (val) => val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
+    { message: 'Format photo invalide (data URL ou URL HTTP/HTTPS attendu)' }
+  )
+).optional().default([]);
+
 export const createVenueSchema = z.object({
   name: z.string().min(2).max(200),
   description: z.string().min(10).max(2000),
@@ -503,17 +517,43 @@ export const createVenueSchema = z.object({
   country: z.string().min(1),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  photos: z.array(
-    z.string().refine(
-      (val) => val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'),
-      { message: 'Format photo invalide (data URL ou URL HTTP/HTTPS attendu)' }
-    )
-  ).optional().default([]),
+  photos: photoArraySchema,
   equipment: z.array(z.string()).optional().default([]),
   capacity: z.number().int().min(1),
   pricePerEvent: z.number().min(0),
-  venueType: z.enum(['bar', 'theatre', 'salle_des_fetes', 'autre']),
-  isActive: z.boolean().optional().default(true),
+  venueType: z.enum(['bar', 'theatre', 'cinema', 'cafe_theatre', 'comedy_club', 'salle_municipale', 'salle_polyvalente', 'salle_des_fetes', 'autre']),
+  // Étape 1
+  shortDescription: z.string().max(300).optional(),
+  fullDescription: z.string().optional(),
+  // Étape 2
+  addressComplement: z.string().optional(),
+  // Étape 3
+  seatedCapacity: z.number().int().min(0).optional(),
+  standingCapacity: z.number().int().min(0).optional(),
+  stageArea: z.number().min(0).optional(),
+  configurationType: z.enum(['frontal', 'gradins', 'cabaret', 'cinema', 'modulable']).optional(),
+  dressingRooms: z.number().int().min(0).optional(),
+  accessiblePMR: z.boolean().optional(),
+  parkingAvailable: z.boolean().optional(),
+  // Étape 5
+  currency: z.string().optional(),
+  pricingType: z.enum(['heure', 'demi_journee', 'journee', 'soiree', 'forfait', 'pourcentage_billetterie', 'gratuit']).optional(),
+  deposit: z.number().min(0).optional(),
+  extraFees: z.string().optional(),
+  bookingMode: z.enum(['manual', 'automatic']).optional(),
+  minBookingDelay: z.number().int().min(0).optional(),
+  minDuration: z.number().min(0).optional(),
+  maxDuration: z.number().min(0).optional(),
+  acceptedEventTypes: z.array(z.string()).optional(),
+  cancellationConditions: z.string().optional(),
+  houseRules: z.string().optional(),
+  // Étape 6
+  contactName: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  contactPhone: z.string().optional(),
+  legalStatus: z.string().optional(),
+  siret: z.string().optional(),
+  invoicingAvailable: z.boolean().optional(),
 });
 
 export const updateVenueSchema = createVenueSchema.partial();
@@ -525,17 +565,20 @@ export const createBookingSchema = z.object({
     today.setHours(0, 0, 0, 0);
     return !isNaN(date.getTime()) && date >= today;
   }, { message: 'La date doit être aujourd\'hui ou dans le futur' }),
-  startTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
-  endTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }),
+  startTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }).optional(),
+  endTime: z.string().regex(timeRegex, { message: 'Format HH:MM requis' }).optional(),
   message: z.string().max(500).optional(),
 }).refine((data) => {
+  if (!data.startTime || !data.endTime) return true;
   const [sh, sm] = data.startTime.split(':').map(Number);
   const [eh, em] = data.endTime.split(':').map(Number);
   return eh * 60 + em > sh * 60 + sm;
 }, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] }).refine((data) => {
+  if (!data.startTime) return true;
   const [, sm] = data.startTime.split(':').map(Number);
   return sm === 0;
 }, { message: "L'heure de début doit être un créneau entier (ex: 09:00, 10:00)", path: ['startTime'] }).refine((data) => {
+  if (!data.endTime) return true;
   const [, em] = data.endTime.split(':').map(Number);
   return em === 0;
 }, { message: "L'heure de fin doit être un créneau entier (ex: 09:00, 10:00)", path: ['endTime'] });

@@ -43,7 +43,8 @@ const NotificationDropdown = () => {
   const isOrganizer = user?.role === 'ORGANIZER';
   const isComedian = user?.role === 'COMEDIAN';
   const isSpectator = user?.role === 'SPECTATOR';
-  const shouldShowNotifications = isOrganizer || isComedian || isSpectator;
+  const isLieu = user?.role === 'LIEU';
+  const shouldShowNotifications = isOrganizer || isComedian || isSpectator || isLieu;
 
   // Récupérer les notifications
   const { data: notificationsData, isError: isNotifError } = useQuery({

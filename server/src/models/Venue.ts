@@ -16,12 +16,44 @@ export interface VenueDocument extends Document {
   equipment: string[];
   capacity: number;
   pricePerEvent: number;
-  venueType: 'bar' | 'theatre' | 'salle_des_fetes' | 'autre';
+  venueType: 'bar' | 'theatre' | 'cinema' | 'cafe_theatre' | 'comedy_club' | 'salle_municipale' | 'salle_polyvalente' | 'salle_des_fetes' | 'autre';
   cancellationPolicy: CancellationPolicy;
   isActive: boolean;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Étape 1 — Présentation
+  shortDescription?: string;
+  fullDescription?: string;
+  // Étape 2 — Localisation
+  addressComplement?: string;
+  // Étape 3 — Capacité & configuration
+  seatedCapacity?: number;
+  standingCapacity?: number;
+  stageArea?: number;
+  configurationType?: 'frontal' | 'gradins' | 'cabaret' | 'cinema' | 'modulable';
+  dressingRooms?: number;
+  accessiblePMR?: boolean;
+  parkingAvailable?: boolean;
+  // Étape 5 — Tarifs & conditions
+  currency?: string;
+  pricingType?: 'heure' | 'demi_journee' | 'journee' | 'soiree' | 'forfait' | 'pourcentage_billetterie' | 'gratuit';
+  deposit?: number;
+  extraFees?: string;
+  bookingMode?: 'manual' | 'automatic';
+  minBookingDelay?: number;
+  minDuration?: number;
+  maxDuration?: number;
+  acceptedEventTypes?: string[];
+  cancellationConditions?: string;
+  houseRules?: string;
+  // Étape 6 — Contact & légal
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  legalStatus?: string;
+  siret?: string;
+  invoicingAvailable?: boolean;
 }
 
 const venueSchema = new Schema<VenueDocument>(
@@ -41,7 +73,7 @@ const venueSchema = new Schema<VenueDocument>(
     pricePerEvent: { type: Number, required: true, min: 0 },
     venueType: {
       type: String,
-      enum: ['bar', 'theatre', 'salle_des_fetes', 'autre'],
+      enum: ['bar', 'theatre', 'cinema', 'cafe_theatre', 'comedy_club', 'salle_municipale', 'salle_polyvalente', 'salle_des_fetes', 'autre'],
       required: true,
     },
     cancellationPolicy: {
@@ -51,6 +83,38 @@ const venueSchema = new Schema<VenueDocument>(
     },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false, index: true },
+    // Étape 1
+    shortDescription: { type: String, maxlength: 300 },
+    fullDescription: { type: String },
+    // Étape 2
+    addressComplement: { type: String },
+    // Étape 3
+    seatedCapacity: { type: Number },
+    standingCapacity: { type: Number },
+    stageArea: { type: Number },
+    configurationType: { type: String, enum: ['frontal', 'gradins', 'cabaret', 'cinema', 'modulable'] },
+    dressingRooms: { type: Number },
+    accessiblePMR: { type: Boolean },
+    parkingAvailable: { type: Boolean },
+    // Étape 5
+    currency: { type: String, default: 'EUR' },
+    pricingType: { type: String, enum: ['heure', 'demi_journee', 'journee', 'soiree', 'forfait', 'pourcentage_billetterie', 'gratuit'] },
+    deposit: { type: Number },
+    extraFees: { type: String },
+    bookingMode: { type: String, enum: ['manual', 'automatic'] },
+    minBookingDelay: { type: Number },
+    minDuration: { type: Number },
+    maxDuration: { type: Number },
+    acceptedEventTypes: [{ type: String }],
+    cancellationConditions: { type: String },
+    houseRules: { type: String },
+    // Étape 6
+    contactName: { type: String },
+    contactEmail: { type: String },
+    contactPhone: { type: String },
+    legalStatus: { type: String },
+    siret: { type: String },
+    invoicingAvailable: { type: Boolean },
   },
   { timestamps: true }
 );

@@ -68,7 +68,7 @@ export interface User {
     dailyRecapEmail?: boolean;
     lastDailyRecapAt?: Date;
   };
-  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR' | 'LIEU';
   profile?: UserProfile;
   organizerProfile?: IOrganisateurProfile;
   stats?: any;
@@ -121,10 +121,10 @@ export interface IPopulatedUser {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR';
+  role: 'COMEDIAN' | 'ORGANIZER' | 'SUPER_ADMIN' | 'SPECTATOR' | 'LIEU';
   // Add other fields that might be populated and needed, e.g., companyName, city
   companyName?: string;
   city?: string;
   organizerProfile?: IOrganisateurProfile;
   profile?: UserProfile;
-} 
+}

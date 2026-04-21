@@ -220,6 +220,7 @@ function LandingPage() {
   const goRegisterHumoriste = () => navigate('/register');
   const goCalendar = () => navigate('/calendar');
   const goRegisterSpectateur = () => navigate('/register/spectateur');
+  const goRegisterLieu = () => navigate('/register/lieu');
 
   return (
     <div
@@ -375,6 +376,17 @@ function LandingPage() {
                 <li>Ne rien manquer</li>
               </ul>
               <button type="button" className="role-cta" onClick={goRegisterSpectateur}>S'inscrire →</button>
+            </div>
+            <div className="role-card">
+              <div className="role-icon">🏛️</div>
+              <h3>Lieux</h3>
+              <ul className="role-features">
+                <li>Référencer votre salle</li>
+                <li>Gérer vos réservations</li>
+                <li>Mettre en avant vos espaces</li>
+                <li>Simplifier la location</li>
+              </ul>
+              <button type="button" className="role-cta" onClick={goRegisterLieu}>S'inscrire →</button>
             </div>
           </div>
         </div>

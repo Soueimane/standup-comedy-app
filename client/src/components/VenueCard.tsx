@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { IVenue } from '../types/venue';
-import { VENUE_TYPE_LABELS } from '../types/venue';
+import { VENUE_TYPE_LABELS, getPricingLabel } from '../types/venue';
 
 interface VenueCardProps {
   venue: IVenue;
@@ -125,7 +125,7 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
             }}
           >
             {venue.pricePerEvent.toLocaleString('fr-FR')} €
-            <span style={{ fontSize: 11, fontWeight: 400, color: '#888' }}>/soirée</span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: '#888' }}>{getPricingLabel(venue.pricingType)}</span>
           </span>
         </div>
       </div>

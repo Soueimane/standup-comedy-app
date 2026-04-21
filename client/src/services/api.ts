@@ -365,31 +365,17 @@ export const deleteUser = async (userId: string) => {
 
 // ===== Salles (Venues) =====
 
-export const createVenue = async (data: {
-  name: string;
-  description: string;
-  address: string;
-  city: string;
-  postalCode: string;
-  country: string;
-  capacity: number;
-  pricePerEvent: number;
-  venueType: IVenue['venueType'];
-  cancellationPolicy?: IVenue['cancellationPolicy'];
-  equipment?: string[];
-  latitude?: number;
-  longitude?: number;
-  photos?: string[];
-}): Promise<IVenue> => {
+export const createVenue = async (data: Partial<IVenue> & { name: string; description: string; address: string; city: string; postalCode: string; country: string; capacity: number; pricePerEvent: number; venueType: IVenue['venueType'] }): Promise<IVenue> => {
   const response = await api.post<{ venue: IVenue }>('/venues', data);
   return response.data.venue;
 };
 
-export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number }): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
+export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number; owner?: 'me' }): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
   if (filters?.venueType) params.append('venueType', filters.venueType);
   if (filters?.minCapacity) params.append('minCapacity', filters.minCapacity.toString());
+  if (filters?.owner) params.append('owner', filters.owner);
   const query = params.toString();
   const response = await api.get<{ venues: IVenue[]; total: number; page: number; limit: number }>(`/venues${query ? `?${query}` : ''}`);
   return response.data;
@@ -409,23 +395,7 @@ export const getVenue = async (venueId: string): Promise<IVenue> => {
   return response.data.venue;
 };
 
-export const updateVenue = async (venueId: string, data: Partial<{
-  name: string;
-  description: string;
-  address: string;
-  city: string;
-  postalCode: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  capacity: number;
-  pricePerEvent: number;
-  venueType: string;
-  cancellationPolicy: IVenue['cancellationPolicy'];
-  equipment: string[];
-  isActive: boolean;
-  photos: string[];
-}>): Promise<IVenue> => {
+export const updateVenue = async (venueId: string, data: Partial<IVenue>): Promise<IVenue> => {
   const response = await api.put<{ venue: IVenue }>(`/venues/${venueId}`, data);
   return response.data.venue;
 };

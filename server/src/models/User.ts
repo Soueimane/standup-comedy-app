@@ -273,7 +273,7 @@ const userSchema = new Schema<UserDocument>({
   },
   role: {
     type: String,
-    enum: ['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR'],
+    enum: ['COMEDIAN', 'ORGANIZER', 'SUPER_ADMIN', 'SPECTATOR', 'LIEU'],
     required: true
   },
   profile: {

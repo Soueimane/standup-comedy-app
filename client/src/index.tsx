@@ -41,10 +41,14 @@ import VenueDetailPage from './pages/VenueDetailPage';
 import CreateVenuePage from './pages/CreateVenuePage';
 import MyVenuesPage from './pages/MyVenuesPage';
 import MyBookingsPage from './pages/MyBookingsPage';
+import MesSallesPage from './pages/MesSallesPage';
+import LieuProfilePage from './pages/LieuProfilePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 2 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
     },
@@ -56,10 +60,10 @@ const RedirectSpectatorEvents: React.FC = () => {
   return <Navigate to={`/spectateur/events${search}`} replace />;
 };
 
-const OrganizerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const VenueOwnerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (user?.role !== 'ORGANIZER') return <Navigate to="/dashboard" replace />;
+  if (user?.role !== 'ORGANIZER' && user?.role !== 'LIEU') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
@@ -71,17 +75,38 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
+const LIEU_ALLOWED_PATHS = ['/mes-salles', '/my-bookings', '/venues/new', '/dashboard', '/profile/lieu'];
+const PUBLIC_PATHS = ['/', '/login', '/register', '/organisateur', '/forgot-password',
+  '/reset-password', '/auth/callback', '/mentions-legales', '/politique-confidentialite',
+  '/cgu', '/a-propos'];
+
+const LieuRedirectGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading || !user || user.role !== 'LIEU') return <>{children}</>;
+
+  const path = location.pathname;
+  const isPublic = PUBLIC_PATHS.some(p => p === '/' ? path === '/' : path.startsWith(p));
+  if (isPublic) return <>{children}</>;
+
+  const isAllowed = LIEU_ALLOWED_PATHS.includes(path)
+    || /^\/venues\/[a-f0-9]{24}$/.test(path);
+  if (!isAllowed) return <Navigate to="/mes-salles" replace />;
+  return <>{children}</>;
+};
+
 const AppRouter: React.FC = () => {
   return (
-    <>
-    <ScrollToTop />
-    <Routes>
+    <LieuRedirectGuard>
+      <ScrollToTop />
+      <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/organisateur" element={<Organisateur />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/register/spectateur" element={<RegisterSpectatorPage />} />
       <Route path="/register/organisateur" element={<RegisterOrganizerPage />} />
+      <Route path="/register/lieu" element={<Navigate to="/register?role=LIEU" replace />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
@@ -107,13 +132,15 @@ const AppRouter: React.FC = () => {
       <Route path="/politique-confidentialite" element={<PrivacyPolicyPage />} />
       <Route path="/cgu" element={<TermsOfServicePage />} />
       <Route path="/a-propos" element={<AboutPage />} />
-      <Route path="/venues" element={<OrganizerRoute><VenuesPage /></OrganizerRoute>} />
-      <Route path="/venues/new" element={<OrganizerRoute><CreateVenuePage /></OrganizerRoute>} />
-      <Route path="/venues/:venueId" element={<OrganizerRoute><VenueDetailPage /></OrganizerRoute>} />
-      <Route path="/my-venues" element={<OrganizerRoute><MyVenuesPage /></OrganizerRoute>} />
-      <Route path="/my-bookings" element={<OrganizerRoute><MyBookingsPage /></OrganizerRoute>} />
+      <Route path="/venues" element={<VenueOwnerRoute><VenuesPage /></VenueOwnerRoute>} />
+      <Route path="/venues/new" element={<VenueOwnerRoute><CreateVenuePage /></VenueOwnerRoute>} />
+      <Route path="/venues/:venueId" element={<VenueOwnerRoute><VenueDetailPage /></VenueOwnerRoute>} />
+      <Route path="/my-venues" element={<VenueOwnerRoute><MyVenuesPage /></VenueOwnerRoute>} />
+      <Route path="/my-bookings" element={<VenueOwnerRoute><MyBookingsPage /></VenueOwnerRoute>} />
+      <Route path="/mes-salles" element={<VenueOwnerRoute><MesSallesPage /></VenueOwnerRoute>} />
+      <Route path="/profile/lieu" element={<VenueOwnerRoute><LieuProfilePage /></VenueOwnerRoute>} />
     </Routes>
-    </>
+    </LieuRedirectGuard>
   );
 };
 
@@ -163,6 +190,8 @@ const DashboardRouter = () => {
     return <Dashboard /> // Pour l'instant, même interface que l'organisateur
   } else if (user?.role === 'SPECTATOR') {
     return <Navigate to="/spectateur" replace />
+  } else if (user?.role === 'LIEU') {
+    return <Navigate to="/mes-salles" replace />
   }
 
   console.log("❌ Aucun rôle reconnu, redirection vers login");

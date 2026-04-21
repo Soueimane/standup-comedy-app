@@ -11,6 +11,7 @@ import {
   emitVenueBookingStatusChanged,
   emitVenueBookingPaymentUpdated,
 } from '../services/eventEmitter';
+import { computeBookingAmount } from '../utils/venuePricing';
 
 // Vérifie si deux plages horaires se chevauchent (même date)
 function timesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
@@ -122,12 +123,45 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const { requestedDate, startTime, endTime, message } = req.body;
+    const { requestedDate, message } = req.body;
+    let { startTime, endTime } = req.body as { startTime?: string; endTime?: string };
     const date = new Date(requestedDate);
 
     if (isNaN(date.getTime())) {
       res.status(400).json({ message: 'Date de réservation invalide' });
       return;
+    }
+
+    const pricingType = venue.pricingType as string | undefined;
+
+    // Normaliser startTime/endTime selon le pricingType
+    const needsSlotValidation = !pricingType || pricingType === 'heure' || pricingType === 'demi_journee';
+
+    if (needsSlotValidation) {
+      if (pricingType === 'demi_journee') {
+        // Valider que startTime est 09:00 ou 14:00
+        if (startTime && startTime !== '09:00' && startTime !== '14:00') {
+          res.status(400).json({ message: 'Pour une demi-journée, l\'heure de début doit être 09:00 ou 14:00' });
+          return;
+        }
+        if (!startTime) startTime = '09:00';
+        if (!endTime) endTime = startTime === '14:00' ? '18:00' : '13:00';
+      } else if (pricingType === 'heure') {
+        if (!startTime || !endTime) {
+          res.status(400).json({ message: 'Les champs startTime et endTime sont requis pour une tarification à l\'heure' });
+          return;
+        }
+      } else {
+        // Fallback (pricingType absent) — créneaux requis
+        if (!startTime || !endTime) {
+          res.status(400).json({ message: 'Les champs startTime et endTime sont requis' });
+          return;
+        }
+      }
+    } else {
+      // Pas de créneau nécessaire : forcer une journée entière pour la détection de conflits
+      startTime = startTime ?? '00:00';
+      endTime = endTime ?? '23:59';
     }
 
     // Vérifier que la date/créneau n'est pas bloqué par le propriétaire
@@ -145,7 +179,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       // Blocage journée entière
       if (!b.startTime || !b.endTime) return true;
       // Blocage créneau partiel
-      return timesOverlap(b.startTime, b.endTime, startTime, endTime);
+      return timesOverlap(b.startTime, b.endTime, startTime!, endTime!);
     });
 
     if (isBlocked) {
@@ -164,12 +198,42 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     });
 
     const hasConflict = acceptedBookings.some((b) =>
-      timesOverlap(b.startTime, b.endTime, startTime, endTime)
+      timesOverlap(b.startTime, b.endTime, startTime!, endTime!)
     );
 
     if (hasConflict) {
       res.status(409).json({ message: 'La salle est déjà réservée sur ce créneau' });
       return;
+    }
+
+    const { amount, requiresPayment } = computeBookingAmount(
+      { pricePerEvent: venue.pricePerEvent, pricingType: pricingType as any },
+      { startTime, endTime }
+    );
+
+    const isAutomatic = venue.bookingMode === 'automatic';
+
+    let initialStatus = 'PENDING';
+    let paymentDeadlineAt: Date | undefined;
+
+    if (isAutomatic) {
+      if (!requiresPayment) {
+        initialStatus = 'CONFIRMED';
+      } else {
+        initialStatus = 'ACCEPTED';
+        const [startHour, startMinute] = startTime!.split(':').map(Number);
+        const deadline72h = new Date(Date.now() + 72 * 60 * 60 * 1000);
+        if (!isNaN(startHour) && !isNaN(startMinute)) {
+          const eventStart = new Date(date);
+          eventStart.setUTCHours(startHour, startMinute, 0, 0);
+          const deadlineBeforeEvent = new Date(eventStart.getTime() - 6 * 60 * 60 * 1000);
+          const minDeadline = new Date(Date.now() + 60 * 60 * 1000);
+          const chosen = deadline72h < deadlineBeforeEvent ? deadline72h : deadlineBeforeEvent;
+          paymentDeadlineAt = chosen < minDeadline ? minDeadline : chosen;
+        } else {
+          paymentDeadlineAt = deadline72h;
+        }
+      }
     }
 
     const booking = await VenueBookingModel.create({
@@ -179,7 +243,9 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       startTime,
       endTime,
       message,
-      status: 'PENDING',
+      status: initialStatus,
+      ...(paymentDeadlineAt && { paymentDeadlineAt }),
+      ...(amount > 0 && { paidAmount: undefined }),
     });
 
     emitVenueBookingStatusChanged(
@@ -189,16 +255,39 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       booking.paymentStatus
     );
 
-    // Notifier le propriétaire de la salle (découplé)
+    // Notifications selon le mode de réservation
     try {
-      await NotificationModel.create({
-        user: venue.owner,
-        type: 'venue_booking_request',
-        title: 'Nouvelle demande de réservation',
-        message: `Une demande de réservation a été faite pour votre salle "${venue.name}".`,
-        relatedVenue: venue._id,
-        read: false,
-      });
+      if (!isAutomatic) {
+        // Mode manuel : notifier le propriétaire
+        await NotificationModel.create({
+          user: venue.owner,
+          type: 'venue_booking_request',
+          title: 'Nouvelle demande de réservation',
+          message: `Une demande de réservation a été faite pour votre salle "${venue.name}".`,
+          relatedVenue: venue._id,
+          read: false,
+        });
+      } else if (initialStatus === 'CONFIRMED') {
+        // Mode automatique, salle gratuite → notifier le requester de la confirmation
+        await NotificationModel.create({
+          user: requesterId,
+          type: 'venue_booking_confirmed',
+          title: 'Réservation confirmée',
+          message: `Votre réservation pour "${venue.name}" a été confirmée automatiquement (aucun paiement requis).`,
+          relatedVenue: venue._id,
+          read: false,
+        });
+      } else {
+        // Mode automatique, salle payante → notifier le requester du paiement requis
+        await NotificationModel.create({
+          user: requesterId,
+          type: 'venue_booking_payment_required',
+          title: 'Réservation acceptée — paiement requis',
+          message: `Votre réservation pour "${venue.name}" a été acceptée automatiquement. Vous avez 72h pour effectuer le paiement.`,
+          relatedVenue: venue._id,
+          read: false,
+        });
+      }
     } catch (notifError) {
       console.error('Erreur création notification createBooking:', notifError, { venueId });
     }
@@ -260,7 +349,7 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const bookings = await VenueBookingModel.find({ requester: requesterId })
-      .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted')
+      .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ bookings });
@@ -336,8 +425,12 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
     // Si acceptation : vérifier si le paiement est nécessaire
     if (status === 'ACCEPTED') {
       const venueDoc = await VenueModel.findById(booking.venue._id);
-      if (venueDoc && venueDoc.pricePerEvent === 0) {
-        // Salle gratuite → confirmer directement
+      const { requiresPayment } = computeBookingAmount(
+        { pricePerEvent: venueDoc?.pricePerEvent ?? 0, pricingType: venueDoc?.pricingType as any },
+        { startTime: booking.startTime, endTime: booking.endTime }
+      );
+      if (!requiresPayment) {
+        // Salle gratuite ou pourcentage billetterie → confirmer directement
         booking.status = 'CONFIRMED';
       } else {
         booking.status = 'ACCEPTED';
@@ -379,12 +472,12 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
           read: false,
         });
       } else if (booking.status === 'CONFIRMED') {
-        // Salle gratuite → notification de confirmation
+        // Salle gratuite ou pourcentage billetterie → notification de confirmation sans paiement
         await NotificationModel.create({
           user: booking.requester,
           type: 'venue_booking_confirmed',
           title: 'Réservation confirmée',
-          message: `Votre réservation pour "${booking.venue.name}" a été confirmée (salle gratuite).`,
+          message: `Votre réservation pour "${booking.venue.name}" a été confirmée (aucun paiement requis).`,
           relatedVenue: booking.venue._id,
           read: false,
         });

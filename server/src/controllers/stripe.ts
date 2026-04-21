@@ -7,6 +7,7 @@ import { VenueBookingModel } from '../models/VenueBooking';
 import { NotificationModel } from '../models/Notification';
 import mongoose from 'mongoose';
 import { emitVenueBookingPaymentUpdated } from '../services/eventEmitter';
+import { computeBookingAmount } from '../utils/venuePricing';
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null;
 
@@ -401,8 +402,8 @@ export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: R
     }
 
     const booking = await VenueBookingModel.findById(bookingId).populate<{
-      venue: { _id: mongoose.Types.ObjectId; name: string; pricePerEvent: number; owner: mongoose.Types.ObjectId };
-    }>('venue', 'name pricePerEvent owner');
+      venue: { _id: mongoose.Types.ObjectId; name: string; pricePerEvent: number; pricingType?: string; owner: mongoose.Types.ObjectId };
+    }>('venue', 'name pricePerEvent pricingType owner');
 
     if (!booking) {
       res.status(404).json({ message: 'Réservation introuvable' });
@@ -425,8 +426,12 @@ export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: R
     }
 
     const venue = booking.venue;
-    if (!venue || venue.pricePerEvent <= 0) {
-      res.status(400).json({ message: 'Cette salle ne nécessite pas de paiement' });
+    const { amount, requiresPayment } = computeBookingAmount(
+      { pricePerEvent: venue.pricePerEvent, pricingType: venue.pricingType as any },
+      { startTime: booking.startTime, endTime: booking.endTime }
+    );
+    if (!venue || !requiresPayment) {
+      res.status(400).json({ message: 'Cette réservation ne nécessite pas de paiement Stripe' });
       return;
     }
 
@@ -444,7 +449,7 @@ export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: R
             product_data: {
               name: `Réservation - ${venue.name}`,
             },
-            unit_amount: Math.round(venue.pricePerEvent * 100),
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
@@ -457,6 +462,8 @@ export const createVenueBookingCheckoutSession = async (req: AuthRequest, res: R
         bookingId: bookingId.toString(),
         userId,
         venueId: venue._id.toString(),
+        pricingType: venue.pricingType ?? 'unknown',
+        computedAmount: amount.toString(),
       },
     });
 

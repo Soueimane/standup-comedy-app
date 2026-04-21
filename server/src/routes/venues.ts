@@ -35,30 +35,30 @@ const validateBookingId = asyncHandler((req: Request, res: Response, next: NextF
 
 // ── Venues ───────────────────────────────────────────────────────────────────
 
-router.post('/', authMiddleware, authorizeRoles('ORGANIZER'), validate(createVenueSchema), asyncHandler(createVenue));
-router.get('/', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(listVenues));
-router.get('/mine', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(listMyVenues));
-router.get('/bookings/mine', authMiddleware, authorizeRoles('ORGANIZER'), asyncHandler(myBookings));
-router.get('/:venueId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(getVenue));
-router.put('/:venueId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(updateVenueSchema), asyncHandler(updateVenue));
-router.delete('/:venueId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(deleteVenue));
+router.post('/', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validate(createVenueSchema), asyncHandler(createVenue));
+router.get('/', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), asyncHandler(listVenues));
+router.get('/mine', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), asyncHandler(listMyVenues));
+router.get('/bookings/mine', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), asyncHandler(myBookings));
+router.get('/:venueId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(getVenue));
+router.put('/:venueId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, validate(updateVenueSchema), asyncHandler(updateVenue));
+router.delete('/:venueId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(deleteVenue));
 
 // ── Bookings ─────────────────────────────────────────────────────────────────
-router.post('/:venueId/bookings', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(createBookingSchema), asyncHandler(createBooking));
-router.get('/:venueId/bookings', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(listVenueBookings));
-router.patch('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, validate(updateBookingStatusSchema), asyncHandler(updateBookingStatus));
-router.delete('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, asyncHandler(cancelBooking));
+router.post('/:venueId/bookings', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, validate(createBookingSchema), asyncHandler(createBooking));
+router.get('/:venueId/bookings', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(listVenueBookings));
+router.patch('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateBookingId, validate(updateBookingStatusSchema), asyncHandler(updateBookingStatus));
+router.delete('/bookings/:bookingId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateBookingId, asyncHandler(cancelBooking));
 // Annulation d'une réservation ACCEPTED par le propriétaire
-router.patch('/bookings/:bookingId/cancel', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, validate(cancelBookingByOwnerSchema), asyncHandler(cancelBookingByOwner));
+router.patch('/bookings/:bookingId/cancel', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateBookingId, validate(cancelBookingByOwnerSchema), asyncHandler(cancelBookingByOwner));
 // Estimation du remboursement avant annulation (lecture seule)
-router.get('/bookings/:bookingId/refund-estimate', authMiddleware, authorizeRoles('ORGANIZER'), validateBookingId, asyncHandler(getRefundEstimate));
+router.get('/bookings/:bookingId/refund-estimate', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateBookingId, asyncHandler(getRefundEstimate));
 
-router.get('/:venueId/taken-slots', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(takenSlots));
+router.get('/:venueId/taken-slots', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(takenSlots));
 
 // ── Dates bloquées ────────────────────────────────────────────────────────────
-router.post('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, validate(blockDateSchema), asyncHandler(blockDate));
-router.get('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(listBlockedDates));
-router.delete('/:venueId/blocked-dates/:blockedDateId', authMiddleware, authorizeRoles('ORGANIZER'), validateVenueId, asyncHandler(unblockDate));
+router.post('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, validate(blockDateSchema), asyncHandler(blockDate));
+router.get('/:venueId/blocked-dates', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(listBlockedDates));
+router.delete('/:venueId/blocked-dates/:blockedDateId', authMiddleware, authorizeRoles('ORGANIZER', 'LIEU'), validateVenueId, asyncHandler(unblockDate));
 
 // ── Cron jobs ────────────────────────────────────────────────────────────────────
 router.post('/jobs/check-payment-timeouts', asyncHandler(checkPaymentTimeouts));

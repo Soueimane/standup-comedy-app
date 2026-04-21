@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { myBookings, cancelBooking, createVenueCheckoutSession, confirmVenuePayment } from '../services/api';
+import { cancelBooking, createVenueCheckoutSession, confirmVenuePayment } from '../services/api';
+import { useMyBookings } from '../hooks/useMyBookings';
+import BookingCardSkeleton from '../components/skeletons/BookingCardSkeleton';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import BookingStatusBadge from '../components/BookingStatusBadge';
@@ -66,10 +68,7 @@ const MyBookingsPage: React.FC = () => {
     }
   }, []);
 
-  const { data, isLoading, error } = useQuery<IVenueBooking[]>({
-    queryKey: ['my-bookings'],
-    queryFn: myBookings,
-  });
+  const { data, isLoading, error } = useMyBookings();
 
   const handleCancelClick = (booking: IVenueBooking) => {
     setCancelConfirmBooking(booking);
@@ -146,6 +145,7 @@ const MyBookingsPage: React.FC = () => {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+
   // Calcul de l'estimation de remboursement pour le modal
   const refundEstimate = (() => {
     const b = cancelConfirmBooking;
@@ -159,7 +159,7 @@ const MyBookingsPage: React.FC = () => {
   })();
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60, padding: '20px' }}>
       {/* Modal de confirmation d'annulation */}
       {cancelConfirmBooking && (
         <div style={{
@@ -246,20 +246,8 @@ const MyBookingsPage: React.FC = () => {
         <VenuesTabs />
 
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 60 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                border: '4px solid rgba(255,65,108,0.2)',
-                borderTop: '4px solid #ff416c',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-                margin: '0 auto 16px',
-              }}
-            />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            <p style={{ color: '#888' }}>Chargement...</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {Array.from({ length: 3 }).map((_, i) => <BookingCardSkeleton key={i} />)}
           </div>
         ) : error ? (
           <div style={{ textAlign: 'center', padding: 60 }}>
@@ -353,6 +341,12 @@ const MyBookingsPage: React.FC = () => {
                       const isUrgent = booking.status === 'ACCEPTED' && deadlineMs !== null && deadlineMs < 24 * 3600 * 1000 && deadlineMs > 0;
 
                       const venueDeleted = booking.venue?.isDeleted === true;
+                      const pt = (booking.venue as any)?.pricingType;
+                      const venuePricePerEvent: number = (booking.venue as any)?.pricePerEvent ?? 0;
+                      const toMinLocal = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+                      const displayAmount = (!pt || pt === 'heure')
+                        ? Math.ceil(Math.max(1, (toMinLocal(booking.endTime) - toMinLocal(booking.startTime)) / 60)) * venuePricePerEvent
+                        : venuePricePerEvent;
 
                       return (
               <div
@@ -612,7 +606,7 @@ const MyBookingsPage: React.FC = () => {
                       Voir la salle
                     </button>
                   )}
-                  {booking.status === 'ACCEPTED' && (booking.venue as any)?.pricePerEvent > 0 && !past && !venueDeleted && (
+                  {booking.status === 'ACCEPTED' && pt !== 'gratuit' && pt !== 'pourcentage_billetterie' && venuePricePerEvent > 0 && !past && !venueDeleted && (
                     <button
                       onClick={() => handlePay(booking._id)}
                       disabled={payingId === booking._id}
@@ -633,8 +627,38 @@ const MyBookingsPage: React.FC = () => {
                     >
                       {payingId === booking._id
                         ? 'Redirection...'
-                        : `Payer ${((booking.venue as any)?.pricePerEvent ?? 0).toLocaleString('fr-FR')} €`}
+                        : `Payer ${displayAmount.toLocaleString('fr-FR')} €`}
                     </button>
+                  )}
+                  {booking.status === 'ACCEPTED' && pt === 'pourcentage_billetterie' && !past && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '8px 14px',
+                      background: 'rgba(59,130,246,0.12)',
+                      border: '1px solid rgba(59,130,246,0.3)',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: '#93c5fd',
+                      fontWeight: 600,
+                    }}>
+                      Paiement billetterie
+                    </span>
+                  )}
+                  {booking.status === 'ACCEPTED' && pt === 'gratuit' && !past && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '8px 14px',
+                      background: 'rgba(16,185,129,0.1)',
+                      border: '1px solid rgba(16,185,129,0.3)',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: '#6ee7b7',
+                      fontWeight: 600,
+                    }}>
+                      Confirmation en cours
+                    </span>
                   )}
                   {booking.status === 'EXPIRED' && (
                     <button

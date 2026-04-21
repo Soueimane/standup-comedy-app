@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { UserModel } from '../models/User';
+import { VenueModel } from '../models/Venue';
 import { PasswordResetRequestModel } from '../models/PasswordResetRequest';
 import { ApplicationModel } from '../models/Application';
 import { AbsenceModel } from '../models/Absence';

@@ -1,24 +1,21 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { listMyVenues } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import VenueCard from '../components/VenueCard';
 import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
-import type { IVenue } from '../types/venue';
+import { useMyVenues } from '../hooks/useMyVenues';
+import MyVenueCardSkeleton from '../components/skeletons/MyVenueCardSkeleton';
 
 const MyVenuesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const { data: venuesResponse, isLoading, error } = useQuery({
-    queryKey: ['my-venues'],
-    queryFn: () => listMyVenues(),
-  });
-
-  const myVenues = venuesResponse?.venues || [];
+  const { data: venuesResponse, isLoading, error } = useMyVenues(user?._id);
+  const myVenues = venuesResponse?.venues ?? [];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60 }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1a1a2e, #331f41)', paddingBottom: 60, padding: '20px' }}>
       <style>{`
         @media (max-width: 640px) {
           .my-venues-header h1 { font-size: 1.8em !important; }
@@ -61,20 +58,8 @@ const MyVenuesPage: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 60 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                border: '4px solid rgba(255,65,108,0.2)',
-                borderTop: '4px solid #ff416c',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-                margin: '0 auto 16px',
-              }}
-            />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            <p style={{ color: '#888' }}>Chargement...</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+            {Array.from({ length: 3 }).map((_, i) => <MyVenueCardSkeleton key={i} />)}
           </div>
         ) : error ? (
           <div style={{ textAlign: 'center', padding: 60 }}>
