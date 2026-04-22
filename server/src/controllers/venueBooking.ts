@@ -328,7 +328,10 @@ export const listVenueBookings = async (req: AuthRequest, res: Response): Promis
     }
 
     const bookings = await VenueBookingModel.find({ venue: venueId })
-      .populate('requester', 'firstName lastName email organizerProfile.companyName')
+      .populate(
+        'requester',
+        'firstName lastName email phone avatarUrl role organizerProfile.companyName organizerProfile.phone'
+      )
       .sort({ requestedDate: 1 });
 
     res.status(200).json({ bookings });
@@ -358,7 +361,10 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
 
       bookings = await VenueBookingModel.find({ venue: { $in: venueIds } })
         .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
-        .populate('requester', 'firstName lastName email organizerProfile.companyName')
+        .populate(
+          'requester',
+          'firstName lastName email phone avatarUrl role organizerProfile.companyName organizerProfile.phone'
+        )
         .sort({ createdAt: -1 });
     } else {
       bookings = await VenueBookingModel.find({ requester: requesterId })

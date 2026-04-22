@@ -5,6 +5,92 @@ import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/sys
 import { useAlert } from '../hooks/useAlert';
 import BookingStatusBadge from './BookingStatusBadge';
 import type { IVenueBooking } from '../types/venue';
+import type { IUserData } from '../types/user';
+
+const ROLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
+  ORGANIZER: { bg: 'rgba(255,140,0,0.15)', fg: '#ff8c00', label: 'Organisateur' },
+  COMEDIAN: { bg: 'rgba(168,85,247,0.15)', fg: '#a855f7', label: 'Humoriste' },
+  LIEU: { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6', label: 'Lieu' },
+  SPECTATOR: { bg: 'rgba(34,197,94,0.15)', fg: '#22c55e', label: 'Spectateur' },
+  SUPER_ADMIN: { bg: 'rgba(239,68,68,0.15)', fg: '#ef4444', label: 'Admin' },
+};
+
+const RequesterInfoBlock: React.FC<{ requester: IUserData }> = ({ requester }) => {
+  const phone = requester.phone ?? requester.organizerProfile?.phone;
+  const company = requester.organizerProfile?.companyName ?? requester.companyName;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#bbb' }}>
+      <div>
+        <span style={{ color: '#888' }}>✉ </span>
+        <a href={`mailto:${requester.email}`} style={{ color: '#ff416c', textDecoration: 'none' }}>
+          {requester.email}
+        </a>
+      </div>
+      {phone && (
+        <div>
+          <span style={{ color: '#888' }}>☎ </span>
+          <a href={`tel:${phone}`} style={{ color: '#ff416c', textDecoration: 'none' }}>
+            {phone}
+          </a>
+        </div>
+      )}
+      {company && (
+        <div style={{ fontStyle: 'italic', color: '#888' }}>🏢 {company}</div>
+      )}
+    </div>
+  );
+};
+
+const RequesterAvatar: React.FC<{ requester: IUserData; size?: number }> = ({ requester, size = 32 }) => {
+  const initials = `${requester.firstName?.[0] ?? ''}${requester.lastName?.[0] ?? ''}`.toUpperCase();
+  if (requester.avatarUrl) {
+    return (
+      <img
+        src={requester.avatarUrl}
+        alt=""
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: 'rgba(255,65,108,0.2)',
+        color: '#ff416c',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        fontSize: size * 0.4,
+        flexShrink: 0,
+      }}
+    >
+      {initials || '?'}
+    </div>
+  );
+};
+
+const RoleBadge: React.FC<{ role?: string }> = ({ role }) => {
+  if (!role) return null;
+  const s = ROLE_STYLES[role] ?? { bg: 'rgba(255,255,255,0.1)', fg: '#ccc', label: role };
+  return (
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: s.bg,
+        color: s.fg,
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      {s.label}
+    </span>
+  );
+};
 
 interface VenueBookingsManagementProps {
   venueId: string;
@@ -27,6 +113,7 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [ownerResponse, setOwnerResponse] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<IVenueBooking[]>({
     queryKey: ['venue-bookings', venueId],
@@ -184,19 +271,61 @@ const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venue
               marginBottom: 12,
             }}
           >
-            <div>
-              <p style={{ margin: '0 0 2px 0', fontWeight: 700, color: '#fff', fontSize: 15 }}>
-                {booking.requester?.firstName} {booking.requester?.lastName}
-              </p>
-              <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
-                {new Date(booking.requestedDate).toLocaleDateString('fr-FR', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}{' '}
-                · {booking.startTime} – {booking.endTime}
-              </p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                {booking.requester && <RequesterAvatar requester={booking.requester} size={32} />}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#fff', fontSize: 15 }}>
+                      {booking.requester?.firstName} {booking.requester?.lastName}
+                    </p>
+                    <RoleBadge role={booking.requester?.role} />
+                  </div>
+                  <p style={{ margin: '2px 0 0 0', fontSize: 13, color: '#888' }}>
+                    {new Date(booking.requestedDate).toLocaleDateString('fr-FR', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}{' '}
+                    · {booking.startTime} – {booking.endTime}
+                  </p>
+                </div>
+              </div>
+
+              {booking.requester && (
+                <div style={{ marginTop: 6, marginLeft: 42 }}>
+                  <button
+                    onClick={() =>
+                      setExpandedId(expandedId === booking._id ? null : booking._id)
+                    }
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ff416c',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {expandedId === booking._id ? 'Masquer le profil ▴' : 'Voir le profil ▾'}
+                  </button>
+                  {expandedId === booking._id && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: 12,
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <RequesterInfoBlock requester={booking.requester} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <BookingStatusBadge status={booking.status} />
           </div>
