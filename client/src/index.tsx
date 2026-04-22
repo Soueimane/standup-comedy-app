@@ -75,7 +75,7 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
-const LIEU_ALLOWED_PATHS = ['/mes-salles', '/my-bookings', '/venues/new', '/dashboard', '/profile/lieu'];
+const LIEU_ALLOWED_PATHS = ['/my-venues-management', '/my-bookings', '/venues/new', '/dashboard', '/profile/lieu'];
 const PUBLIC_PATHS = ['/', '/login', '/register', '/organisateur', '/forgot-password',
   '/reset-password', '/auth/callback', '/mentions-legales', '/politique-confidentialite',
   '/cgu', '/a-propos'];
@@ -91,7 +91,7 @@ const LieuRedirectGuard: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const isAllowed = LIEU_ALLOWED_PATHS.includes(path)
     || /^\/venues\/[a-f0-9]{24}$/.test(path);
-  if (!isAllowed) return <Navigate to="/mes-salles" replace />;
+  if (!isAllowed) return <Navigate to="/my-venues-management" replace />;
   return <>{children}</>;
 };
 
@@ -137,7 +137,7 @@ const AppRouter: React.FC = () => {
       <Route path="/venues/:venueId" element={<VenueOwnerRoute><VenueDetailPage /></VenueOwnerRoute>} />
       <Route path="/my-venues" element={<VenueOwnerRoute><MyVenuesPage /></VenueOwnerRoute>} />
       <Route path="/my-bookings" element={<VenueOwnerRoute><MyBookingsPage /></VenueOwnerRoute>} />
-      <Route path="/mes-salles" element={<VenueOwnerRoute><MesSallesPage /></VenueOwnerRoute>} />
+      <Route path="/my-venues-management" element={<VenueOwnerRoute><MesSallesPage /></VenueOwnerRoute>} />
       <Route path="/profile/lieu" element={<VenueOwnerRoute><LieuProfilePage /></VenueOwnerRoute>} />
     </Routes>
     </LieuRedirectGuard>
@@ -191,7 +191,7 @@ const DashboardRouter = () => {
   } else if (user?.role === 'SPECTATOR') {
     return <Navigate to="/spectateur" replace />
   } else if (user?.role === 'LIEU') {
-    return <Navigate to="/mes-salles" replace />
+    return <Navigate to="/my-venues-management" replace />
   }
 
   console.log("❌ Aucun rôle reconnu, redirection vers login");

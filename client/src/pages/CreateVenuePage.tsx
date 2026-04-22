@@ -62,7 +62,7 @@ const CreateVenuePage: React.FC = () => {
       });
       showSuccess(SuccessMessages.VENUE_CREATED);
       if (user?.role === 'LIEU') {
-        navigate('/mes-salles');
+        navigate('/my-venues-management');
       } else {
         navigate(`/venues/${venue._id}`);
       }

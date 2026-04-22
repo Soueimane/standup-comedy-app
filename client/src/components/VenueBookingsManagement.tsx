@@ -8,6 +8,7 @@ import type { IVenueBooking } from '../types/venue';
 
 interface VenueBookingsManagementProps {
   venueId: string;
+  initialStatus?: string;
 }
 
 const STATUS_FILTERS = [
@@ -18,10 +19,10 @@ const STATUS_FILTERS = [
   { key: 'REFUSED', label: 'Refusées' },
 ] as const;
 
-const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venueId }) => {
+const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venueId, initialStatus }) => {
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>('PENDING');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? 'PENDING');
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [ownerResponse, setOwnerResponse] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);

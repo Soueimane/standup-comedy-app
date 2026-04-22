@@ -205,7 +205,7 @@ const VenueDetailPage: React.FC = () => {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
         {/* Tab: Réservations (owner) */}
         {isOwner && activeTab === 'bookings' && (
-          <VenueBookingsManagement venueId={venue._id} />
+          <VenueBookingsManagement venueId={venue._id} initialStatus={searchParams.get('status') ?? undefined} />
         )}
 
         {/* Tab: Dates bloquées (owner) */}

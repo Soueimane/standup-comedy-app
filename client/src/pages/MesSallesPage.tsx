@@ -244,7 +244,7 @@ const MesSallesPage: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
                       <button
-                        onClick={() => navigate(`/venues/${booking.venue?._id}`)}
+                        onClick={() => navigate(`/venues/${booking.venue?._id}?tab=bookings&status=${booking.status}`)}
                         style={{
                           padding: '8px 18px',
                           background: 'rgba(255,255,255,0.06)',
@@ -256,7 +256,7 @@ const MesSallesPage: React.FC = () => {
                           fontWeight: 600,
                         }}
                       >
-                        Voir la salle
+                        Voir la réservation
                       </button>
                     </div>
                   </div>

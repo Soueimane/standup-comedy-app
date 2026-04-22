@@ -338,19 +338,34 @@ export const listVenueBookings = async (req: AuthRequest, res: Response): Promis
   }
 };
 
-// ─── Mes réservations envoyées ───────────────────────────────────────────────
+// ─── Mes réservations : reçues (LIEU) ou émises (ORGANIZER) ─────────────────
 
 export const myBookings = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const requesterId = req.user?.id;
+    const role = req.user?.role;
+
     if (!requesterId) {
       res.status(401).json({ message: 'Non authentifié' });
       return;
     }
 
-    const bookings = await VenueBookingModel.find({ requester: requesterId })
-      .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
-      .sort({ createdAt: -1 });
+    let bookings;
+
+    if (role === 'LIEU') {
+      const ownedVenues = await VenueModel.find({ owner: requesterId }).select('_id');
+      const venueIds = ownedVenues.map(v => v._id);
+
+      bookings = await VenueBookingModel.find({ venue: { $in: venueIds } })
+        .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
+        .populate('requester', 'firstName lastName email organizerProfile.companyName')
+        .sort({ createdAt: -1 });
+    } else {
+      bookings = await VenueBookingModel.find({ requester: requesterId })
+        .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
+        .populate('requester', 'firstName lastName email organizerProfile.companyName')
+        .sort({ createdAt: -1 });
+    }
 
     res.status(200).json({ bookings });
   } catch (error) {

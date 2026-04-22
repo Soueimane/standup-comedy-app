@@ -119,7 +119,7 @@ function Navbar() {
     // LIEU : Mes Salles, Profil
     if (user?.role === 'LIEU') {
       return [
-        { to: '/mes-salles', label: 'Mes Salles', icon: '🏠', show: true },
+        { to: '/my-venues-management', label: 'Mes Salles', icon: '🏠', show: true },
         { to: '/profile/lieu', label: 'Profil', icon: '👤', show: true },
       ];
     }
@@ -230,7 +230,7 @@ function Navbar() {
               </>
             ) : user?.role === 'LIEU' ? (
               <>
-                <Link to="/mes-salles" style={{ ...navLinkBaseStyle, ...(location.pathname === '/mes-salles' ? activeLinkStyle : {}) }}>Mes Salles</Link>
+                <Link to="/my-venues-management" style={{ ...navLinkBaseStyle, ...(location.pathname === '/my-venues-management' ? activeLinkStyle : {}) }}>Mes Salles</Link>
                 <Link to="/profile/lieu" style={{ ...navLinkBaseStyle, ...(location.pathname === '/profile/lieu' ? activeLinkStyle : {}) }}>Profil</Link>
               </>
             ) : (

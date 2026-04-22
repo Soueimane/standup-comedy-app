@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     else if (role === 'COMEDIAN') navigate('/profile/comedian');
     else if (role === 'SUPER_ADMIN') navigate('/dashboard');
     else if (role === 'SPECTATOR') navigate('/spectateur');
-    else if (role === 'LIEU') navigate('/mes-salles');
+    else if (role === 'LIEU') navigate('/my-venues-management');
     else navigate('/');
   }, [navigate]);
 
