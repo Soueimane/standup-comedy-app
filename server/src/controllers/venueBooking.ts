@@ -353,7 +353,7 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
     let bookings;
 
     if (role === 'LIEU') {
-      const ownedVenues = await VenueModel.find({ owner: requesterId }).select('_id');
+      const ownedVenues = await VenueModel.find({ owner: requesterId, isDeleted: { $ne: true } }).select('_id');
       const venueIds = ownedVenues.map(v => v._id);
 
       bookings = await VenueBookingModel.find({ venue: { $in: venueIds } })

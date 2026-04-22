@@ -17,6 +17,7 @@ const STATUS_FILTERS = [
   { key: 'ACCEPTED', label: 'Acceptées' },
   { key: 'CONFIRMED', label: 'Confirmées' },
   { key: 'REFUSED', label: 'Refusées' },
+  { key: 'EXPIRED', label: 'Expirées' },
 ] as const;
 
 const VenueBookingsManagement: React.FC<VenueBookingsManagementProps> = ({ venueId, initialStatus }) => {
