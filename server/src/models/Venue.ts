@@ -47,6 +47,19 @@ export interface VenueDocument extends Document {
   acceptedEventTypes?: string[];
   cancellationConditions?: string;
   houseRules?: string;
+  // Restrictions horaires
+  timeRestrictions?: {
+    openTime?: string;
+    closeTime?: string;
+    matinEnabled?: boolean;
+    matinStart?: string;
+    matinEnd?: string;
+    apremEnabled?: boolean;
+    apremStart?: string;
+    apremEnd?: string;
+    soireeStart?: string;
+    soireeEnd?: string;
+  };
   // Étape 6 — Contact & légal
   contactName?: string;
   contactEmail?: string;
@@ -108,6 +121,18 @@ const venueSchema = new Schema<VenueDocument>(
     acceptedEventTypes: [{ type: String }],
     cancellationConditions: { type: String },
     houseRules: { type: String },
+    timeRestrictions: {
+      openTime: { type: String },
+      closeTime: { type: String },
+      matinEnabled: { type: Boolean },
+      matinStart: { type: String },
+      matinEnd: { type: String },
+      apremEnabled: { type: Boolean },
+      apremStart: { type: String },
+      apremEnd: { type: String },
+      soireeStart: { type: String },
+      soireeEnd: { type: String },
+    },
     // Étape 6
     contactName: { type: String },
     contactEmail: { type: String },

@@ -787,6 +787,7 @@ const VenueDetailPage: React.FC = () => {
                   minBookingDelay={venue.minBookingDelay}
                   minDuration={venue.minDuration}
                   maxDuration={venue.maxDuration}
+                  timeRestrictions={venue.timeRestrictions}
                 />
               </div>
             )}

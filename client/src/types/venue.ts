@@ -76,6 +76,16 @@ export const PRICING_TYPE_LABELS: Record<string, string> = {
   gratuit: 'gratuit',
 };
 
+export const PRICING_TYPE_LABELS_DISPLAY: Record<string, string> = {
+  heure: 'À l\'heure',
+  demi_journee: 'Demi-journée',
+  journee: 'Journée complète',
+  soiree: 'Soirée',
+  forfait: 'Forfait',
+  pourcentage_billetterie: '% billetterie',
+  gratuit: 'Gratuit',
+};
+
 export function getPricingLabel(pricingType?: string | null): string {
   return pricingType ? PRICING_TYPE_LABELS[pricingType] || '/soirée' : '/soirée';
 }
@@ -88,6 +98,19 @@ export const BOOKING_MODES = [
 export const ACCEPTED_EVENT_TYPES = [
   'Stand-up', 'One-man-show', 'Théâtre', 'Projection film', 'Répétition', 'Tournage', 'Événement privé',
 ] as const;
+
+export interface IVenueTimeRestrictions {
+  openTime?: string;
+  closeTime?: string;
+  matinEnabled?: boolean;
+  matinStart?: string;
+  matinEnd?: string;
+  apremEnabled?: boolean;
+  apremStart?: string;
+  apremEnd?: string;
+  soireeStart?: string;
+  soireeEnd?: string;
+}
 
 export interface IVenue {
   _id: string;
@@ -137,6 +160,7 @@ export interface IVenue {
   acceptedEventTypes?: string[];
   cancellationConditions?: string;
   houseRules?: string;
+  timeRestrictions?: IVenueTimeRestrictions;
   // Étape 6
   contactName?: string;
   contactEmail?: string;

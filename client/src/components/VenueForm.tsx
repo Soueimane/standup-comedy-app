@@ -55,6 +55,19 @@ export interface VenueFormData {
   cancellationPolicy: IVenue['cancellationPolicy'];
   cancellationConditions: string;
   houseRules: string;
+  // Restrictions horaires
+  timeRestrictions: {
+    openTime: string;
+    closeTime: string;
+    matinEnabled: boolean;
+    matinStart: string;
+    matinEnd: string;
+    apremEnabled: boolean;
+    apremStart: string;
+    apremEnd: string;
+    soireeStart: string;
+    soireeEnd: string;
+  };
   // Étape 6 — Contact & infos légales
   contactName: string;
   contactEmail: string;
@@ -120,6 +133,18 @@ const defaultData: VenueFormData = {
   cancellationPolicy: 'moderate',
   cancellationConditions: '',
   houseRules: '',
+  timeRestrictions: {
+    openTime: '',
+    closeTime: '',
+    matinEnabled: true,
+    matinStart: '09:00',
+    matinEnd: '13:00',
+    apremEnabled: true,
+    apremStart: '14:00',
+    apremEnd: '18:00',
+    soireeStart: '18:00',
+    soireeEnd: '23:59',
+  },
   contactName: '',
   contactEmail: '',
   contactPhone: '',
@@ -127,6 +152,20 @@ const defaultData: VenueFormData = {
   siret: '',
   invoicingAvailable: false,
 };
+
+const TIME_OPTIONS_15 = [
+  ...Array.from({ length: 24 * 4 }, (_, i) => {
+    const h = Math.floor(i / 4).toString().padStart(2, '0');
+    const m = ((i % 4) * 15).toString().padStart(2, '0');
+    return { value: `${h}:${m}`, label: `${h}h${m}` };
+  }),
+  { value: '23:59', label: 'Minuit (23h59)' },
+];
+
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => {
+  const h = i.toString().padStart(2, '0');
+  return { value: `${h}:00`, label: `${h}h00` };
+});
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -172,7 +211,11 @@ const VenueForm: React.FC<VenueFormProps> = ({
   const allStepLabels = flat ? [] : STEPS;
 
   const [step, setStep] = useState(0);
-  const [formData, setFormData] = useState<VenueFormData>({ ...defaultData, ...initialData });
+  const [formData, setFormData] = useState<VenueFormData>({
+    ...defaultData,
+    ...initialData,
+    timeRestrictions: { ...defaultData.timeRestrictions, ...initialData?.timeRestrictions },
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
@@ -185,6 +228,9 @@ const VenueForm: React.FC<VenueFormProps> = ({
 
   const set = (key: keyof VenueFormData, value: unknown) =>
     setFormData((p) => ({ ...p, [key]: value }));
+
+  const setTR = (field: keyof VenueFormData['timeRestrictions'], value: string | boolean) =>
+    setFormData((prev) => ({ ...prev, timeRestrictions: { ...prev.timeRestrictions, [field]: value } }));
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -253,7 +299,7 @@ const VenueForm: React.FC<VenueFormProps> = ({
     }
     if (s === 4) {
       if (formData.pricePerEvent === '' || parseFloat(formData.pricePerEvent as string) < 0)
-        errs.pricePerEvent = 'Le prix est requis.';
+        errs.pricePerEvent = formData.pricingType === 'pourcentage_billetterie' ? 'Le pourcentage est requis.' : 'Le prix est requis.';
     }
     if (s === 5) {
       if (!formData.contactName.trim()) errs.contactName = 'Le nom du responsable est requis.';
@@ -316,7 +362,8 @@ const VenueForm: React.FC<VenueFormProps> = ({
           <button
             type="button"
             onClick={() => onRemove(i)}
-            style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: 11 }}
+            aria-label="Supprimer la photo"
+            style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, background: '#ef4444', color: '#fff', border: '2px solid #1a1a2e', borderRadius: '50%', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }}
           >
             ✕
           </button>
@@ -508,8 +555,17 @@ const VenueForm: React.FC<VenueFormProps> = ({
         <h3 style={{ margin: '0 0 16px 0', fontSize: 14, fontWeight: 700, color: '#ff416c' }}>Tarification</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
-            <label style={labelStyle}>Prix *</label>
-            <input type="number" min={0} step={0.01} value={formData.pricePerEvent} onChange={(e) => set('pricePerEvent', e.target.value)} placeholder="500" style={inputStyle} />
+            <label style={labelStyle}>{formData.pricingType === 'pourcentage_billetterie' ? 'Pourcentage reversé (%) *' : 'Prix *'}</label>
+            <input
+              type="number"
+              min={0}
+              max={formData.pricingType === 'pourcentage_billetterie' ? 100 : undefined}
+              step={formData.pricingType === 'pourcentage_billetterie' ? 1 : 0.01}
+              value={formData.pricePerEvent}
+              onChange={(e) => set('pricePerEvent', e.target.value)}
+              placeholder={formData.pricingType === 'pourcentage_billetterie' ? '20' : '500'}
+              style={inputStyle}
+            />
             {errors.pricePerEvent && <p style={errorStyle}>{errors.pricePerEvent}</p>}
           </div>
           <div>
@@ -560,6 +616,167 @@ const VenueForm: React.FC<VenueFormProps> = ({
           </div>
         </div>
       </div>
+      <div style={sectionStyle}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: 14, fontWeight: 700, color: '#ff416c' }}>Restrictions horaires</h3>
+
+        {formData.pricingType === 'heure' && (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#aaa' }}>Définissez la plage horaire pendant laquelle les réservations à l'heure sont possibles.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Heure d'ouverture</label>
+                <select
+                  value={formData.timeRestrictions.openTime}
+                  onChange={(e) => { setTR('openTime', e.target.value); setTR('closeTime', ''); }}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {HOUR_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Heure de fermeture</label>
+                <select
+                  value={formData.timeRestrictions.closeTime}
+                  onChange={(e) => setTR('closeTime', e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {HOUR_OPTIONS.filter(o => !formData.timeRestrictions.openTime || o.value > formData.timeRestrictions.openTime).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                  {(!formData.timeRestrictions.openTime || '23:59' > formData.timeRestrictions.openTime) && (
+                    <option value="23:59" style={{ background: '#1a1a2e' }}>Minuit (23h59)</option>
+                  )}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {formData.pricingType === 'demi_journee' && (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#aaa' }}>Activez et configurez les créneaux demi-journée disponibles.</p>
+            <div style={{ marginBottom: 16, padding: 12, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <input type="checkbox" id="matinEnabled" checked={formData.timeRestrictions.matinEnabled} onChange={(e) => setTR('matinEnabled', e.target.checked)} />
+                <label htmlFor="matinEnabled" style={{ ...labelStyle, margin: 0 }}>Créneau Matin</label>
+              </div>
+              {formData.timeRestrictions.matinEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Début matin</label>
+                    <select value={formData.timeRestrictions.matinStart} onChange={(e) => { setTR('matinStart', e.target.value); setTR('matinEnd', ''); }} style={{ ...inputStyle, cursor: 'pointer' }}>
+                      <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                      {TIME_OPTIONS_15.filter(o => o.value !== '23:59').map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Fin matin</label>
+                    <select
+                      value={formData.timeRestrictions.matinEnd}
+                      onChange={(e) => {
+                        setTR('matinEnd', e.target.value);
+                        if (formData.timeRestrictions.apremEnabled && formData.timeRestrictions.apremStart && e.target.value >= formData.timeRestrictions.apremStart) {
+                          setTR('apremStart', '');
+                          setTR('apremEnd', '');
+                        }
+                      }}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                      {TIME_OPTIONS_15.filter(o => !formData.timeRestrictions.matinStart || o.value > formData.timeRestrictions.matinStart).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: 12, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <input type="checkbox" id="apremEnabled" checked={formData.timeRestrictions.apremEnabled} onChange={(e) => setTR('apremEnabled', e.target.checked)} />
+                <label htmlFor="apremEnabled" style={{ ...labelStyle, margin: 0 }}>Créneau Après-midi</label>
+              </div>
+              {formData.timeRestrictions.apremEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Début après-midi</label>
+                    <select
+                      value={formData.timeRestrictions.apremStart}
+                      onChange={(e) => { setTR('apremStart', e.target.value); setTR('apremEnd', ''); }}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                      {TIME_OPTIONS_15.filter(o =>
+                        o.value !== '23:59' &&
+                        (!formData.timeRestrictions.matinEnabled || !formData.timeRestrictions.matinEnd || o.value > formData.timeRestrictions.matinEnd)
+                      ).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Fin après-midi</label>
+                    <select value={formData.timeRestrictions.apremEnd} onChange={(e) => setTR('apremEnd', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                      <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                      {TIME_OPTIONS_15.filter(o => !formData.timeRestrictions.apremStart || o.value > formData.timeRestrictions.apremStart).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {formData.pricingType === 'soiree' && (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#aaa' }}>Configurez la plage horaire de votre soirée.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Début de soirée</label>
+                <select value={formData.timeRestrictions.soireeStart} onChange={(e) => { setTR('soireeStart', e.target.value); setTR('soireeEnd', ''); }} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {TIME_OPTIONS_15.filter(o => o.value !== '23:59').map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Fin de soirée</label>
+                <select value={formData.timeRestrictions.soireeEnd} onChange={(e) => setTR('soireeEnd', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {TIME_OPTIONS_15.filter(o => !formData.timeRestrictions.soireeStart || o.value > formData.timeRestrictions.soireeStart).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(['journee', 'forfait', 'pourcentage_billetterie', 'gratuit'] as string[]).includes(formData.pricingType) && (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#aaa' }}>
+              {formData.pricingType === 'journee' && "Indiquez les heures d'arrivée et de départ pour une réservation à la journée."}
+              {formData.pricingType === 'forfait' && "Définissez la plage horaire durant laquelle la salle est accessible pour ce forfait."}
+              {formData.pricingType === 'pourcentage_billetterie' && "Indiquez les heures d'ouverture de la salle pour les événements au pourcentage billetterie."}
+              {formData.pricingType === 'gratuit' && "Indiquez les heures d'ouverture de la salle pour les événements gratuits."}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>{formData.pricingType === 'journee' ? "Heure d'arrivée" : "Heure d'ouverture"}</label>
+                <select value={formData.timeRestrictions.openTime} onChange={(e) => { setTR('openTime', e.target.value); setTR('closeTime', ''); }} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {TIME_OPTIONS_15.filter(o => o.value !== '23:59').map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>{formData.pricingType === 'journee' ? 'Heure de départ' : 'Heure de fermeture'}</label>
+                <select value={formData.timeRestrictions.closeTime} onChange={(e) => setTR('closeTime', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="" style={{ background: '#1a1a2e' }}>--</option>
+                  {TIME_OPTIONS_15.filter(o => !formData.timeRestrictions.openTime || o.value > formData.timeRestrictions.openTime).map(o => <option key={o.value} value={o.value} style={{ background: '#1a1a2e' }}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!formData.pricingType && (
+          <p style={{ fontSize: 13, color: '#666', fontStyle: 'italic' }}>Sélectionnez un type de tarification pour configurer les restrictions horaires.</p>
+        )}
+      </div>
+
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: 14, fontWeight: 700, color: '#ff416c' }}>Types d'événements acceptés</h3>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

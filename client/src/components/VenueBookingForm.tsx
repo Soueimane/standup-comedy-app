@@ -6,8 +6,41 @@ import { useNavigate } from 'react-router-dom';
 import { createBooking, getTakenSlots } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
+import { PRICING_TYPE_LABELS_DISPLAY } from '../types/venue';
+import type { IVenueTimeRestrictions } from '../types/venue';
 
 type PricingType = 'heure' | 'demi_journee' | 'journee' | 'soiree' | 'forfait' | 'pourcentage_billetterie' | 'gratuit';
+
+type PricingBadgeConfig = {
+  timeLabel: string;
+  extraNote?: string;
+  priceLabel?: (price: number) => string;
+  variant?: 'success';
+};
+
+const PRICING_BADGES: Partial<Record<PricingType, PricingBadgeConfig>> = {
+  journee: {
+    timeLabel: 'Journée complète (00h00 à minuit)',
+    priceLabel: (p) => `Prix : ${p.toLocaleString('fr-FR')} €`,
+  },
+  soiree: {
+    timeLabel: 'Soirée (à partir de 18h00, jusqu\'à minuit)',
+    priceLabel: (p) => `Prix : ${p.toLocaleString('fr-FR')} €`,
+  },
+  forfait: {
+    timeLabel: 'Forfait — journée complète (00h00 à minuit)',
+    priceLabel: (p) => `Prix forfait : ${p.toLocaleString('fr-FR')} €`,
+  },
+  gratuit: {
+    timeLabel: 'Réservation gratuite — journée complète (00h00 à minuit)',
+    variant: 'success',
+  },
+  pourcentage_billetterie: {
+    timeLabel: 'Journée complète (00h00 à minuit)',
+    extraNote: 'Paiement via reversement billetterie, à régler directement avec le propriétaire',
+    priceLabel: (p) => `${p}% des recettes billetterie`,
+  },
+};
 
 interface VenueBookingFormProps {
   venueId: string;
@@ -23,7 +56,10 @@ interface VenueBookingFormProps {
   acceptedEventTypes?: string[];
   cancellationConditions?: string;
   houseRules?: string;
+  timeRestrictions?: IVenueTimeRestrictions;
 }
+
+const toMin = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
 
 const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   venueId,
@@ -35,6 +71,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   minBookingDelay = 0,
   minDuration,
   maxDuration,
+  timeRestrictions,
 }) => {
   const { showSuccess, showError } = useAlert();
   const navigate = useNavigate();
@@ -59,14 +96,9 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
       });
   }, [selectedDate, venueId]);
 
-  const toMin = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
-
-  // Une heure de début est invalide si elle tombe dans un créneau déjà réservé
   const isStartHourDisabled = (hour: string): boolean =>
     takenSlots.some(slot => toMin(hour) >= toMin(slot.startTime) && toMin(hour) < toMin(slot.endTime));
 
-  // Une heure de fin est invalide si la plage [startTime, hour] chevauche un créneau réservé
-  // Condition de chevauchement : startTime < slot.endTime AND slot.startTime < hour
   const isEndHourDisabled = (hour: string): boolean => {
     if (!formData.startTime) return false;
     if (takenSlots.some(slot =>
@@ -84,6 +116,15 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
       return { value: `${h}:00`, label: `${h}h00` };
     });
   }, []);
+
+  const filteredHourOptions = useMemo(() => {
+    if (pricingType !== 'heure' || !timeRestrictions?.openTime || !timeRestrictions?.closeTime) {
+      return hourOptions;
+    }
+    const open = toMin(timeRestrictions.openTime);
+    const close = toMin(timeRestrictions.closeTime);
+    return hourOptions.filter((opt) => toMin(opt.value) >= open && toMin(opt.value) < close);
+  }, [pricingType, timeRestrictions, hourOptions]);
 
   const isToday = useMemo(() => {
     if (!selectedDate) return false;
@@ -142,31 +183,34 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
     setErrors({});
     setIsSubmitting(true);
 
-    // Résoudre startTime / endTime selon le type de tarification
-    let startTime = formData.startTime;
-    let endTime = formData.endTime;
+    // Résoudre startTime / endTime selon le type de tarification.
+    // Pour les types "plats" (journee, soiree, forfait, gratuit, pourcentage_billetterie),
+    // on n'envoie pas les heures : le controller les normalise côté serveur à partir des
+    // timeRestrictions de la salle, évitant ainsi les conflits de validation schema.
+    let startTime: string | undefined;
+    let endTime: string | undefined;
 
-    if (pricingType === 'demi_journee') {
-      startTime = demiJourneeSlot === 'matin' ? '09:00' : '14:00';
-      endTime = demiJourneeSlot === 'matin' ? '13:00' : '18:00';
-    } else if (pricingType === 'journee' || pricingType === 'forfait') {
-      startTime = '00:00';
-      endTime = '23:59';
-    } else if (pricingType === 'soiree') {
-      startTime = '18:00';
-      endTime = '23:59';
-    } else if (pricingType === 'gratuit' || pricingType === 'pourcentage_billetterie') {
-      startTime = '00:00';
-      endTime = '23:59';
+    if (!pricingType || pricingType === 'heure') {
+      startTime = formData.startTime || undefined;
+      endTime = formData.endTime || undefined;
+    } else if (pricingType === 'demi_journee') {
+      startTime = demiJourneeSlot === 'matin'
+        ? (timeRestrictions?.matinStart || '09:00')
+        : (timeRestrictions?.apremStart || '14:00');
+      endTime = demiJourneeSlot === 'matin'
+        ? (timeRestrictions?.matinEnd || '13:00')
+        : (timeRestrictions?.apremEnd || '18:00');
     }
+    // Pour journee, soiree, forfait, gratuit, pourcentage_billetterie :
+    // startTime/endTime restent undefined → le controller applique les timeRestrictions.
 
     try {
       const d = selectedDate!;
       const requestedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       await createBooking(venueId, {
         requestedDate,
-        startTime,
-        endTime,
+        ...(startTime && { startTime }),
+        ...(endTime && { endTime }),
         message: formData.message || undefined,
       });
       showSuccess(SuccessMessages.BOOKING_CREATED);
@@ -228,6 +272,13 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
     color: '#6ee7b7',
     marginTop: 8,
     fontWeight: 600,
+  };
+
+  const infoBadgeSuccessStyle: React.CSSProperties = {
+    ...infoBadgeStyle,
+    background: 'rgba(16,185,129,0.1)',
+    border: '1px solid rgba(16,185,129,0.3)',
+    color: '#6ee7b7',
   };
 
   const showHourSelectors = !pricingType || pricingType === 'heure';
@@ -374,7 +425,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
                 style={{ ...inputStyle, cursor: 'pointer' }}
               >
                 <option value="">--</option>
-                {hourOptions.filter((opt) => parseInt(opt.value) >= minStartHour).map((opt) => (
+                {filteredHourOptions.filter((opt) => parseInt(opt.value) >= minStartHour).map((opt) => (
                   <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }} disabled={isStartHourDisabled(opt.value)}>
                     {opt.label}
                   </option>
@@ -390,7 +441,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
                 style={{ ...inputStyle, cursor: 'pointer' }}
               >
                 <option value="">--</option>
-                {hourOptions.filter((opt) => !formData.startTime || opt.value > formData.startTime).map((opt) => (
+                {filteredHourOptions.filter((opt) => !formData.startTime || opt.value > formData.startTime).map((opt) => (
                   <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }} disabled={isEndHourDisabled(opt.value)}>
                     {opt.label}
                   </option>
@@ -404,6 +455,9 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         {/* Prix estimé pour le type 'heure' */}
         {showHourSelectors && estimatedPrice && (
           <div style={{ marginBottom: 16 }}>
+            <p style={{ margin: '0 0 4px 0', fontSize: 12, color: '#888' }}>
+              Mode de tarification : <strong style={{ color: '#ccc' }}>{PRICING_TYPE_LABELS_DISPLAY[pricingType as PricingType] || 'À l\'heure'}</strong>
+            </p>
             <span style={priceBadgeStyle}>
               Prix estimé : {estimatedPrice.total.toLocaleString('fr-FR')} € ({estimatedPrice.hours} h × {pricePerEvent} €/h)
             </span>
@@ -411,7 +465,13 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         )}
 
         {/* Sélecteur créneau pour 'demi_journee' */}
-        {showDemiJournee && (
+        {showDemiJournee && timeRestrictions?.matinEnabled === false && timeRestrictions?.apremEnabled === false && (
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, fontSize: 13, color: '#fca5a5' }}>
+            Aucun créneau demi-journée n'est disponible pour cette salle.
+          </div>
+        )}
+
+        {showDemiJournee && !(timeRestrictions?.matinEnabled === false && timeRestrictions?.apremEnabled === false) && (
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Créneau</label>
             <select
@@ -420,51 +480,57 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
               style={{ ...inputStyle, cursor: 'pointer' }}
             >
               <option value="">-- Choisir un créneau --</option>
-              <option value="matin" style={{ background: '#1a1a1a' }}>Matin (09h–13h)</option>
-              <option value="aprem" style={{ background: '#1a1a1a' }}>Après-midi (14h–18h)</option>
+              {timeRestrictions?.matinEnabled !== false && (
+                <option value="matin" style={{ background: '#1a1a1a' }}>
+                  Matin ({timeRestrictions?.matinStart || '09:00'}–{timeRestrictions?.matinEnd || '13:00'})
+                </option>
+              )}
+              {timeRestrictions?.apremEnabled !== false && (
+                <option value="aprem" style={{ background: '#1a1a1a' }}>
+                  Après-midi ({timeRestrictions?.apremStart || '14:00'}–{timeRestrictions?.apremEnd || '18:00'})
+                </option>
+              )}
             </select>
             {errors.slot && <p style={errorStyle}>{errors.slot}</p>}
             {pricePerEvent !== undefined && (
-              <span style={priceBadgeStyle}>Prix : {pricePerEvent.toLocaleString('fr-FR')} €</span>
+              <>
+                <p style={{ margin: '8px 0 4px 0', fontSize: 12, color: '#888' }}>
+                  Mode de tarification : <strong style={{ color: '#ccc' }}>{PRICING_TYPE_LABELS_DISPLAY['demi_journee']}</strong>
+                </p>
+                <span style={priceBadgeStyle}>Prix : {pricePerEvent.toLocaleString('fr-FR')} €</span>
+              </>
             )}
           </div>
         )}
 
-        {/* Infos prix pour journee / soiree / forfait */}
-        {(pricingType === 'journee' || pricingType === 'soiree') && pricePerEvent !== undefined && (
-          <div style={{ marginBottom: 16 }}>
-            <span style={priceBadgeStyle}>Prix : {pricePerEvent.toLocaleString('fr-FR')} €</span>
-          </div>
-        )}
+        {/* Badges info pour journee / soiree / forfait / gratuit / pourcentage_billetterie */}
+        {pricingType && PRICING_BADGES[pricingType] && (() => {
+          const config = PRICING_BADGES[pricingType]!;
+          const hasOpenClose = timeRestrictions?.openTime && timeRestrictions?.closeTime;
+          const dynamicLabel =
+            pricingType === 'soiree'
+              ? `Soirée (${timeRestrictions?.soireeStart || '18:00'} – ${timeRestrictions?.soireeEnd || '23:59'})`
+              : hasOpenClose
+                ? `Disponible de ${timeRestrictions!.openTime} à ${timeRestrictions!.closeTime}`
+                : config.timeLabel;
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 6px 0', fontSize: 12, color: '#888' }}>
+                Mode de tarification : <strong style={{ color: '#ccc' }}>{PRICING_TYPE_LABELS_DISPLAY[pricingType]}</strong>
+              </p>
+              <span style={config.variant === 'success' ? infoBadgeSuccessStyle : infoBadgeStyle}>
+                {dynamicLabel}
+                {config.extraNote && ` — ${config.extraNote}`}
+              </span>
+              {config.priceLabel && pricePerEvent !== undefined && (
+                <span style={{ ...priceBadgeStyle, display: 'block', marginTop: 8 }}>
+                  {config.priceLabel(pricePerEvent)}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
-        {pricingType === 'forfait' && pricePerEvent !== undefined && (
-          <div style={{ marginBottom: 16 }}>
-            <span style={priceBadgeStyle}>Prix forfait : {pricePerEvent.toLocaleString('fr-FR')} €</span>
-          </div>
-        )}
-
-        {/* Badge info pour 'gratuit' */}
-        {pricingType === 'gratuit' && (
-          <div style={{ marginBottom: 16 }}>
-            <span style={{
-              ...infoBadgeStyle,
-              background: 'rgba(16,185,129,0.1)',
-              border: '1px solid rgba(16,185,129,0.3)',
-              color: '#6ee7b7',
-            }}>
-              Réservation gratuite — confirmation directe après acceptation
-            </span>
-          </div>
-        )}
-
-        {/* Badge info pour 'pourcentage_billetterie' */}
-        {pricingType === 'pourcentage_billetterie' && (
-          <div style={{ marginBottom: 16 }}>
-            <span style={infoBadgeStyle}>
-              Paiement via reversement billetterie — à régler directement avec le propriétaire
-            </span>
-          </div>
-        )}
 
         <div style={{ marginBottom: 20 }}>
           <label style={labelStyle}>Message (optionnel)</label>

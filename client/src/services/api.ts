@@ -408,8 +408,8 @@ export const deleteVenue = async (venueId: string): Promise<void> => {
 
 export const createBooking = async (venueId: string, data: {
   requestedDate: string;
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   message?: string;
 }): Promise<{ booking: IVenueBooking }> => {
   const response = await api.post<{ booking: IVenueBooking }>(`/venues/${venueId}/bookings`, data);

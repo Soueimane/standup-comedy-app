@@ -139,13 +139,24 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
 
     if (needsSlotValidation) {
       if (pricingType === 'demi_journee') {
-        // Valider que startTime est 09:00 ou 14:00
-        if (startTime && startTime !== '09:00' && startTime !== '14:00') {
-          res.status(400).json({ message: 'Pour une demi-journée, l\'heure de début doit être 09:00 ou 14:00' });
+        const tr = venue.timeRestrictions;
+        const matinStart = tr?.matinStart || '09:00';
+        const matinEnd = tr?.matinEnd || '13:00';
+        const apremStart = tr?.apremStart || '14:00';
+        const apremEnd = tr?.apremEnd || '18:00';
+        const validStarts: string[] = [];
+        if (tr?.matinEnabled !== false) validStarts.push(matinStart);
+        if (tr?.apremEnabled !== false) validStarts.push(apremStart);
+        if (validStarts.length === 0) {
+          res.status(400).json({ message: 'Aucun créneau demi-journée n\'est disponible pour cette salle.' });
           return;
         }
-        if (!startTime) startTime = '09:00';
-        if (!endTime) endTime = startTime === '14:00' ? '18:00' : '13:00';
+        if (startTime && !validStarts.includes(startTime)) {
+          res.status(400).json({ message: `Pour une demi-journée, l'heure de début doit être ${validStarts.join(' ou ')}` });
+          return;
+        }
+        if (!startTime) startTime = validStarts[0];
+        if (!endTime) endTime = startTime === apremStart ? apremEnd : matinEnd;
       } else if (pricingType === 'heure') {
         if (!startTime || !endTime) {
           res.status(400).json({ message: 'Les champs startTime et endTime sont requis pour une tarification à l\'heure' });
@@ -159,9 +170,27 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
         }
       }
     } else {
-      // Pas de créneau nécessaire : forcer une journée entière pour la détection de conflits
-      startTime = startTime ?? '00:00';
-      endTime = endTime ?? '23:59';
+      // Pas de créneau nécessaire : normaliser selon les restrictions de la salle
+      const tr = venue.timeRestrictions;
+      if (pricingType === 'soiree') {
+        startTime = startTime ?? (tr?.soireeStart || '18:00');
+        endTime = endTime ?? (tr?.soireeEnd || '23:59');
+      } else {
+        startTime = startTime ?? (tr?.openTime || '00:00');
+        endTime = endTime ?? (tr?.closeTime || '23:59');
+      }
+    }
+
+    // Valider les restrictions horaires de la salle (pour les types à créneaux variables)
+    const tr = venue.timeRestrictions;
+    if (tr && startTime && endTime) {
+      const toMinutes = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      if (pricingType === 'heure' && tr.openTime && tr.closeTime) {
+        if (toMinutes(startTime) < toMinutes(tr.openTime) || toMinutes(endTime) > toMinutes(tr.closeTime)) {
+          res.status(400).json({ message: `Les réservations à l'heure sont possibles uniquement entre ${tr.openTime} et ${tr.closeTime}.` });
+          return;
+        }
+      }
     }
 
     // Vérifier que la date/créneau n'est pas bloqué par le propriétaire

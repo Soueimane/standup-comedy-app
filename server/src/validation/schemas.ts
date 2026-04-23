@@ -508,6 +508,24 @@ const photoArraySchema = z.array(
   )
 ).optional().default([]);
 
+const optionalTime = z.preprocess(
+  (val) => (val === '' ? undefined : val),
+  z.string().regex(timeRegex).optional()
+);
+
+const timeRestrictionsSchema = z.object({
+  openTime: optionalTime,
+  closeTime: optionalTime,
+  matinEnabled: z.boolean().optional(),
+  matinStart: optionalTime,
+  matinEnd: optionalTime,
+  apremEnabled: z.boolean().optional(),
+  apremStart: optionalTime,
+  apremEnd: optionalTime,
+  soireeStart: optionalTime,
+  soireeEnd: optionalTime,
+}).optional();
+
 export const createVenueSchema = z.object({
   name: z.string().min(2).max(200),
   description: z.string().min(10).max(2000),
@@ -547,6 +565,7 @@ export const createVenueSchema = z.object({
   acceptedEventTypes: z.array(z.string()).optional(),
   cancellationConditions: z.string().optional(),
   houseRules: z.string().optional(),
+  timeRestrictions: timeRestrictionsSchema,
   // Étape 6
   contactName: z.string().optional(),
   contactEmail: z.string().email().optional(),
@@ -573,15 +592,7 @@ export const createBookingSchema = z.object({
   const [sh, sm] = data.startTime.split(':').map(Number);
   const [eh, em] = data.endTime.split(':').map(Number);
   return eh * 60 + em > sh * 60 + sm;
-}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] }).refine((data) => {
-  if (!data.startTime) return true;
-  const [, sm] = data.startTime.split(':').map(Number);
-  return sm === 0;
-}, { message: "L'heure de début doit être un créneau entier (ex: 09:00, 10:00)", path: ['startTime'] }).refine((data) => {
-  if (!data.endTime) return true;
-  const [, em] = data.endTime.split(':').map(Number);
-  return em === 0;
-}, { message: "L'heure de fin doit être un créneau entier (ex: 09:00, 10:00)", path: ['endTime'] });
+}, { message: "L'heure de fin doit être après l'heure de début", path: ['endTime'] });
 
 export const updateBookingStatusSchema = z.object({
   status: z.enum(['ACCEPTED', 'REFUSED']),
