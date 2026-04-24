@@ -34,14 +34,14 @@ export const register = async (req: Request, res: Response) => {
     console.log('📝 [REGISTER] Rôle:', role);
     console.log('📝 [REGISTER] Profile data:', profileData);
 
-    // Téléphone obligatoire pour humoristes et organisateurs
-    if ((role === 'COMEDIAN' || role === 'ORGANIZER') && (!phone || typeof phone !== 'string' || !phone.trim())) {
+    // Téléphone obligatoire pour humoristes, organisateurs et lieux
+    if ((role === 'COMEDIAN' || role === 'ORGANIZER' || role === 'LIEU') && (!phone || typeof phone !== 'string' || !phone.trim())) {
       return res.status(400).json({ message: 'Le numéro de téléphone est requis' });
     }
 
-    // Vérification SMS obligatoire pour humoristes et organisateurs (Twilio Verify API)
+    // Vérification SMS obligatoire pour humoristes, organisateurs et lieux (Twilio Verify API)
     const smsCode = req.body.smsCode;
-    if (role === 'COMEDIAN' || role === 'ORGANIZER') {
+    if (role === 'COMEDIAN' || role === 'ORGANIZER' || role === 'LIEU') {
       if (!smsCode || typeof smsCode !== 'string' || !smsCode.trim()) {
         return res.status(400).json({ message: 'Le code de vérification SMS est requis' });
       }
@@ -192,20 +192,20 @@ export const register = async (req: Request, res: Response) => {
     console.error('❌ [REGISTER] Erreur lors de l\'enregistrement:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     const errorStack = error instanceof Error ? error.stack : undefined;
-    
+
     // Logs détaillés pour le debugging
-    console.error('❌ [REGISTER] Détails de l\'erreur:', { 
-      errorMessage, 
+    console.error('❌ [REGISTER] Détails de l\'erreur:', {
+      errorMessage,
       errorStack,
       errorName: error instanceof Error ? error.name : 'Unknown',
       body: JSON.stringify(req.body, null, 2)
     });
-    
+
     // Si c'est une erreur de validation Mongoose, donner plus de détails
     if (error && typeof error === 'object' && 'errors' in error) {
       const mongooseError = error as any;
       console.error('❌ [REGISTER] Erreurs de validation Mongoose:', mongooseError.errors);
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Erreur de validation des données',
         errors: Object.keys(mongooseError.errors || {}).map(key => ({
           field: key,
@@ -213,8 +213,8 @@ export const register = async (req: Request, res: Response) => {
         }))
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       message: 'Erreur lors de l\'enregistrement de l\'utilisateur',
       error: process.env.NODE_ENV === 'production' ? 'Erreur serveur' : errorMessage // Cacher les détails en production
     });
@@ -989,5 +989,80 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Erreur lors de la suppression du compte:', error);
     res.status(500).json({ message: 'Erreur lors de la suppression du compte' });
+  }
+};
+
+export const upgradeToOrganizer = async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'LIEU') {
+      return res.status(403).json({ message: 'Seuls les lieux peuvent être convertis en organisateur' });
+    }
+
+    const { companyName, description, website, venueTypes,
+            eventFrequency, averageBudget, postalCode } = req.body;
+
+    if (!postalCode) {
+      return res.status(400).json({ message: 'Le code postal est requis' });
+    }
+
+    const user = await UserModel.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    // organizerProfile AVANT role pour éviter l'écrasement par le pre-save middleware
+    user.organizerProfile = {
+      companyName: companyName || '',
+      description: description || '',
+      website: website || '',
+      venueTypes: Array.isArray(venueTypes) ? venueTypes : [],
+      eventFrequency: eventFrequency || 'monthly',
+      averageBudget: averageBudget && typeof averageBudget === 'object'
+        ? { min: Number(averageBudget.min) || 0, max: Number(averageBudget.max) || 0 }
+        : undefined,
+      location: {
+        city: user.city || '',
+        postalCode: String(postalCode).trim(),
+        address: user.address || '',
+      },
+      phone: user.phone || '',
+    };
+    user.role = 'ORGANIZER';
+    await user.save();
+
+    if (!config.jwt.secret) {
+      return res.status(500).json({ message: 'Erreur de configuration du serveur' });
+    }
+
+    const tokenOptions: SignOptions = { expiresIn: '24h' };
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      config.jwt.secret,
+      tokenOptions
+    );
+    const isProduction = config.nodeEnv === 'production';
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return res.status(200).json({
+      message: 'Compte converti en organisateur',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        phone: user.phone,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        city: user.city,
+        organizerProfile: user.organizerProfile,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur lors de la conversion en organisateur:', error);
+    res.status(500).json({ message: 'Erreur lors de la conversion en organisateur' });
   }
 };

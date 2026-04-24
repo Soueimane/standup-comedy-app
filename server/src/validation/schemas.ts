@@ -106,7 +106,38 @@ export const registerSchema = z.object({
   }, {
     message: 'La ville de résidence est requise pour les spectateurs (au moins 2 caractères)',
     path: ['city']
+  })
+  .refine((data) => {
+    if (data.role === 'COMEDIAN' || data.role === 'ORGANIZER' || data.role === 'LIEU') {
+      return typeof data.phone === 'string' && data.phone.trim().length > 0;
+    }
+    return true;
+  }, {
+    message: 'Le numéro de téléphone est requis',
+    path: ['phone']
+  })
+  .refine((data) => {
+    if (data.role === 'COMEDIAN' || data.role === 'ORGANIZER' || data.role === 'LIEU') {
+      return typeof data.smsCode === 'string' && data.smsCode.trim().length > 0;
+    }
+    return true;
+  }, {
+    message: 'Le code de vérification SMS est requis',
+    path: ['smsCode']
   });
+
+export const upgradeToOrganizerSchema = z.object({
+  companyName: z.string().max(200).optional(),
+  description: z.string().max(1000).optional(),
+  website: z.string().url('URL du site invalide').optional().or(z.literal('')),
+  venueTypes: z.array(z.string()).optional(),
+  eventFrequency: z.enum(['weekly', 'monthly', 'occasional']).optional(),
+  averageBudget: z.object({
+    min: z.number().min(0),
+    max: z.number().min(0),
+  }).optional(),
+  postalCode: z.string().min(1, 'Le code postal est requis'),
+});
 
 export const loginSchema = z.object({
   email: z.string()

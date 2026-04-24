@@ -1,4 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
@@ -6,6 +7,7 @@ import EditLieuProfileForm from '../components/EditLieuProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
 import DeleteAccountSection from '../components/DeleteAccountSection';
 import ExportDataSection from '../components/ExportDataSection';
+import UpgradeToOrganizerForm from '../components/UpgradeToOrganizerForm';
 
 const ACCENT = '#e85d75';
 const ACCENT_GRADIENT = 'linear-gradient(135deg, #e85d75, #c13057)';
@@ -17,8 +19,10 @@ const VALUE_COLOR = '#e0e0e0';
 
 function LieuProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
   const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -205,6 +209,23 @@ function LieuProfilePage() {
             >
               Modifier
             </button>
+            <button
+              type="button"
+              onClick={() => setIsUpgrading(true)}
+              disabled={isUpgrading}
+              style={{
+                padding: '10px 20px',
+                background: '#e85d75',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#fff',
+                cursor: isUpgrading ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+              }}
+            >
+              Devenir Organisateur
+            </button>
           </div>
         </div>
 
@@ -301,6 +322,18 @@ function LieuProfilePage() {
           </>
         )}
       </div>
+      <UpgradeToOrganizerForm
+        isOpen={isUpgrading}
+        onClose={() => setIsUpgrading(false)}
+        onSuccess={async () => {
+          setIsUpgrading(false);
+          try {
+            await refreshUser();
+          } finally {
+            navigate('/dashboard');
+          }
+        }}
+      />
     </div>
   );
 }

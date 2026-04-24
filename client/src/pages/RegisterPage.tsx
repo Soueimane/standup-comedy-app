@@ -83,8 +83,8 @@ function RegisterPage() {
       }
     }
 
-    // Validation du téléphone français et belge (mobiles + fixes) - obligatoire pour COMEDIAN/ORGANIZER, optionnel pour LIEU
-    if (!isLieuRole && !formData.phone.trim()) {
+    // Validation du téléphone français et belge (mobiles + fixes) - obligatoire pour tous
+    if (!formData.phone.trim()) {
       newErrors.phone = 'Le numéro de téléphone est requis';
     } else if (formData.phone.trim()) {
       // Nettoyer le numéro (supprimer espaces, tirets, parenthèses, +)
@@ -101,10 +101,10 @@ function RegisterPage() {
       }
     }
 
-    // Validation du code SMS (obligatoire pour COMEDIAN/ORGANIZER, non requis pour LIEU)
-    if (!isLieuRole && !formData.smsCode.trim()) {
+    // Validation du code SMS (obligatoire pour tous)
+    if (!formData.smsCode.trim()) {
       newErrors.smsCode = 'Le code de vérification SMS est requis';
-    } else if (!isLieuRole && formData.smsCode.trim() && !/^\d{6}$/.test(formData.smsCode.trim())) {
+    } else if (!/^\d{6}$/.test(formData.smsCode.trim())) {
       newErrors.smsCode = 'Le code doit contenir 6 chiffres';
     }
 
@@ -264,11 +264,8 @@ function RegisterPage() {
         }
       };
 
-      if (isLieuRole) {
-        // LIEU : pas de phone, smsCode, profile
-        delete dataToSend.phone;
-      } else {
-        dataToSend.smsCode = _sms;
+      dataToSend.smsCode = _sms;
+      if (!isLieuRole) {
         dataToSend.profile = {
           ..._profile,
           experience: parseInt(_profile.experience) || 0
@@ -498,43 +495,39 @@ function RegisterPage() {
             {errors.email && <div style={errorStyle}>{errors.email}</div>}
           </div>
 
-          {/* Téléphone - obligatoire pour COMEDIAN/ORGANIZER, optionnel pour LIEU */}
-          {!isLieuRole && (
-            <div>
-              <input
-                type="tel"
-                name="phone"
-                placeholder="Téléphone *"
-                value={formData.phone}
-                onChange={handleChangeRegister}
-                style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
-              />
-              {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
-            </div>
-          )}
+          {/* Téléphone - obligatoire pour tous */}
+          <div>
+            <input
+              type="tel"
+              name="phone"
+              placeholder="Téléphone *"
+              value={formData.phone}
+              onChange={handleChangeRegister}
+              style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : '#444' }}
+            />
+            {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
+          </div>
 
-          {/* Bouton SMS - uniquement pour COMEDIAN/ORGANIZER */}
-          {!isLieuRole && (
-            <div>
-              <button
-                type="button"
-                onClick={handleSendSmsCode}
-                disabled={smsLoading || !formData.phone.trim()}
-                style={{
-                  ...inputStyle,
-                  cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
-                  opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1,
-                  textAlign: 'center',
-                }}
-              >
-                {smsLoading ? 'Envoi en cours...' : 'Recevoir le code SMS'}
-              </button>
-              {smsCodeSent && <div style={{ fontSize: 12, color: '#28a745', marginTop: 4 }}>✓ Code envoyé</div>}
-            </div>
-          )}
+          {/* Bouton SMS - pour tous */}
+          <div>
+            <button
+              type="button"
+              onClick={handleSendSmsCode}
+              disabled={smsLoading || !formData.phone.trim()}
+              style={{
+                ...inputStyle,
+                cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
+                opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1,
+                textAlign: 'center',
+              }}
+            >
+              {smsLoading ? 'Envoi en cours...' : 'Recevoir le code SMS'}
+            </button>
+            {smsCodeSent && <div style={{ fontSize: 12, color: '#28a745', marginTop: 4 }}>✓ Code envoyé</div>}
+          </div>
 
-          {/* Code de vérification SMS - uniquement pour COMEDIAN/ORGANIZER */}
-          {!isLieuRole && smsCodeSent && (
+          {/* Code de vérification SMS - pour tous */}
+          {smsCodeSent && (
             <div>
               <input
                 type="text"
