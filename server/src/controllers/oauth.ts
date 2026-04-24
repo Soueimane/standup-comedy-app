@@ -19,6 +19,7 @@ import { UserModel } from '../models/User';
 import { OAuthStateModel } from '../models/OAuthState';
 import { TempAuthCodeModel } from '../models/TempAuthCode';
 import { encrypt, decrypt } from '../utils/encryption';
+import { getAuthCookieOptions } from '../utils/cookieOptions';
 
 // ══════════════════════════════════════════════════════════
 // AMÉLIORATION 5: Liste blanche des redirect URIs autorisées
@@ -282,13 +283,9 @@ export const callback = async (req: Request, res: Response): Promise<void> => {
     );
 
     // Store JWT in HttpOnly cookie — never exposed to JS
-    const isProduction = config.nodeEnv === 'production';
     res.cookie('auth_token', internalToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      ...getAuthCookieOptions(),
       maxAge: 60 * 60 * 1000, // 1 hour
-      path: '/',
     });
 
     // Store Keycloak tokens in a temp code for the frontend to retrieve via POST
@@ -362,7 +359,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     const logoutUrl = await buildLogoutUrl(id_token, postLogoutRedirectUri);
 
     // Clear the HttpOnly JWT cookie on logout
-    res.clearCookie('auth_token', { path: '/' });
+    res.clearCookie('auth_token', getAuthCookieOptions());
 
     res.json({ logoutUrl });
   } catch (error) {
@@ -409,14 +406,10 @@ export const exchange = async (req: Request, res: Response): Promise<void> => {
     await TempAuthCodeModel.deleteOne({ code });
 
     // Set JWT in HttpOnly cookie — consistent with the cookie set during callback redirect
-    const isProduction = config.nodeEnv === 'production';
     if (tempAuth.token) {
       res.cookie('auth_token', tempAuth.token, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
+        ...getAuthCookieOptions(),
         maxAge: 60 * 60 * 1000,
-        path: '/',
       });
     }
 
@@ -467,13 +460,9 @@ export const completeRegistration = async (req: Request, res: Response): Promise
         config.jwt.secret as string,
         { expiresIn: '1h' }
       );
-      const isProduction = config.nodeEnv === 'production';
       res.cookie('auth_token', internalToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
+        ...getAuthCookieOptions(),
         maxAge: 60 * 60 * 1000,
-        path: '/',
       });
       const fullExistingUser = await UserModel.findById(existing._id).select('-password').lean();
       res.json({ user: fullExistingUser });
@@ -534,13 +523,9 @@ export const completeRegistration = async (req: Request, res: Response): Promise
       { expiresIn: '1h' }
     );
 
-    const isProduction = config.nodeEnv === 'production';
     res.cookie('auth_token', internalToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      ...getAuthCookieOptions(),
       maxAge: 60 * 60 * 1000,
-      path: '/',
     });
 
     const fullUser = await UserModel.findById(user._id).select('-password').lean();

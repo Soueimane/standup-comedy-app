@@ -21,7 +21,6 @@ const MesSallesPage: React.FC = () => {
   const { data: bookingsResponse, isLoading: loadingBookings } = useQuery<IVenueBooking[]>({
     queryKey: ['venue-owner-bookings'],
     queryFn: myBookings,
-    enabled: activeTab === 'reservations',
     retry: 1,
     retryDelay: 1000,
   });

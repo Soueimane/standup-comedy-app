@@ -253,6 +253,16 @@ const NotificationDropdown = () => {
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .notification-dropdown {
+            left: 0 !important;
+            right: auto !important;
+            width: 240px !important;
+            max-width: 240px !important;
+          }
+        }
+      `}</style>
       <div
         style={badgeStyle}
         onClick={() => setIsOpen(!isOpen)}
@@ -296,7 +306,7 @@ const NotificationDropdown = () => {
       </div>
 
       {isOpen && (
-        <div style={dropdownStyle}>
+        <div className="notification-dropdown" style={dropdownStyle}>
           {/* En-tête */}
           <div style={{
             padding: '12px 14px',
@@ -426,39 +436,6 @@ const NotificationDropdown = () => {
             )}
           </div>
 
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div style={{
-              padding: '10px 12px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              textAlign: 'center',
-              backgroundColor: 'rgba(0, 0, 0, 0.2)',
-            }}>
-              <button
-                onClick={() => {
-                  if (isOrganizer) {
-                    navigate('/applications');
-                  } else if (isComedian) {
-                    navigate('/applications');
-                  }
-                  setIsOpen(false);
-                }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  background: 'rgba(255, 65, 108, 0.2)',
-                  color: '#ff416c',
-                  fontSize: '0.85em',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
-              >
-                {isOrganizer ? 'Voir toutes les candidatures' : 'Voir mes candidatures'}
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

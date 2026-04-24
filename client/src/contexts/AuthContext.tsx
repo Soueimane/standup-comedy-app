@@ -20,7 +20,7 @@ interface AuthContextType {
   setUser: (user: IUserData | null) => void;
   loginMutation: ReturnType<typeof useMutation>;
   registerMutation: ReturnType<typeof useMutation>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
   loginWithKeycloak: (provider?: string) => Promise<void>;
@@ -117,7 +117,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(response.data);
     } catch (err: any) {
       if (axios.isAxiosError(err) && (err.response?.status === 401 || err.response?.status === 403)) {
-        logout();
+        await logout();
       }
     } finally {
       setIsLoading(false);

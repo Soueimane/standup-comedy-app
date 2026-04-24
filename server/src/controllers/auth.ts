@@ -16,13 +16,14 @@ import { AuthRequest } from '../middleware/auth';
 import sgMail from '@sendgrid/mail';
 import { emitUserRegistered, emitPasswordReset } from '../services/eventEmitter';
 import { sendSmsVerificationCode, verifySmsCode, toE164 } from '../services/smsService';
+import { getAuthCookieOptions, AUTH_COOKIE_MAX_AGE } from '../utils/cookieOptions';
 
 /**
  * POST /api/auth/logout
  * Clears the HttpOnly auth_token cookie (works for email/password and OAuth sessions)
  */
 export const logoutClassic = async (_req: Request, res: Response) => {
-  res.clearCookie('auth_token', { path: '/' });
+  res.clearCookie('auth_token', getAuthCookieOptions());
   res.status(204).send();
 };
 
@@ -174,13 +175,9 @@ export const register = async (req: Request, res: Response) => {
       userResponse.organizerProfile = user.organizerProfile;
     }
 
-    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
+      ...getAuthCookieOptions(),
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     res.status(201).json({
@@ -335,13 +332,9 @@ export const login = async (req: Request, res: Response) => {
       userResponse.organizerProfile = user.organizerProfile;
     }
 
-    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
+      ...getAuthCookieOptions(),
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     res.status(200).json({
@@ -1038,13 +1031,9 @@ export const upgradeToOrganizer = async (req: AuthRequest, res: Response) => {
       config.jwt.secret,
       tokenOptions
     );
-    const isProduction = config.nodeEnv === 'production';
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
+      ...getAuthCookieOptions(),
+      maxAge: AUTH_COOKIE_MAX_AGE,
     });
 
     return res.status(200).json({

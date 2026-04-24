@@ -150,13 +150,30 @@ export const logoutFromKeycloak = async (idToken?: string, redirect = false): Pr
 
     if (redirect) {
       window.location.href = logoutUrl;
-    } else {
-      // Open in new tab and close immediately (silent logout)
-      const logoutWindow = window.open(logoutUrl, '_blank');
-      setTimeout(() => {
-        logoutWindow?.close();
-      }, 1000);
+      return;
     }
+
+    // Silent logout via hidden iframe — not blocked by popup blockers
+    await new Promise<void>((resolve) => {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = logoutUrl;
+
+      let done = false;
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        resolve();
+      };
+
+      iframe.onload = cleanup;
+      iframe.onerror = cleanup;
+      // Safety timeout if Keycloak never fires load (CSP/network)
+      setTimeout(cleanup, 3000);
+
+      document.body.appendChild(iframe);
+    });
   } catch (error) {
     console.error('Keycloak logout error:', error);
   }
