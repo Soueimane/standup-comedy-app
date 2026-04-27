@@ -4,7 +4,7 @@ import { useAlert } from '../hooks/useAlert';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getErrorMessage, ErrorMessages } from '../services/systemMessages';
 import { loginWithKeycloak, translateOAuthError } from '../services/oauth';
-import api, { sendSmsVerification } from '../services/api';
+import api from '../services/api';
 
 function RegisterPage() {
   const { registerMutation } = useAuth();
@@ -23,7 +23,6 @@ function RegisterPage() {
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
-    smsCode: '',
     password: '',
     firstName: '',
     lastName: '',
@@ -37,8 +36,6 @@ function RegisterPage() {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [smsCodeSent, setSmsCodeSent] = useState(false);
-  const [smsLoading, setSmsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [passwordValidation, setPasswordValidation] = useState({
@@ -99,13 +96,6 @@ function RegisterPage() {
       if (!frenchPhoneRegex.test(cleanPhone) && !belgianPhoneRegex.test(cleanPhone)) {
         newErrors.phone = 'Numéro de téléphone invalide (format français: 0XXXXXXXXX, format belge: 0XXXXXXXX ou 0XXXXXXXXX)';
       }
-    }
-
-    // Validation du code SMS (obligatoire pour tous)
-    if (!formData.smsCode.trim()) {
-      newErrors.smsCode = 'Le code de vérification SMS est requis';
-    } else if (!/^\d{6}$/.test(formData.smsCode.trim())) {
-      newErrors.smsCode = 'Le code doit contenir 6 chiffres';
     }
 
     // Validation du mot de passe
@@ -253,7 +243,7 @@ function RegisterPage() {
       const { confirmPassword, ...registerData } = formData;
 
       // Pour LIEU, ne pas envoyer profile ni champs inutiles
-      const { profile: _profile, smsCode: _sms, ...baseData } = registerData;
+      const { profile: _profile, ...baseData } = registerData;
 
       const dataToSend: Record<string, unknown> = {
         ...baseData,
@@ -264,7 +254,6 @@ function RegisterPage() {
         }
       };
 
-      dataToSend.smsCode = _sms;
       if (!isLieuRole) {
         dataToSend.profile = {
           ..._profile,
@@ -294,23 +283,6 @@ function RegisterPage() {
     });
   };
 
-  const handleSendSmsCode = async () => {
-    if (!formData.phone.trim()) {
-      setErrors((p) => ({ ...p, phone: 'Le numéro est requis' }));
-      return;
-    }
-    setSmsLoading(true);
-    setErrors((p) => ({ ...p, phone: '', smsCode: '' }));
-    try {
-      await sendSmsVerification(formData.phone.trim());
-      setSmsCodeSent(true);
-    } catch (err: any) {
-      showError(getErrorMessage(err, ErrorMessages.GENERIC_ERROR));
-    } finally {
-      setSmsLoading(false);
-    }
-  };
-
   const handleChangeRegister = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
@@ -326,11 +298,6 @@ function RegisterPage() {
     if (name === 'password') {
       validatePassword(value);
     }
-    if (name === 'phone') {
-      setSmsCodeSent(false);
-      setFormData(prev => ({ ...prev, smsCode: '' }));
-    }
-
     if (name === 'bio' || name === 'experience') {
       setFormData(prev => ({
         ...prev,
@@ -507,40 +474,6 @@ function RegisterPage() {
             />
             {errors.phone && <div style={errorStyle}>{errors.phone}</div>}
           </div>
-
-          {/* Bouton SMS - pour tous */}
-          <div>
-            <button
-              type="button"
-              onClick={handleSendSmsCode}
-              disabled={smsLoading || !formData.phone.trim()}
-              style={{
-                ...inputStyle,
-                cursor: smsLoading || !formData.phone.trim() ? 'not-allowed' : 'pointer',
-                opacity: smsLoading || !formData.phone.trim() ? 0.6 : 1,
-                textAlign: 'center',
-              }}
-            >
-              {smsLoading ? 'Envoi en cours...' : 'Recevoir le code SMS'}
-            </button>
-            {smsCodeSent && <div style={{ fontSize: 12, color: '#28a745', marginTop: 4 }}>✓ Code envoyé</div>}
-          </div>
-
-          {/* Code de vérification SMS - pour tous */}
-          {smsCodeSent && (
-            <div>
-              <input
-                type="text"
-                name="smsCode"
-                placeholder="Code à 6 chiffres reçu par SMS *"
-                value={formData.smsCode}
-                onChange={handleChangeRegister}
-                maxLength={6}
-                style={{ ...inputStyle, borderColor: errors.smsCode ? '#ef4444' : '#444' }}
-              />
-              {errors.smsCode && <div style={errorStyle}>{errors.smsCode}</div>}
-            </div>
-          )}
 
           {/* Mot de passe */}
           <div style={{ position: 'relative' }}>

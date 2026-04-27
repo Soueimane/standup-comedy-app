@@ -115,15 +115,6 @@ export const registerSchema = z.object({
   }, {
     message: 'Le numéro de téléphone est requis',
     path: ['phone']
-  })
-  .refine((data) => {
-    if (data.role === 'COMEDIAN' || data.role === 'ORGANIZER' || data.role === 'LIEU') {
-      return typeof data.smsCode === 'string' && data.smsCode.trim().length > 0;
-    }
-    return true;
-  }, {
-    message: 'Le code de vérification SMS est requis',
-    path: ['smsCode']
   });
 
 export const upgradeToOrganizerSchema = z.object({

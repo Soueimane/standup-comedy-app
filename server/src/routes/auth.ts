@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import {
   register,
-  sendSmsVerification,
   login,
   logoutClassic,
   reactivateAccount,
@@ -23,7 +22,6 @@ import { registerSchema, loginSchema, upgradeToOrganizerSchema } from '../valida
 const router = Router();
 
 // Routes publiques
-router.post('/send-sms-verification', sendSmsVerification);
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
 router.post('/reactivate', validate(loginSchema), reactivateAccount);
