@@ -264,9 +264,38 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
     }
   }
 
-  if (event.type === 'charge.refunded') {
-    const charge = event.data.object as Stripe.Charge;
-    const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const bookingId = session.metadata?.bookingId;
+
+    if (bookingId && session.metadata?.type === 'venue_booking') {
+      try {
+        const booking = await VenueBookingModel.findOneAndUpdate(
+          { _id: bookingId, status: 'ACCEPTED', paymentStatus: { $ne: 'paid' } },
+          { paymentStatus: 'expired' },
+          { new: true }
+        );
+
+        if (booking) {
+          console.log('[Stripe] Session expirée — réservation marquée expired:', bookingId);
+        }
+      } catch (e) {
+        console.error('[Stripe] Erreur traitement checkout.session.expired:', e);
+      }
+    }
+  }
+
+  if (event.type === 'refund.updated') {
+    const refund = event.data.object as Stripe.Refund;
+
+    if (refund.status !== 'succeeded') {
+      res.status(200).send('OK');
+      return;
+    }
+
+    const paymentIntentId = typeof refund.payment_intent === 'string'
+      ? refund.payment_intent
+      : refund.payment_intent?.id;
 
     if (paymentIntentId) {
       try {
@@ -275,7 +304,7 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
 
         if (booking && booking.paymentStatus !== 'refunded') {
           booking.paymentStatus = 'refunded';
-          booking.refundedAmount = charge.amount_refunded / 100;
+          booking.refundedAmount = refund.amount / 100;
           booking.refundedAt = new Date();
           await booking.save();
 
@@ -296,14 +325,14 @@ export const handleStripeWebhook = async (req: express.Request, res: Response): 
               read: false,
             });
           } catch (notifError) {
-            console.error('[Stripe] Erreur notification charge.refunded:', notifError, { paymentIntentId });
+            console.error('[Stripe] Erreur notification refund.updated:', notifError, { paymentIntentId });
           }
 
           console.log('[Stripe] Remboursement confirmé via webhook:', paymentIntentId);
         }
       } catch (e) {
-        console.error('[Stripe] Erreur traitement charge.refunded:', e);
-        res.status(500).send('Internal error');
+        console.error('[Stripe] Erreur traitement refund.updated:', e);
+        res.status(200).send('OK');
         return;
       }
     }

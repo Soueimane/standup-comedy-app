@@ -91,12 +91,20 @@ export const validateConfig = (): void => {
     errors.push('UNSUBSCRIBE_SECRET must be at least 32 characters long');
   }
 
+  if (config.nodeEnv === 'production' && !config.stripe.secretKey) {
+    errors.push('STRIPE_SECRET_KEY is required in production');
+  }
+
+  if (config.nodeEnv === 'production' && !config.stripe.webhookSecret) {
+    errors.push('STRIPE_WEBHOOK_SECRET is required in production');
+  }
+
   if (errors.length > 0) {
     console.error('❌ Configuration errors:');
     errors.forEach(error => console.error(`  - ${error}`));
     throw new Error('Configuration validation failed');
   }
-  
+
   console.log('✅ Configuration validée avec succès');
 };
 

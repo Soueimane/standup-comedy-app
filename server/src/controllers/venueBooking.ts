@@ -87,7 +87,7 @@ async function processStripeRefund(
     booking.paymentStatus = 'refund_pending';
     booking.stripeRefundId = refund.id;
     booking.refundedAmount = refundAmountEuros ?? booking.paidAmount;
-    // La confirmation finale du remboursement est effectuée par le webhook Stripe charge.refunded
+    // La confirmation finale du remboursement est effectuée par le webhook Stripe refund.updated
   } catch (err) {
     booking.paymentStatus = 'refund_pending';
     console.error('[Venue] Échec remboursement Stripe automatique:', err, { bookingId: booking._id });
