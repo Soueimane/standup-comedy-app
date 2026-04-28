@@ -207,7 +207,10 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     const isBlocked = blockedDates.some((b) => {
       // Blocage journée entière
       if (!b.startTime || !b.endTime) return true;
-      // Blocage créneau partiel
+      // Pour les types à créneau fixe non sélectionnable, les blocs partiels n'ont pas d'effet
+      const fixedSlotTypes = ['journee', 'soiree', 'forfait', 'gratuit', 'pourcentage_billetterie'];
+      if (fixedSlotTypes.includes(pricingType || '')) return false;
+      // Pour heure et demi_journee : vérifier le chevauchement horaire
       return timesOverlap(b.startTime, b.endTime, startTime!, endTime!);
     });
 
@@ -382,25 +385,23 @@ export const myBookings = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    let bookings;
+    let findFilter: Record<string, unknown>;
+    let requesterFields: string;
 
     if (role === 'LIEU') {
       const ownedVenues = await VenueModel.find({ owner: requesterId, isDeleted: { $ne: true } }).select('_id');
       const venueIds = ownedVenues.map(v => v._id);
-
-      bookings = await VenueBookingModel.find({ venue: { $in: venueIds } })
-        .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
-        .populate(
-          'requester',
-          'firstName lastName email phone avatarUrl role organizerProfile.companyName organizerProfile.phone'
-        )
-        .sort({ createdAt: -1 });
+      findFilter = { venue: { $in: venueIds } };
+      requesterFields = 'firstName lastName email phone avatarUrl role organizerProfile.companyName organizerProfile.phone';
     } else {
-      bookings = await VenueBookingModel.find({ requester: requesterId })
-        .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
-        .populate('requester', 'firstName lastName email organizerProfile.companyName')
-        .sort({ createdAt: -1 });
+      findFilter = { requester: requesterId };
+      requesterFields = 'firstName lastName email organizerProfile.companyName';
     }
+
+    const bookings = await VenueBookingModel.find(findFilter)
+      .populate('venue', 'name city address venueType pricePerEvent cancellationPolicy isDeleted pricingType')
+      .populate('requester', requesterFields)
+      .sort({ createdAt: -1 });
 
     res.status(200).json({ bookings });
   } catch (error) {
@@ -939,6 +940,8 @@ export const unblockDate = async (req: AuthRequest, res: Response): Promise<void
 };
 
 // ─── Créneaux déjà pris sur une date (pour le formulaire de réservation) ──────
+// Sans date → retourne toutes les dates futures réservées { dates: string[] } (pour le calendrier)
+// Avec date → retourne les créneaux du jour { slots: { startTime, endTime }[] }
 
 export const takenSlots = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -950,8 +953,25 @@ export const takenSlots = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    if (!date || typeof date !== 'string') {
-      res.status(400).json({ message: 'Paramètre date requis (YYYY-MM-DD)' });
+    // Mode calendrier : aucune date fournie → retourner toutes les dates futures réservées
+    if (!date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const bookings = await VenueBookingModel.find({
+        venue: venueId,
+        status: { $in: ['ACCEPTED', 'CONFIRMED'] },
+        requestedDate: { $gte: today },
+      }).select('requestedDate');
+      const dates = [...new Set(bookings.map(b => {
+        const d = new Date(b.requestedDate);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }))];
+      res.status(200).json({ dates });
+      return;
+    }
+
+    if (typeof date !== 'string') {
+      res.status(400).json({ message: 'Paramètre date invalide' });
       return;
     }
 

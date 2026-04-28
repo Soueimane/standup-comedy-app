@@ -1,13 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { DayPicker } from 'react-day-picker';
-import { fr } from 'date-fns/locale';
-import 'react-day-picker/dist/style.css';
+import StyledDayPicker from './StyledDayPicker';
 import { useNavigate } from 'react-router-dom';
-import { createBooking, getTakenSlots } from '../services/api';
+import { createBooking, getTakenSlots, getBookedDates } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
 import { PRICING_TYPE_LABELS_DISPLAY } from '../types/venue';
-import type { IVenueTimeRestrictions } from '../types/venue';
+import type { IVenueTimeRestrictions, IVenueBlockedDate } from '../types/venue';
 
 type PricingType = 'heure' | 'demi_journee' | 'journee' | 'soiree' | 'forfait' | 'pourcentage_billetterie' | 'gratuit';
 
@@ -45,7 +43,7 @@ const PRICING_BADGES: Partial<Record<PricingType, PricingBadgeConfig>> = {
 interface VenueBookingFormProps {
   venueId: string;
   venueName: string;
-  blockedDates?: Date[];
+  blockedDates?: IVenueBlockedDate[];
   onBookingCreated?: () => void;
   pricingType?: PricingType;
   pricePerEvent?: number;
@@ -60,6 +58,12 @@ interface VenueBookingFormProps {
 }
 
 const toMin = (t: string) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
+  toMin(aEnd) > toMin(bStart) && toMin(bEnd) > toMin(aStart);
+const parseLocalDate = (s: string) => { const [y, mo, d] = s.split('-').map(Number); return new Date(y, mo - 1, d); };
+const toDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const FULL_DAY_TYPES = ['journee', 'soiree', 'forfait', 'gratuit', 'pourcentage_billetterie'];
 
 const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   venueId,
@@ -81,13 +85,23 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [takenSlots, setTakenSlots] = useState<{ startTime: string; endTime: string }[]>([]);
+  const [bookedCalendarDates, setBookedCalendarDates] = useState<Date[]>([]);
+
+  const isFullDayPricing = FULL_DAY_TYPES.includes(pricingType || '');
+
+  useEffect(() => {
+    if (!isFullDayPricing) return;
+    getBookedDates(venueId)
+      .then(dates => setBookedCalendarDates(dates.map(parseLocalDate)))
+      .catch(() => setBookedCalendarDates([]));
+  }, [venueId, isFullDayPricing]);
 
   useEffect(() => {
     if (!selectedDate) {
       setTakenSlots([]);
       return;
     }
-    const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+    const dateStr = toDateStr(selectedDate);
     getTakenSlots(venueId, dateStr)
       .then(setTakenSlots)
       .catch((err) => {
@@ -96,12 +110,96 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
       });
   }, [selectedDate, venueId]);
 
+  const partialBlockedSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    const dateStr = toDateStr(selectedDate);
+    return blockedDates
+      .filter(b => b.startTime && b.endTime && b.date.startsWith(dateStr))
+      .map(b => ({ startTime: b.startTime!, endTime: b.endTime! }));
+  }, [blockedDates, selectedDate]);
+
+  const allBlockedSlots = useMemo(() => [...takenSlots, ...partialBlockedSlots], [takenSlots, partialBlockedSlots]);
+
+  const demiJourneeMap = useMemo(() => {
+    if (pricingType !== 'demi_journee') return null;
+    const mS = timeRestrictions?.matinStart || '09:00';
+    const mE = timeRestrictions?.matinEnd   || '13:00';
+    const aS = timeRestrictions?.apremStart || '14:00';
+    const aE = timeRestrictions?.apremEnd   || '18:00';
+    const matinOn = timeRestrictions?.matinEnabled !== false;
+    const apremOn = timeRestrictions?.apremEnabled !== false;
+    const map: Record<string, { matin: boolean; aprem: boolean }> = {};
+    blockedDates.forEach(b => {
+      const key = b.date.split('T')[0];
+      if (!map[key]) map[key] = { matin: false, aprem: false };
+      if (!b.startTime || !b.endTime) { map[key].matin = true; map[key].aprem = true; return; }
+      if (matinOn && overlaps(b.startTime, b.endTime, mS, mE)) map[key].matin = true;
+      if (apremOn && overlaps(b.startTime, b.endTime, aS, aE)) map[key].aprem = true;
+    });
+    return { map, matinOn, apremOn };
+  }, [blockedDates, pricingType, timeRestrictions]);
+
+  const fullDayBlockedDates = useMemo(() => {
+    if (demiJourneeMap) {
+      const { map, matinOn, apremOn } = demiJourneeMap;
+      return Object.entries(map)
+        .filter(([_, v]) => {
+          if (matinOn && apremOn) return v.matin && v.aprem;
+          return matinOn ? v.matin : apremOn ? v.aprem : true;
+        })
+        .map(([key]) => parseLocalDate(key));
+    }
+    return blockedDates.filter(b => !b.startTime || !b.endTime).map(b => parseLocalDate(b.date.split('T')[0]));
+  }, [blockedDates, demiJourneeMap]);
+
+  const partiallyBlockedDates = useMemo(() => {
+    if (!pricingType || pricingType === 'heure') {
+      const fullDayKeys = new Set(
+        blockedDates.filter(b => !b.startTime || !b.endTime).map(b => b.date.split('T')[0])
+      );
+      const partialKeys = new Set<string>();
+      blockedDates.forEach(b => {
+        if (!b.startTime || !b.endTime) return;
+        const key = b.date.split('T')[0];
+        if (!fullDayKeys.has(key)) partialKeys.add(key);
+      });
+      return Array.from(partialKeys).map(parseLocalDate);
+    }
+    if (demiJourneeMap) {
+      const { map, matinOn, apremOn } = demiJourneeMap;
+      if (!(matinOn && apremOn)) return [];
+      return Object.entries(map)
+        .filter(([_, v]) => (v.matin || v.aprem) && !(v.matin && v.aprem))
+        .map(([key]) => parseLocalDate(key));
+    }
+    return [];
+  }, [blockedDates, pricingType, demiJourneeMap]);
+
+  // For demi_journee: which sub-slots are blocked for the currently selected date
+  const blockedSlotsForDate = useMemo(() => {
+    if (pricingType !== 'demi_journee' || !selectedDate) return { matin: false, aprem: false };
+    const dateStr = toDateStr(selectedDate);
+    const mS = timeRestrictions?.matinStart || '09:00';
+    const mE = timeRestrictions?.matinEnd   || '13:00';
+    const aS = timeRestrictions?.apremStart || '14:00';
+    const aE = timeRestrictions?.apremEnd   || '18:00';
+    let matin = false;
+    let aprem = false;
+    blockedDates.forEach(b => {
+      if (!b.date.startsWith(dateStr)) return;
+      if (!b.startTime || !b.endTime) { matin = true; aprem = true; return; }
+      if (overlaps(b.startTime, b.endTime, mS, mE)) matin = true;
+      if (overlaps(b.startTime, b.endTime, aS, aE)) aprem = true;
+    });
+    return { matin, aprem };
+  }, [blockedDates, pricingType, selectedDate, timeRestrictions]);
+
   const isStartHourDisabled = (hour: string): boolean =>
-    takenSlots.some(slot => toMin(hour) >= toMin(slot.startTime) && toMin(hour) < toMin(slot.endTime));
+    allBlockedSlots.some(slot => toMin(hour) >= toMin(slot.startTime) && toMin(hour) < toMin(slot.endTime));
 
   const isEndHourDisabled = (hour: string): boolean => {
     if (!formData.startTime) return false;
-    if (takenSlots.some(slot =>
+    if (allBlockedSlots.some(slot =>
       toMin(formData.startTime) < toMin(slot.endTime) && toMin(slot.startTime) < toMin(hour)
     )) return true;
     const durationH = (toMin(hour) - toMin(formData.startTime)) / 60;
@@ -205,8 +303,7 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
     // startTime/endTime restent undefined → le controller applique les timeRestrictions.
 
     try {
-      const d = selectedDate!;
-      const requestedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const requestedDate = toDateStr(selectedDate!);
       await createBooking(venueId, {
         requestedDate,
         ...(startTime && { startTime }),
@@ -298,82 +395,6 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
         @media (max-width: 480px) {
           .booking-time-grid { grid-template-columns: 1fr !important; }
         }
-        .rdp {
-          --rdp-cell-size: 38px;
-          --rdp-accent-color: #ff416c;
-          --rdp-background-color: rgba(255,65,108,0.15);
-          --rdp-accent-color-dark: #ff416c;
-          --rdp-background-color-dark: rgba(255,65,108,0.15);
-          --rdp-outline: 2px solid #ff416c;
-          --rdp-outline-selected: 2px solid #ff416c;
-          margin: 0;
-          font-size: 13px;
-          color: #fff;
-        }
-        .rdp-months { justify-content: center; }
-        .rdp-month { width: 100%; }
-        .rdp-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-        .rdp-caption {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          padding: 0.85rem 1rem;
-          background: rgba(255,65,108,0.18);
-          border: 1px solid rgba(255,255,255,0.12);
-          border-radius: 14px;
-          margin-bottom: 10px;
-        }
-        .rdp-caption_label {
-          color: #fff;
-          font-weight: 700;
-          font-size: 14px;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          margin-left: 0.25rem;
-        }
-        .rdp-nav_button {
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          color: #fff;
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.1);
-        }
-        .rdp-button:hover:not([disabled]) { background: rgba(255,65,108,0.25); color: #fff; }
-        .rdp-head_cell {
-          color: #d7d7d7;
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.15em;
-        }
-        .rdp-day {
-          color: #f6f6f8;
-          font-weight: 600;
-          border-radius: 10px;
-          transition: background 150ms ease, color 150ms ease, transform 150ms ease;
-        }
-        .rdp-day:hover:not(.rdp-day_selected):not([disabled]) {
-          background: rgba(255,65,108,0.22);
-          color: #fff;
-          transform: translateY(-1px);
-        }
-        .rdp-day_selected {
-          background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%) !important;
-          color: #fff !important;
-          border-radius: 12px;
-          box-shadow: 0 0 0 3px rgba(255,65,108,0.18);
-        }
-        .rdp-day_today {
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
-        }
-        .rdp-day_disabled {
-          color: #999;
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-        .rdp-day_outside { opacity: 0.3; }
       `}</style>
 
       <h3 style={{ margin: '0 0 4px 0', fontSize: 18, fontWeight: 700, color: '#fff' }}>
@@ -394,23 +415,42 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
               padding: '8px 4px',
             }}
           >
-            <DayPicker
+            <StyledDayPicker
               mode="single"
               selected={selectedDate}
               onSelect={(date) => {
                 setSelectedDate(date);
                 setFormData((p) => ({ ...p, startTime: '', endTime: '' }));
+                setDemiJourneeSlot('');
               }}
-              locale={fr}
-              disabled={[{ before: minSelectableDate }, ...blockedDates]}
+              disabled={[{ before: minSelectableDate }, ...fullDayBlockedDates, ...bookedCalendarDates]}
+              modifiers={{
+                fullyBlocked: fullDayBlockedDates,
+                bookedDay: bookedCalendarDates,
+                partiallyBlocked: partiallyBlockedDates,
+              }}
+              modifiersStyles={{
+                fullyBlocked: { color: '#ef4444', textDecoration: 'line-through', opacity: 1, cursor: 'not-allowed' },
+                bookedDay:    { color: '#818cf8', textDecoration: 'line-through', opacity: 1, cursor: 'not-allowed' },
+                partiallyBlocked: { color: '#f97316' },
+              }}
+              modifiersClassNames={{ partiallyBlocked: 'rdp-day_partiallyBlocked' }}
               showOutsideDays={false}
             />
           </div>
           {errors.date && <p style={errorStyle}>{errors.date}</p>}
-          {blockedDates.length > 0 && (
-            <p style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-              🔴 Dates barrées = non disponibles
-            </p>
+          {(fullDayBlockedDates.length > 0 || bookedCalendarDates.length > 0 || partiallyBlockedDates.length > 0) && (
+            <div style={{ fontSize: 11, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {fullDayBlockedDates.length > 0 && (
+                <span style={{ color: '#ef4444' }}>● Dates barrées (rouge) = bloquées par le propriétaire</span>
+              )}
+              {bookedCalendarDates.length > 0 && (
+                <span style={{ color: '#818cf8' }}>● Dates barrées (violet) = déjà réservées</span>
+              )}
+              {partiallyBlockedDates.length > 0 && (
+                <span style={{ color: '#f97316' }}>● Dates en orange = créneaux partiellement indisponibles</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -481,13 +521,13 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
             >
               <option value="">-- Choisir un créneau --</option>
               {timeRestrictions?.matinEnabled !== false && (
-                <option value="matin" style={{ background: '#1a1a1a' }}>
-                  Matin ({timeRestrictions?.matinStart || '09:00'}–{timeRestrictions?.matinEnd || '13:00'})
+                <option value="matin" disabled={blockedSlotsForDate.matin} style={{ background: '#1a1a1a' }}>
+                  Matin ({timeRestrictions?.matinStart || '09:00'}–{timeRestrictions?.matinEnd || '13:00'}){blockedSlotsForDate.matin ? ' — indisponible' : ''}
                 </option>
               )}
               {timeRestrictions?.apremEnabled !== false && (
-                <option value="aprem" style={{ background: '#1a1a1a' }}>
-                  Après-midi ({timeRestrictions?.apremStart || '14:00'}–{timeRestrictions?.apremEnd || '18:00'})
+                <option value="aprem" disabled={blockedSlotsForDate.aprem} style={{ background: '#1a1a1a' }}>
+                  Après-midi ({timeRestrictions?.apremStart || '14:00'}–{timeRestrictions?.apremEnd || '18:00'}){blockedSlotsForDate.aprem ? ' — indisponible' : ''}
                 </option>
               )}
             </select>

@@ -1,18 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import StyledDayPicker from './StyledDayPicker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listBlockedDates, blockDate, unblockDate } from '../services/api';
 import { SuccessMessages, ErrorMessages, getErrorMessage } from '../services/systemMessages';
 import { useAlert } from '../hooks/useAlert';
-import type { IVenueBlockedDate } from '../types/venue';
+import type { IVenueBlockedDate, IVenueTimeRestrictions } from '../types/venue';
 
 interface BlockedDatesManagerProps {
   venueId: string;
+  pricingType?: string;
+  timeRestrictions?: IVenueTimeRestrictions;
 }
 
-const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) => {
+const hourOptions = Array.from({ length: 24 }, (_, i) => {
+  const h = i.toString().padStart(2, '0');
+  return { value: `${h}:00`, label: `${h}h00` };
+});
+
+const toDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const FULL_DAY_TYPES = ['journee', 'soiree', 'forfait', 'gratuit', 'pourcentage_billetterie'];
+
+const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId, pricingType, timeRestrictions }) => {
+  const isFullDayPricing = FULL_DAY_TYPES.includes(pricingType || '');
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ date: '', startTime: '', endTime: '', reason: '' });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [form, setForm] = useState({ startTime: '', endTime: '', reason: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -22,16 +38,22 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
     queryFn: () => listBlockedDates(venueId),
   });
 
+  const minDate = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!form.date) errs.date = 'La date est requise.';
+    if (!selectedDate) errs.date = 'La date est requise.';
     if (form.startTime && form.endTime && form.startTime >= form.endTime) {
       errs.endTime = "L'heure de fin doit être après l'heure de début.";
     }
     return errs;
   };
 
-  const handleBlock = async (e: React.FormEvent) => {
+  const handleBlock = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
@@ -39,14 +61,16 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
     setIsSubmitting(true);
     try {
       await blockDate(venueId, {
-        date: form.date,
+        date: toDateStr(selectedDate!),
         startTime: form.startTime || undefined,
         endTime: form.endTime || undefined,
         reason: form.reason || undefined,
       });
       showSuccess(SuccessMessages.DATE_BLOCKED);
       queryClient.invalidateQueries({ queryKey: ['blocked-dates', venueId] });
-      setForm({ date: '', startTime: '', endTime: '', reason: '' });
+      setSelectedDate(undefined);
+      setForm({ startTime: '', endTime: '', reason: '' });
+      setShowCalendar(false);
     } catch (err) {
       showError(getErrorMessage(err, ErrorMessages.DATE_BLOCK_FAILED));
     } finally {
@@ -89,6 +113,12 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
     letterSpacing: '0.05em',
   };
 
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    cursor: 'pointer',
+    appearance: 'none',
+  };
+
   return (
     <div>
       <style>{`
@@ -98,6 +128,7 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
           .blocked-date-row button { align-self: flex-start; }
         }
       `}</style>
+
       {/* Formulaire d'ajout */}
       <div
         style={{
@@ -112,37 +143,151 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
           Bloquer une date
         </h4>
         <form onSubmit={handleBlock}>
-          <div className="blocked-dates-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={labelStyle}>Date *</label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-                style={inputStyle}
-              />
-              {errors.date && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.date}</p>}
-            </div>
-            <div>
-              <label style={labelStyle}>Heure début (optionnel)</label>
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Heure fin (optionnel)</label>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))}
-                style={inputStyle}
-              />
-              {errors.endTime && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.endTime}</p>}
-            </div>
+          {/* Sélecteur de date */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Date *</label>
+            <button
+              type="button"
+              onClick={() => setShowCalendar((v) => !v)}
+              style={{
+                ...inputStyle,
+                textAlign: 'left',
+                cursor: 'pointer',
+                color: selectedDate ? '#fff' : '#666',
+                border: errors.date
+                  ? '1px solid #ef4444'
+                  : '1px solid rgba(255,255,255,0.12)',
+              }}
+            >
+              {selectedDate
+                ? selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                : 'Choisir une date…'}
+            </button>
+            {errors.date && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.date}</p>}
+
+            {showCalendar && (
+              <div
+                style={{
+                  marginTop: 8,
+                  background: 'rgba(20,10,30,0.95)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 12,
+                  padding: '8px 4px',
+                  display: 'inline-block',
+                }}
+              >
+                <StyledDayPicker
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setShowCalendar(false);
+                  }}
+                  disabled={[{ before: minDate }]}
+                  showOutsideDays={false}
+                />
+              </div>
+            )}
           </div>
+
+          {/* Note pour les types journée entière */}
+          {isFullDayPricing && (
+            <p style={{ fontSize: 12, color: '#aaa', marginBottom: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)' }}>
+              Ce type de tarification réserve la journée entière. Seul un blocage sans heure s'applique.
+            </p>
+          )}
+
+          {/* Raccourcis demi-journée */}
+          {pricingType === 'demi_journee' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: '#aaa', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Raccourcis :
+              </span>
+              {timeRestrictions?.matinEnabled !== false && (
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({
+                    ...p,
+                    startTime: timeRestrictions?.matinStart || '09:00',
+                    endTime:   timeRestrictions?.matinEnd   || '13:00',
+                  }))}
+                  style={{
+                    padding: '5px 12px',
+                    background: 'rgba(255,65,108,0.12)',
+                    color: '#ff416c',
+                    border: '1px solid rgba(255,65,108,0.3)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Matin ({timeRestrictions?.matinStart || '09:00'}–{timeRestrictions?.matinEnd || '13:00'})
+                </button>
+              )}
+              {timeRestrictions?.apremEnabled !== false && (
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({
+                    ...p,
+                    startTime: timeRestrictions?.apremStart || '14:00',
+                    endTime:   timeRestrictions?.apremEnd   || '18:00',
+                  }))}
+                  style={{
+                    padding: '5px 12px',
+                    background: 'rgba(255,65,108,0.12)',
+                    color: '#ff416c',
+                    border: '1px solid rgba(255,65,108,0.3)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Après-midi ({timeRestrictions?.apremStart || '14:00'}–{timeRestrictions?.apremEnd || '18:00'})
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Sélecteurs d'heures — masqués pour les types journée entière */}
+          {!isFullDayPricing && (
+            <div className="blocked-dates-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={labelStyle}>Heure début (optionnel)</label>
+                <select
+                  value={form.startTime}
+                  onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value, endTime: '' }))}
+                  style={selectStyle}
+                >
+                  <option value="" style={{ background: '#1a1a1a' }}>--</option>
+                  {hourOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Heure fin (optionnel)</label>
+                <select
+                  value={form.endTime}
+                  onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))}
+                  style={selectStyle}
+                  disabled={!form.startTime}
+                >
+                  <option value="" style={{ background: '#1a1a1a' }}>--</option>
+                  {hourOptions.filter((opt) => !form.startTime || opt.value > form.startTime).map((opt) => (
+                    <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a' }}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.endTime && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.endTime}</p>}
+              </div>
+            </div>
+          )}
+
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Raison (optionnel)</label>
             <input
@@ -153,6 +298,7 @@ const BlockedDatesManager: React.FC<BlockedDatesManagerProps> = ({ venueId }) =>
               style={inputStyle}
             />
           </div>
+
           <button
             type="submit"
             disabled={isSubmitting}

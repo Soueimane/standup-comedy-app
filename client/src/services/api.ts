@@ -473,6 +473,11 @@ export const getTakenSlots = async (venueId: string, date: string): Promise<{ st
   return response.data.slots;
 };
 
+export const getBookedDates = async (venueId: string): Promise<string[]> => {
+  const response = await api.get<{ dates: string[] }>(`/venues/${venueId}/taken-slots`);
+  return response.data.dates;
+};
+
 export const unblockDate = async (venueId: string, blockedDateId: string): Promise<void> => {
   await api.delete(`/venues/${venueId}/blocked-dates/${blockedDateId}`);
 };

@@ -14,7 +14,6 @@ import EditVenueForm from '../components/EditVenueForm';
 import VenueMap from '../components/VenueMap';
 import Navbar from '../components/Navbar';
 import ConfirmDialog from '../components/ConfirmDialog';
-import type { IVenue, IVenueBlockedDate } from '../types/venue';
 import { VENUE_TYPE_LABELS, CANCELLATION_POLICY_LABELS, CANCELLATION_POLICY_DESCRIPTIONS, getPricingLabel } from '../types/venue';
 
 type OwnerTab = 'info' | 'bookings' | 'blocked' | 'settings';
@@ -41,7 +40,6 @@ const VenueDetailPage: React.FC = () => {
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const { venue, isVenueLoading, isVenueError, blockedDates: rawBlockedDates, isBlockedDatesError } = useVenueDetail(venueId);
-  const blockedDates: Date[] = rawBlockedDates.map(d => new Date(d.date));
 
   const isOwner = venue && user && (venue.owner?._id === user._id || venue.owner?.id === user._id || (venue.owner as any) === user._id);
 
@@ -210,7 +208,11 @@ const VenueDetailPage: React.FC = () => {
 
         {/* Tab: Dates bloquées (owner) */}
         {isOwner && activeTab === 'blocked' && (
-          <BlockedDatesManager venueId={venue._id} />
+          <BlockedDatesManager
+            venueId={venue._id}
+            pricingType={venue.pricingType}
+            timeRestrictions={venue.timeRestrictions}
+          />
         )}
 
         {/* Tab: Paramètres (owner) */}
@@ -780,7 +782,7 @@ const VenueDetailPage: React.FC = () => {
                 <VenueBookingForm
                   venueId={venue._id}
                   venueName={venue.name}
-                  blockedDates={blockedDates}
+                  blockedDates={rawBlockedDates}
                   onBookingCreated={() => {}}
                   pricingType={venue.pricingType}
                   pricePerEvent={venue.pricePerEvent}
