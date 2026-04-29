@@ -8,6 +8,8 @@ import EmailPreferences from '../components/EmailPreferences';
 import DeleteAccountSection from '../components/DeleteAccountSection';
 import ExportDataSection from '../components/ExportDataSection';
 import UpgradeToOrganizerForm from '../components/UpgradeToOrganizerForm';
+import { switchToOrganizer } from '../services/api';
+import { useAlert } from '../hooks/useAlert';
 
 const ACCENT = '#e85d75';
 const ACCENT_GRADIENT = 'linear-gradient(135deg, #e85d75, #c13057)';
@@ -20,9 +22,11 @@ const VALUE_COLOR = '#e0e0e0';
 function LieuProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useAlert();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isSwitchingToOrganizer, setIsSwitchingToOrganizer] = useState(false);
   const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -39,6 +43,23 @@ function LieuProfilePage() {
   const handleSaveSuccess = () => {
     refreshUser();
     setIsEditing(false);
+  };
+
+  const canQuickSwitchToOrganizer = !!user?.canSwitchToLieu && !!user?.organizerProfile;
+
+  const handleSwitchToOrganizer = async () => {
+    if (!window.confirm('Basculer vers votre compte Organisateur ?')) return;
+    setIsSwitchingToOrganizer(true);
+    try {
+      await switchToOrganizer();
+      await refreshUser();
+      showSuccess('Passage au compte Organisateur effectué');
+      navigate('/dashboard');
+    } catch (error: any) {
+      showError(error?.response?.data?.message || 'Impossible de basculer vers le compte Organisateur');
+    } finally {
+      setIsSwitchingToOrganizer(false);
+    }
   };
 
   const mainContainerStyle: CSSProperties = {
@@ -211,20 +232,23 @@ function LieuProfilePage() {
             </button>
             <button
               type="button"
-              onClick={() => setIsUpgrading(true)}
-              disabled={isUpgrading}
+              onClick={canQuickSwitchToOrganizer ? handleSwitchToOrganizer : () => setIsUpgrading(true)}
+              disabled={isUpgrading || isSwitchingToOrganizer}
               style={{
                 padding: '10px 20px',
                 background: '#e85d75',
                 border: 'none',
                 borderRadius: '8px',
                 color: '#fff',
-                cursor: isUpgrading ? 'not-allowed' : 'pointer',
+                cursor: (isUpgrading || isSwitchingToOrganizer) ? 'not-allowed' : 'pointer',
                 fontWeight: 600,
                 fontSize: '14px',
+                opacity: (isUpgrading || isSwitchingToOrganizer) ? 0.7 : 1,
               }}
             >
-              Devenir Organisateur
+              {canQuickSwitchToOrganizer
+                ? (isSwitchingToOrganizer ? 'Switch en cours...' : 'Switcher vers organisateur')
+                : 'Devenir Organisateur'}
             </button>
           </div>
         </div>

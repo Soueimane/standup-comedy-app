@@ -98,8 +98,8 @@ const NotificationDropdown = () => {
 
     // Notifications de réservation de salle
     if (notification.type === 'venue_booking_request' && notification.relatedVenue?._id) {
-      // Le propriétaire est redirigé vers l'onglet réservations de sa salle
-      navigate(`/venues/${notification.relatedVenue._id}?tab=bookings`);
+      // Redirection centralisée vers la gestion des salles/réservations
+      navigate('/my-venues-management?tab=reservations');
       setIsOpen(false);
       return;
     }
@@ -112,8 +112,8 @@ const NotificationDropdown = () => {
       notification.type === 'venue_booking_payment_reminder' ||
       notification.type === 'venue_booking_payment_expired'
     ) {
-      // Le demandeur est redirigé vers ses réservations envoyées
-      navigate('/my-bookings');
+      // Redirection centralisée vers la gestion des salles/réservations
+      navigate('/my-venues-management?tab=reservations');
       setIsOpen(false);
       return;
     }

@@ -336,6 +336,10 @@ const userSchema = new Schema<UserDocument>({
   restrictedAt: {
     type: Date
   },
+  canSwitchToLieu: {
+    type: Boolean,
+    default: false
+  },
   // Consentement RGPD
   consent: {
     termsAccepted: {
