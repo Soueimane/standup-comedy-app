@@ -1,4 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { getDepartmentFromPostalCode } from '../utils/cityMapping';
+import { DEPARTMENT_TO_REGION } from '../utils/geographicMatching';
 
 export type CancellationPolicy = 'flexible' | 'moderate' | 'firm';
 
@@ -67,6 +69,8 @@ export interface VenueDocument extends Document {
   legalStatus?: string;
   siret?: string;
   invoicingAvailable?: boolean;
+  department?: string;
+  region?: string;
 }
 
 const venueSchema = new Schema<VenueDocument>(
@@ -140,11 +144,22 @@ const venueSchema = new Schema<VenueDocument>(
     legalStatus: { type: String },
     siret: { type: String },
     invoicingAvailable: { type: Boolean },
+    department: { type: String, index: true },
+    region: { type: String, index: true },
   },
   { timestamps: true }
 );
 
 venueSchema.index({ city: 1 });
 venueSchema.index({ owner: 1, isActive: 1 });
+
+venueSchema.pre('save', function (next) {
+  if (this.isModified('postalCode') || this.isNew) {
+    const dept = getDepartmentFromPostalCode(this.postalCode);
+    this.department = dept ?? undefined;
+    this.region = dept ? (DEPARTMENT_TO_REGION[dept] ?? undefined) : undefined;
+  }
+  next();
+});
 
 export const VenueModel = mongoose.model<VenueDocument>('Venue', venueSchema);

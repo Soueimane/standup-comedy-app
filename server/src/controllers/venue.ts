@@ -6,6 +6,8 @@ import { VenueBookingModel } from '../models/VenueBooking';
 import { VenueBlockedDateModel } from '../models/VenueBlockedDate';
 import { refundVenueBookings } from './venueBooking';
 import { updateVenueSchema } from '../validation/schemas';
+import { getDepartmentFromPostalCode } from '../utils/cityMapping';
+import { DEPARTMENT_TO_REGION, getDepartmentsByRegion, normalizeDepartment } from '../utils/geographicMatching';
 // ─── CRUD Venues ─────────────────────────────────────────────────────────────
 
 export const createVenue = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -30,7 +32,7 @@ export const createVenue = async (req: AuthRequest, res: Response): Promise<void
 
 export const listVenues = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { city, venueType, minCapacity, page = '1', limit = '20' } = req.query as Record<string, string>;
+    const { city, venueType, minCapacity, region, department, page = '1', limit = '20' } = req.query as Record<string, string>;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -62,6 +64,18 @@ export const listVenues = async (req: AuthRequest, res: Response): Promise<void>
     if (city) {
       const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.city = new RegExp(escaped, 'i');
+    }
+    if (region) {
+      const depts = getDepartmentsByRegion(region);
+      if (depts.length === 0) {
+        res.status(400).json({ message: `Région "${region}" inconnue` });
+        return;
+      }
+      filter.department = { $in: depts };
+    }
+    if (department) {
+      const normalizedDept = normalizeDepartment(department);
+      filter.department = normalizedDept;
     }
 
     const skip = (pageNum - 1) * safeLimit;
@@ -192,9 +206,15 @@ export const updateVenue = async (req: AuthRequest, res: Response): Promise<void
     }
 
     const validatedBody = updateVenueSchema.parse(req.body);
+    const updateData: Record<string, unknown> = { ...validatedBody };
+    if (validatedBody.postalCode) {
+      const dept = getDepartmentFromPostalCode(validatedBody.postalCode);
+      updateData.department = dept ?? undefined;
+      updateData.region = dept ? (DEPARTMENT_TO_REGION[dept] ?? undefined) : undefined;
+    }
     const updated = await VenueModel.findOneAndUpdate(
       { _id: venueId, owner: ownerId, isDeleted: { $ne: true } },
-      { $set: validatedBody },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
