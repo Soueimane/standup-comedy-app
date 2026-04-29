@@ -387,14 +387,29 @@ export const createVenue = async (data: Partial<IVenue> & { name: string; descri
   return response.data.venue;
 };
 
-export const listVenues = async (filters?: { city?: string; venueType?: string; minCapacity?: number; owner?: 'me' }): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
+export const listVenues = async (filters?: {
+  city?: string;
+  venueType?: string;
+  minCapacity?: number;
+  owner?: 'me';
+  region?: string;
+  department?: string;
+}): Promise<{ venues: IVenue[]; total: number; page: number; limit: number }> => {
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
   if (filters?.venueType) params.append('venueType', filters.venueType);
   if (filters?.minCapacity) params.append('minCapacity', filters.minCapacity.toString());
   if (filters?.owner) params.append('owner', filters.owner);
+  // department is more specific than region — send only one
+  if (filters?.department) {
+    params.append('department', filters.department);
+  } else if (filters?.region) {
+    params.append('region', filters.region);
+  }
   const query = params.toString();
-  const response = await api.get<{ venues: IVenue[]; total: number; page: number; limit: number }>(`/venues${query ? `?${query}` : ''}`);
+  const response = await api.get<{ venues: IVenue[]; total: number; page: number; limit: number }>(
+    `/venues${query ? `?${query}` : ''}`
+  );
   return response.data;
 };
 

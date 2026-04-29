@@ -1,26 +1,46 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import VenueCard from '../components/VenueCard';
 import Navbar from '../components/Navbar';
 import VenuesTabs from '../components/VenuesTabs';
 import { VENUE_TYPES } from '../types/venue';
 import { useVenues } from '../hooks/useVenues';
 import VenueCardSkeleton from '../components/skeletons/VenueCardSkeleton';
+import {
+  FRENCH_REGIONS,
+  FRENCH_DEPARTMENTS,
+  DEPARTMENTS_ORDER,
+} from '../utils/geographicMatching';
 
 const VENUE_TYPES_WITH_ALL = [
   { value: '', label: 'Tous les types' },
   ...VENUE_TYPES,
 ];
 
-const EMPTY_FILTERS = { city: '', venueType: '', minCapacity: '' };
+const REGION_OPTIONS = ['', ...Object.keys(FRENCH_REGIONS).sort()];
+
+const EMPTY_FILTERS = { city: '', venueType: '', minCapacity: '', region: '', department: '' };
 
 const VenuesPage: React.FC = () => {
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [activeFilters, setActiveFilters] = useState(EMPTY_FILTERS);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const filtersFromUrl = {
+    city: searchParams.get('city') ?? '',
+    venueType: searchParams.get('venueType') ?? '',
+    minCapacity: searchParams.get('minCapacity') ?? '',
+    region: searchParams.get('region') ?? '',
+    department: searchParams.get('department') ?? '',
+  };
+
+  const [filters, setFilters] = useState(filtersFromUrl);
+  const [activeFilters, setActiveFilters] = useState(filtersFromUrl);
 
   const { data: venuesResponse, isLoading, error } = useVenues({
     city: activeFilters.city || undefined,
     venueType: activeFilters.venueType || undefined,
     minCapacity: activeFilters.minCapacity ? parseInt(activeFilters.minCapacity) : undefined,
+    region: activeFilters.region || undefined,
+    department: activeFilters.department || undefined,
   });
 
   const data = venuesResponse?.venues;
@@ -28,12 +48,25 @@ const VenuesPage: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setActiveFilters({ ...filters });
+    const params: Record<string, string> = {};
+    if (filters.city) params.city = filters.city;
+    if (filters.venueType) params.venueType = filters.venueType;
+    if (filters.minCapacity) params.minCapacity = filters.minCapacity;
+    if (filters.region) params.region = filters.region;
+    if (filters.department) params.department = filters.department;
+    setSearchParams(params, { replace: true });
   };
 
   const handleReset = () => {
     setFilters(EMPTY_FILTERS);
     setActiveFilters(EMPTY_FILTERS);
+    setSearchParams({}, { replace: true });
   };
+
+  // Derived: departments to show in the dept selector
+  const availableDepartments = filters.region
+    ? (FRENCH_REGIONS[filters.region] ?? [])
+    : DEPARTMENTS_ORDER;
 
   const inputStyle: React.CSSProperties = {
     background: 'rgba(0,0,0,0.4)',
@@ -107,6 +140,38 @@ const VenuesPage: React.FC = () => {
               </option>
             ))}
           </select>
+
+          {/* Région */}
+          <select
+            value={filters.region}
+            onChange={(e) => {
+              const newRegion = e.target.value;
+              setFilters((p) => ({ ...p, region: newRegion, department: '' }));
+            }}
+            style={inputStyle}
+          >
+            <option value="" style={{ background: '#1a1a2e' }}>Toutes les régions</option>
+            {REGION_OPTIONS.filter(Boolean).map((r) => (
+              <option key={r} value={r} style={{ background: '#1a1a2e' }}>
+                {r}
+              </option>
+            ))}
+          </select>
+
+          {/* Département */}
+          <select
+            value={filters.department}
+            onChange={(e) => setFilters((p) => ({ ...p, department: e.target.value }))}
+            style={inputStyle}
+          >
+            <option value="" style={{ background: '#1a1a2e' }}>Tous les départements</option>
+            {availableDepartments.map((code) => (
+              <option key={code} value={code} style={{ background: '#1a1a2e' }}>
+                {code} — {FRENCH_DEPARTMENTS[code] ?? code}
+              </option>
+            ))}
+          </select>
+
           <input
             type="number"
             placeholder="👥 Capacité min."
@@ -131,7 +196,7 @@ const VenuesPage: React.FC = () => {
           >
             Rechercher
           </button>
-          {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity) && (
+          {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity || activeFilters.region || activeFilters.department) && (
             <button
               type="button"
               onClick={handleReset}
@@ -172,11 +237,11 @@ const VenuesPage: React.FC = () => {
             <div style={{ fontSize: 56, marginBottom: 16 }}>🏛️</div>
             <h3 style={{ color: '#fff', fontSize: 20, marginBottom: 8 }}>Aucune salle disponible</h3>
             <p style={{ color: '#888', fontSize: 15, marginBottom: 24 }}>
-              {activeFilters.city || activeFilters.venueType || activeFilters.minCapacity
+              {activeFilters.city || activeFilters.venueType || activeFilters.minCapacity || activeFilters.region || activeFilters.department
                 ? "Essayez d'autres critères de recherche."
                 : "Aucune salle n'a encore été ajoutée."}
             </p>
-            {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity) && (
+            {(activeFilters.city || activeFilters.venueType || activeFilters.minCapacity || activeFilters.region || activeFilters.department) && (
               <button
                 onClick={handleReset}
                 style={{

@@ -6,6 +6,8 @@ interface VenueFilters {
   venueType?: string;
   minCapacity?: number;
   owner?: 'me';
+  region?: string;
+  department?: string;
 }
 
 export function useVenues(filters?: VenueFilters) {
