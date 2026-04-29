@@ -16,7 +16,7 @@ interface EventDetailModalProps {
   }>;
   onAbsenceClick?: (participant: any, event: IEvent) => void;
   onComedianClick?: (participant: any) => void;
-  participantsSectionRef?: React.RefObject<HTMLDivElement>;
+  participantsSectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 const EventDetailModal: React.FC<EventDetailModalProps> = ({
