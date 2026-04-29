@@ -8,6 +8,7 @@ import EmailPreferences from '../components/EmailPreferences';
 import DeleteAccountSection from '../components/DeleteAccountSection';
 import ExportDataSection from '../components/ExportDataSection';
 import UpgradeToOrganizerForm from '../components/UpgradeToOrganizerForm';
+import Modal from '../components/Modal';
 import { switchToOrganizer } from '../services/api';
 import { useAlert } from '../hooks/useAlert';
 
@@ -27,6 +28,7 @@ function LieuProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [isSwitchingToOrganizer, setIsSwitchingToOrganizer] = useState(false);
+  const [isSwitchConfirmOpen, setIsSwitchConfirmOpen] = useState(false);
   const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -47,8 +49,7 @@ function LieuProfilePage() {
 
   const canQuickSwitchToOrganizer = !!user?.canSwitchToLieu && !!user?.organizerProfile;
 
-  const handleSwitchToOrganizer = async () => {
-    if (!window.confirm('Basculer vers votre compte Organisateur ?')) return;
+  const performSwitchToOrganizer = async () => {
     setIsSwitchingToOrganizer(true);
     try {
       await switchToOrganizer();
@@ -60,6 +61,11 @@ function LieuProfilePage() {
     } finally {
       setIsSwitchingToOrganizer(false);
     }
+  };
+
+  const handleSwitchToOrganizer = async () => {
+    setIsSwitchConfirmOpen(false);
+    await performSwitchToOrganizer();
   };
 
   const mainContainerStyle: CSSProperties = {
@@ -232,7 +238,7 @@ function LieuProfilePage() {
             </button>
             <button
               type="button"
-              onClick={canQuickSwitchToOrganizer ? handleSwitchToOrganizer : () => setIsUpgrading(true)}
+              onClick={canQuickSwitchToOrganizer ? () => setIsSwitchConfirmOpen(true) : () => setIsUpgrading(true)}
               disabled={isUpgrading || isSwitchingToOrganizer}
               style={{
                 padding: '10px 20px',
@@ -358,6 +364,48 @@ function LieuProfilePage() {
           }
         }}
       />
+      <Modal isOpen={isSwitchConfirmOpen} onClose={() => setIsSwitchConfirmOpen(false)}>
+        <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: '20px' }}>
+          Switcher vers organisateur
+        </h3>
+        <p style={{ margin: '0 0 20px', color: '#8b8fa8', fontSize: '14px', lineHeight: 1.5 }}>
+          Voulez-vous basculer vers votre compte organisateur maintenant ?
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setIsSwitchConfirmOpen(false)}
+            disabled={isSwitchingToOrganizer}
+            style={{
+              padding: '10px 18px',
+              borderRadius: '8px',
+              border: `1px solid ${BORDER}`,
+              background: 'transparent',
+              color: '#8b8fa8',
+              cursor: isSwitchingToOrganizer ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={handleSwitchToOrganizer}
+            disabled={isSwitchingToOrganizer}
+            style={{
+              padding: '10px 18px',
+              borderRadius: '8px',
+              border: 'none',
+              background: ACCENT,
+              color: '#fff',
+              fontWeight: 600,
+              cursor: isSwitchingToOrganizer ? 'not-allowed' : 'pointer',
+              opacity: isSwitchingToOrganizer ? 0.7 : 1,
+            }}
+          >
+            {isSwitchingToOrganizer ? 'Switch en cours...' : 'Confirmer'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
