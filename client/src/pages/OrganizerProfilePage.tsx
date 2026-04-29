@@ -1,4 +1,5 @@
 import { type CSSProperties, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../hooks/useAuth';
 import type { IUserData } from '../types/user';
@@ -6,6 +7,8 @@ import EditOrganizerProfileForm from '../components/EditOrganizerProfileForm';
 import EmailPreferences from '../components/EmailPreferences';
 import DeleteAccountSection from '../components/DeleteAccountSection';
 import ExportDataSection from '../components/ExportDataSection';
+import { switchToLieu } from '../services/api';
+import { useAlert } from '../hooks/useAlert';
 
 const ACCENT = '#e85d75';
 const ACCENT_GRADIENT = 'linear-gradient(135deg, #e85d75, #c13057)';
@@ -17,11 +20,14 @@ const VALUE_COLOR = '#e0e0e0';
 
 function OrganizerProfilePage() {
   const { user: authUser, refreshUser } = useAuth();
+  const { showSuccess, showError } = useAlert();
+  const navigate = useNavigate();
   const [user, setUser] = useState<IUserData | null>(authUser);
   const [isEditing, setIsEditing] = useState(false);
   const [scrollToField, setScrollToField] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'info' | 'profil'>('info');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isSwitchingToLieu, setIsSwitchingToLieu] = useState(false);
 
   useEffect(() => {
     setUser(authUser);
@@ -36,6 +42,21 @@ function OrganizerProfilePage() {
   const handleSaveSuccess = () => {
     refreshUser();
     setIsEditing(false);
+  };
+
+  const handleSwitchToLieu = async () => {
+    if (!window.confirm('Revenir au compte Lieu ?')) return;
+    setIsSwitchingToLieu(true);
+    try {
+      await switchToLieu();
+      await refreshUser();
+      showSuccess('Retour au compte Lieu effectué');
+      navigate('/profile/lieu');
+    } catch (error: any) {
+      showError(error?.response?.data?.message || 'Impossible de revenir au compte Lieu');
+    } finally {
+      setIsSwitchingToLieu(false);
+    }
   };
 
   const mainContainerStyle: CSSProperties = {
@@ -254,6 +275,22 @@ function OrganizerProfilePage() {
               </div>
               <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Évènements créés</div>
             </div>
+            {user?.canSwitchToLieu && (
+              <button
+                type="button"
+                onClick={handleSwitchToLieu}
+                disabled={isSwitchingToLieu}
+                style={{
+                  ...modifierButtonStyle,
+                  borderColor: 'rgba(232,93,117,0.5)',
+                  color: ACCENT,
+                  opacity: isSwitchingToLieu ? 0.7 : 1,
+                  cursor: isSwitchingToLieu ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSwitchingToLieu ? 'Changement...' : 'Revenir en compte Lieu'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsEditing(true)}

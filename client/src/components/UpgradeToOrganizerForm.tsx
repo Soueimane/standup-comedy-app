@@ -19,8 +19,6 @@ export default function UpgradeToOrganizerForm({ isOpen, onClose, onSuccess }: P
   const [website, setWebsite] = useState('');
   const [selectedVenueTypes, setSelectedVenueTypes] = useState<string[]>([]);
   const [eventFrequency, setEventFrequency] = useState('monthly');
-  const [budgetMin, setBudgetMin] = useState('');
-  const [budgetMax, setBudgetMax] = useState('');
   const [postalCode, setPostalCode] = useState('');
 
   // Reset form on modal close
@@ -30,8 +28,6 @@ export default function UpgradeToOrganizerForm({ isOpen, onClose, onSuccess }: P
     setWebsite('');
     setSelectedVenueTypes([]);
     setEventFrequency('monthly');
-    setBudgetMin('');
-    setBudgetMax('');
     setPostalCode('');
   };
 
@@ -49,9 +45,6 @@ export default function UpgradeToOrganizerForm({ isOpen, onClose, onSuccess }: P
 
   const handleSubmit = async () => {
     if (!postalCode.trim()) return showError('Le code postal est requis');
-    if (budgetMin && budgetMax && Number(budgetMin) > Number(budgetMax)) {
-      return showError('Le budget minimum ne peut pas dépasser le maximum');
-    }
     setLoading(true);
     try {
       await upgradeToOrganizer({
@@ -60,9 +53,6 @@ export default function UpgradeToOrganizerForm({ isOpen, onClose, onSuccess }: P
         website,
         venueTypes: selectedVenueTypes,
         eventFrequency,
-        averageBudget: budgetMin || budgetMax
-          ? { min: Number(budgetMin) || 0, max: Number(budgetMax) || 0 }
-          : undefined,
         postalCode: postalCode.trim(),
       });
       showSuccess('Compte converti en organisateur !');
@@ -155,17 +145,6 @@ export default function UpgradeToOrganizerForm({ isOpen, onClose, onSuccess }: P
             <option value="monthly">Mensuel</option>
             <option value="occasional">Occasionnel</option>
           </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#8b8fa8' }}>
-            Budget moyen (€)
-          </label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input style={{ ...inputStyle, flex: 1 }} type="number" placeholder="Min"
-              value={budgetMin} onChange={e => setBudgetMin(e.target.value)} />
-            <input style={{ ...inputStyle, flex: 1 }} type="number" placeholder="Max"
-              value={budgetMax} onChange={e => setBudgetMax(e.target.value)} />
-          </div>
         </div>
       </div>
 

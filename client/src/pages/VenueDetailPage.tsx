@@ -8,7 +8,6 @@ import { useVenueDetail } from '../hooks/useVenueDetail';
 import VenueDetailSkeleton from '../components/skeletons/VenueDetailSkeleton';
 import { useAuth } from '../hooks/useAuth';
 import VenueBookingForm from '../components/VenueBookingForm';
-import VenueBookingsManagement from '../components/VenueBookingsManagement';
 import BlockedDatesManager from '../components/BlockedDatesManager';
 import EditVenueForm from '../components/EditVenueForm';
 import VenueMap from '../components/VenueMap';
@@ -16,7 +15,7 @@ import Navbar from '../components/Navbar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { VENUE_TYPE_LABELS, CANCELLATION_POLICY_LABELS, CANCELLATION_POLICY_DESCRIPTIONS, getPricingLabel } from '../types/venue';
 
-type OwnerTab = 'info' | 'bookings' | 'blocked' | 'settings';
+type OwnerTab = 'info' | 'blocked' | 'settings';
 
 const VenueDetailPage: React.FC = () => {
   const { venueId } = useParams<{ venueId: string }>();
@@ -25,7 +24,7 @@ const VenueDetailPage: React.FC = () => {
   const { user } = useAuth();
   const { showSuccess, showError } = useAlert();
   const queryClient = useQueryClient();
-  const validTabs: OwnerTab[] = ['info', 'bookings', 'blocked', 'settings'];
+  const validTabs: OwnerTab[] = ['info', 'blocked', 'settings'];
   const tabParam = searchParams.get('tab');
   const initialTab: OwnerTab = validTabs.includes(tabParam as OwnerTab) ? (tabParam as OwnerTab) : 'info';
   const [activeTab, setActiveTab] = useState<OwnerTab>(initialTab);
@@ -171,7 +170,6 @@ const VenueDetailPage: React.FC = () => {
             {(
               [
                 { key: 'info', label: 'Informations' },
-                { key: 'bookings', label: 'Réservations' },
                 { key: 'blocked', label: 'Dates bloquées' },
                 { key: 'settings', label: 'Paramètres' },
               ] as { key: OwnerTab; label: string }[]
@@ -201,11 +199,6 @@ const VenueDetailPage: React.FC = () => {
       )}
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
-        {/* Tab: Réservations (owner) */}
-        {isOwner && activeTab === 'bookings' && (
-          <VenueBookingsManagement venueId={venue._id} initialStatus={searchParams.get('status') ?? undefined} />
-        )}
-
         {/* Tab: Dates bloquées (owner) */}
         {isOwner && activeTab === 'blocked' && (
           <BlockedDatesManager
