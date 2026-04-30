@@ -429,12 +429,11 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
                 bookedDay: bookedCalendarDates,
                 partiallyBlocked: partiallyBlockedDates,
               }}
-              modifiersStyles={{
-                fullyBlocked: { color: '#ef4444', textDecoration: 'line-through', opacity: 1, cursor: 'not-allowed' },
-                bookedDay:    { color: '#818cf8', textDecoration: 'line-through', opacity: 1, cursor: 'not-allowed' },
-                partiallyBlocked: { color: '#f97316' },
+              modifiersClassNames={{
+                fullyBlocked: 'rdp-day_fullyBlocked',
+                bookedDay: 'rdp-day_bookedDay',
+                partiallyBlocked: 'rdp-day_partiallyBlocked',
               }}
-              modifiersClassNames={{ partiallyBlocked: 'rdp-day_partiallyBlocked' }}
               showOutsideDays={false}
             />
           </div>
@@ -442,10 +441,10 @@ const VenueBookingForm: React.FC<VenueBookingFormProps> = ({
           {(fullDayBlockedDates.length > 0 || bookedCalendarDates.length > 0 || partiallyBlockedDates.length > 0) && (
             <div style={{ fontSize: 11, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {fullDayBlockedDates.length > 0 && (
-                <span style={{ color: '#ef4444' }}>● Dates barrées (rouge) = bloquées par le propriétaire</span>
+                <span style={{ color: '#ef4444' }}>● Dates en rouge (×) = bloquées par le propriétaire</span>
               )}
               {bookedCalendarDates.length > 0 && (
-                <span style={{ color: '#818cf8' }}>● Dates barrées (violet) = déjà réservées</span>
+                <span style={{ color: '#3b82f6' }}>● Dates en bleu = déjà réservées</span>
               )}
               {partiallyBlockedDates.length > 0 && (
                 <span style={{ color: '#f97316' }}>● Dates en orange = créneaux partiellement indisponibles</span>

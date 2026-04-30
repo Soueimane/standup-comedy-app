@@ -564,7 +564,8 @@ const VenueForm: React.FC<VenueFormProps> = ({
               value={formData.pricePerEvent}
               onChange={(e) => set('pricePerEvent', e.target.value)}
               placeholder={formData.pricingType === 'pourcentage_billetterie' ? '20' : '500'}
-              style={inputStyle}
+              disabled={formData.pricingType === 'gratuit'}
+              style={{ ...inputStyle, ...(formData.pricingType === 'gratuit' ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
             />
             {errors.pricePerEvent && <p style={errorStyle}>{errors.pricePerEvent}</p>}
           </div>
@@ -579,7 +580,18 @@ const VenueForm: React.FC<VenueFormProps> = ({
           </div>
           <div>
             <label style={labelStyle}>Type de tarification</label>
-            <select value={formData.pricingType} onChange={(e) => set('pricingType', e.target.value)} style={inputStyle}>
+            <select
+              value={formData.pricingType}
+              onChange={(e) => {
+                const type = e.target.value;
+                setFormData((p) => ({
+                  ...p,
+                  pricingType: type,
+                  pricePerEvent: type === 'gratuit' ? 0 : p.pricePerEvent,
+                }));
+              }}
+              style={inputStyle}
+            >
               <option value="" style={{ background: '#1a1a2e' }}>Choisir...</option>
               {PRICING_TYPES.map((t) => <option key={t.value} value={t.value} style={{ background: '#1a1a2e' }}>{t.label}</option>)}
             </select>
