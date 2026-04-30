@@ -47,12 +47,13 @@ const rdpCss = `
     border: 1px solid rgba(255,255,255,0.1);
   }
   .rdp-button:hover:not([disabled]) { background: rgba(255,65,108,0.25); color: #fff; }
-  .rdp-head_cell {
-    color: #d7d7d7;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
+  .rdp-weekday {
+    color: rgba(255, 255, 255, 0.75) !important;
+    opacity: 1 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
   }
   .rdp-day {
     color: #ffffff;
@@ -76,6 +77,35 @@ const rdpCss = `
   }
   .rdp-day_disabled {
     opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .rdp-day_fullyBlocked {
+    color: #ef4444 !important;
+    opacity: 1 !important;
+    cursor: not-allowed;
+    position: relative;
+  }
+  .rdp-day_fullyBlocked::before,
+  .rdp-day_fullyBlocked::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 65%;
+    height: 2px;
+    background: rgba(239, 68, 68, 0.75);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  .rdp-day_fullyBlocked::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  .rdp-day_fullyBlocked::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+  .rdp-day_bookedDay {
+    color: #3b82f6 !important;
+    opacity: 1 !important;
     cursor: not-allowed;
   }
   .rdp-day_partiallyBlocked {
